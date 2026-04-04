@@ -4,6 +4,45 @@ Ordsamling is a Vite + React app deployed to Cloudflare Pages. Entries are store
 
 ## Local development
 
+### Quick command reference
+
+Use Node 22 first:
+
+```bash
+nvm use
+```
+
+Install dependencies:
+
+```bash
+pnpm install
+```
+
+Frontend only (no Functions):
+
+```bash
+pnpm dev
+```
+
+Frontend + Pages Functions locally:
+
+```bash
+pnpm run build
+pnpm run dev:pages
+```
+
+Generate Cloudflare worker/binding types:
+
+```bash
+pnpm run cf-typegen
+```
+
+Optional: write directly to remote preview KV from local shell:
+
+```bash
+npx wrangler kv key put entries:v1 "[]" --binding LEXICON --preview --remote
+```
+
 Install dependencies:
 
 ```bash
@@ -104,6 +143,54 @@ npx --yes wrangler@4 pages deploy dist --project-name ordsamling --branch main
 ```
 
 After deployment, Cloudflare prints a preview URL and the production site is available at https://ordsamling.pages.dev.
+
+## KV troubleshooting
+
+If you do not see data in Cloudflare KV Pairs, run these commands from the project root.
+
+Use Node 22 first:
+
+```bash
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+nvm use 22
+```
+
+List keys in production KV namespace:
+
+```bash
+npx --yes wrangler@4 kv key list --binding LEXICON --remote
+```
+
+List keys in preview KV namespace:
+
+```bash
+npx --yes wrangler@4 kv key list --binding LEXICON --preview --remote
+```
+
+Write a test payload to production KV:
+
+```bash
+npx --yes wrangler@4 kv key put entries:v1 "[]" --binding LEXICON --remote
+```
+
+Write a test payload to preview KV:
+
+```bash
+npx --yes wrangler@4 kv key put entries:v1 "[]" --binding LEXICON --preview --remote
+```
+
+Read back payload from production KV:
+
+```bash
+npx --yes wrangler@4 kv key get entries:v1 --binding LEXICON --remote
+```
+
+Read back payload from preview KV:
+
+```bash
+npx --yes wrangler@4 kv key get entries:v1 --binding LEXICON --preview --remote
+```
 
 ## Release tag
 
