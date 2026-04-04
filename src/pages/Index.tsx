@@ -59,6 +59,24 @@ const Index = () => {
           <AddEntryForm onAdd={addEntry} onEdit={(id) => setEditingId(id)} findMatches={findMatches} />
         </div>
 
+        {/* Sort controls */}
+        <div className="flex gap-1.5">
+          {SORT_OPTIONS.map(({ value, label, icon: Icon }) => (
+            <button
+              key={value}
+              onClick={() => setSort(value)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full border transition-colors ${
+                sort === value
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-secondary text-secondary-foreground border-border hover:border-primary/40"
+              }`}
+            >
+              <Icon className="h-3 w-3" />
+              {label}
+            </button>
+          ))}
+        </div>
+
         {entries.length === 0 ? (
           <div className="text-center py-20 text-muted-foreground">
             {allEntries.length === 0 ? (
