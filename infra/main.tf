@@ -84,18 +84,6 @@ resource "cloudflare_zero_trust_access_application" "ordsamling" {
   auto_redirect_to_identity = false
 }
 
-# Block all access to the pages.dev URL so only the custom domain is usable.
-resource "cloudflare_zero_trust_access_application" "pages_dev_block" {
-  account_id       = var.cloudflare_account_id
-  name             = "Ordsamling (pages.dev – blocked)"
-  domain           = "${var.project_name}.pages.dev"
-  type             = "self_hosted"
-  session_duration = "1m"
-
-  allowed_idps              = []
-  auto_redirect_to_identity = false
-}
-
 resource "cloudflare_zero_trust_access_policy" "allow_emails" {
   account_id     = var.cloudflare_account_id
   application_id = cloudflare_zero_trust_access_application.ordsamling.id
