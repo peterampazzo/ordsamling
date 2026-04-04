@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Search, BookOpen } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useLexicon } from "@/hooks/useLexicon";
@@ -5,7 +6,8 @@ import { AddEntryForm } from "@/components/AddEntryForm";
 import { LexisCard } from "@/components/LexisCard";
 
 const Index = () => {
-  const { entries, allEntries, search, setSearch, addEntry, updateEntry, deleteEntry } = useLexicon();
+  const { entries, allEntries, search, setSearch, addEntry, updateEntry, deleteEntry, findMatches, findLinkedWords } = useLexicon();
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   return (
     <div className="min-h-screen bg-background">
@@ -30,7 +32,7 @@ const Index = () => {
               className="pl-9"
             />
           </div>
-          <AddEntryForm onAdd={addEntry} />
+          <AddEntryForm onAdd={addEntry} onEdit={(id) => setEditingId(id)} findMatches={findMatches} />
         </div>
 
         {entries.length === 0 ? (
@@ -48,7 +50,15 @@ const Index = () => {
         ) : (
           <div className="space-y-3">
             {entries.map((entry) => (
-              <LexisCard key={entry.id} entry={entry} onUpdate={updateEntry} onDelete={deleteEntry} />
+              <LexisCard
+                key={entry.id}
+                entry={entry}
+                onUpdate={updateEntry}
+                onDelete={deleteEntry}
+                linkedWords={findLinkedWords(entry)}
+                startEditing={editingId === entry.id}
+                onEditingDone={() => setEditingId(null)}
+              />
             ))}
           </div>
         )}
