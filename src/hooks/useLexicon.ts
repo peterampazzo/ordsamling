@@ -60,38 +60,19 @@ async function requestJson<T>(input: RequestInfo, init?: RequestInit): Promise<T
   return (await response.json()) as T;
 }
 
-let apiSupport: boolean | null = null;
-
-async function hasApiSupport() {
-  if (apiSupport !== null) {
-    return apiSupport;
-  }
-
-  try {
-    const response = await fetch("/api/entries");
-    apiSupport = response.ok;
-  } catch {
-    apiSupport = false;
-  }
-
-  return apiSupport;
+function isLocalStorageMode() {
+  return import.meta.env.DEV || window.location.hostname.endsWith(".pages.dev");
 }
 
 async function fetchEntries(): Promise<LexisEntry[]> {
-  try {
-    const response = await requestJson<{ entries: LexisEntry[] }>("/api/entries");
-    const entries = response.entries.map((entry) => normalizeEntry(entry));
-    saveLocalEntries(entries);
-    apiSupport = true;
-    return entries;
-  } catch (error) {
-    if (import.meta.env.DEV) {
-      apiSupport = false;
-      return loadLocalEntries();
-    }
-
-    throw error;
+  if (isLocalStorageMode()) {
+    return loadLocalEntries();
   }
+
+  const response = await requestJson<{ entries: LexisEntry[] }>("/api/entries");
+  const entries = response.entries.map((entry) => normalizeEntry(entry));
+  saveLocalEntries(entries);
+  return entries;
 }
 
 export function useLexicon() {
@@ -108,7 +89,7 @@ export function useLexicon() {
 
   const addMutation = useMutation({
     mutationFn: async (entry: LexisEntryInput) => {
-      if (import.meta.env.DEV && !(await hasApiSupport())) {
+      if (isLocalStorageMode()) {
         const createdEntry = normalizeEntry({
           ...entry,
           id: crypto.randomUUID(),
@@ -119,7 +100,6 @@ export function useLexicon() {
         return createdEntry;
       }
 
-      apiSupport = true;
       const response = await requestJson<{ entry: LexisEntry }>("/api/entries", {
         method: "POST",
         headers: {
@@ -140,7 +120,7 @@ export function useLexicon() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<LexisEntryInput> }) => {
-      if (import.meta.env.DEV && !(await hasApiSupport())) {
+      if (isLocalStorageMode()) {
         const nextEntries = loadLocalEntries().map((entry) =>
           entry.id === id ? normalizeEntry({ ...entry, ...updates }) : entry,
         );
@@ -148,7 +128,6 @@ export function useLexicon() {
         return nextEntries.find((entry) => entry.id === id) || null;
       }
 
-      apiSupport = true;
       const response = await requestJson<{ entry: LexisEntry }>(`/api/entries/${id}`, {
         method: "PUT",
         headers: {
@@ -169,13 +148,12 @@ export function useLexicon() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      if (import.meta.env.DEV && !(await hasApiSupport())) {
+      if (isLocalStorageMode()) {
         const nextEntries = loadLocalEntries().filter((entry) => entry.id !== id);
         saveLocalEntries(nextEntries);
         return;
       }
 
-      apiSupport = true;
       const response = await fetch(`/api/entries/${id}`, {
         method: "DELETE",
       });
