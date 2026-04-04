@@ -2,7 +2,22 @@ interface Env {
   LEXICON: KVNamespace;
 }
 
-type EntryType = "word" | "expression";
+type EntryType = "word" | "expression" | "noun" | "verb" | "adjective";
+
+const GRAMMAR_KEYS = [
+  "article",
+  "singularDefinite",
+  "pluralIndefinite",
+  "pluralDefinite",
+  "present",
+  "past",
+  "perfect",
+  "neuter",
+  "definite",
+  "plural",
+  "comparative",
+  "superlative",
+] as const;
 
 interface LexisEntry {
   id: string;
@@ -11,6 +26,7 @@ interface LexisEntry {
   italian: string;
   notes: string;
   type: EntryType;
+  grammar?: Record<string, string>;
   createdAt: number;
 }
 
@@ -53,15 +69,40 @@ async function writeEntries(env: Env, entries: LexisEntry[]) {
   await env.LEXICON.put(STORAGE_KEY, JSON.stringify(entries));
 }
 
+function normalizeEntryType(value: unknown): EntryType {
+  if (value === "expression" || value === "noun" || value === "verb" || value === "adjective") {
+    return value;
+  }
+  return "word";
+}
+
+function normalizeGrammar(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const raw = value as Record<string, unknown>;
+  const out: Record<string, string> = {};
+
+  for (const key of GRAMMAR_KEYS) {
+    const v = raw[key];
+    if (typeof v !== "string") continue;
+    const t = v.trim().slice(0, 240);
+    if (t) out[key] = t;
+  }
+
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 function normalizeEntry(value: unknown): LexisEntry | null {
   if (!value || typeof value !== "object") {
     return null;
   }
 
   const candidate = value as Record<string, unknown>;
-  const type = candidate.type === "expression" ? "expression" : "word";
+  const type = normalizeEntryType(candidate.type);
 
-  return {
+  const entry: LexisEntry = {
     id: typeof candidate.id === "string" ? candidate.id : crypto.randomUUID(),
     danish: typeof candidate.danish === "string" ? candidate.danish : "",
     english: typeof candidate.english === "string" ? candidate.english : "",
@@ -73,6 +114,13 @@ function normalizeEntry(value: unknown): LexisEntry | null {
         ? candidate.createdAt
         : Date.now(),
   };
+
+  const grammar = normalizeGrammar(candidate.grammar);
+  if (grammar) {
+    entry.grammar = grammar;
+  }
+
+  return entry;
 }
 
 function validateEntryUpdate(value: unknown): LexisEntryUpdate | null {
@@ -99,8 +147,22 @@ function validateEntryUpdate(value: unknown): LexisEntryUpdate | null {
     update.notes = candidate.notes.trim();
   }
 
-  if (candidate.type === "word" || candidate.type === "expression") {
+  if (
+    candidate.type === "word" ||
+    candidate.type === "expression" ||
+    candidate.type === "noun" ||
+    candidate.type === "verb" ||
+    candidate.type === "adjective"
+  ) {
     update.type = candidate.type;
+  }
+
+  if ("grammar" in candidate) {
+    if (candidate.grammar === null) {
+      update.grammar = undefined;
+    } else {
+      update.grammar = normalizeGrammar(candidate.grammar);
+    }
   }
 
   return update;
