@@ -27,3 +27,19 @@ dist-ssr
 
 # Cloudflare
 .wrangler
+
+# Local state files – never commit these
+terraform.tfstate
+terraform.tfstate.backup
+terraform.tfstate.d/
+
+# Terraform working directory
+.terraform/
+
+# Real tfvars contain secrets – only commit the .example file
+*.tfvars
+!terraform.tfvars
+
+# Crash log
+crash.log
+crash.*.log
