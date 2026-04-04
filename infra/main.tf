@@ -19,8 +19,10 @@ resource "cloudflare_workers_kv_namespace" "lexicon_preview" {
 # No `source` block is defined, so Terraform will not connect a Git provider.
 
 resource "cloudflare_pages_project" "ordsamling" {
-  account_id        = var.cloudflare_account_id
-  name              = var.project_name
+  account_id = var.cloudflare_account_id
+  name       = var.project_name
+  # Required by Cloudflare API even for Direct Upload projects.
+  # This does not configure a Git repository integration.
   production_branch = var.production_branch
 
   deployment_configs {

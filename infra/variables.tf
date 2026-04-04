@@ -10,7 +10,7 @@ variable "project_name" {
 }
 
 variable "production_branch" {
-  description = "Git branch used as production."
+  description = "Required by Cloudflare Pages API; does not imply Git integration."
   type        = string
   default     = "main"
 }
