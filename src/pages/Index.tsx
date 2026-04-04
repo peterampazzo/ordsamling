@@ -1,13 +1,37 @@
-import { useState } from "react";
-import { Search, BookOpen } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Search, BookOpen, ArrowDownAZ, Clock, Tag } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useLexicon } from "@/hooks/useLexicon";
 import { AddEntryForm } from "@/components/AddEntryForm";
 import { LexisCard } from "@/components/LexisCard";
+import type { LexisEntry } from "@/hooks/useLexicon";
+
+type SortMode = "newest" | "alpha" | "type";
+
+const sortEntries = (entries: LexisEntry[], mode: SortMode) => {
+  const sorted = [...entries];
+  switch (mode) {
+    case "newest":
+      return sorted.sort((a, b) => b.createdAt - a.createdAt);
+    case "alpha":
+      return sorted.sort((a, b) => (a.danish || a.english).localeCompare(b.danish || b.english, "da"));
+    case "type":
+      return sorted.sort((a, b) => a.type.localeCompare(b.type) || (a.danish || a.english).localeCompare(b.danish || b.english, "da"));
+  }
+};
+
+const SORT_OPTIONS: { value: SortMode; label: string; icon: typeof Clock }[] = [
+  { value: "newest", label: "Nyeste", icon: Clock },
+  { value: "alpha", label: "A–Å", icon: ArrowDownAZ },
+  { value: "type", label: "Type", icon: Tag },
+];
 
 const Index = () => {
   const { entries, allEntries, search, setSearch, addEntry, updateEntry, deleteEntry, findMatches, findLinkedWords } = useLexicon();
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [sort, setSort] = useState<SortMode>("newest");
+
+  const sorted = useMemo(() => sortEntries(entries, sort), [entries, sort]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -35,6 +59,24 @@ const Index = () => {
           <AddEntryForm onAdd={addEntry} onEdit={(id) => setEditingId(id)} findMatches={findMatches} />
         </div>
 
+        {/* Sort controls */}
+        <div className="flex gap-1.5">
+          {SORT_OPTIONS.map(({ value, label, icon: Icon }) => (
+            <button
+              key={value}
+              onClick={() => setSort(value)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full border transition-colors ${
+                sort === value
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-secondary text-secondary-foreground border-border hover:border-primary/40"
+              }`}
+            >
+              <Icon className="h-3 w-3" />
+              {label}
+            </button>
+          ))}
+        </div>
+
         {entries.length === 0 ? (
           <div className="text-center py-20 text-muted-foreground">
             {allEntries.length === 0 ? (
@@ -49,7 +91,7 @@ const Index = () => {
           </div>
         ) : (
           <div className="space-y-3">
-            {entries.map((entry) => (
+            {sorted.map((entry) => (
               <LexisCard
                 key={entry.id}
                 entry={entry}
