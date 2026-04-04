@@ -1,0 +1,98 @@
+name: Deploy on tag to Cloudflare Pages
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Read Node version from .nvmrc
+        id: read_node
+        run: |
+          if [ -f .nvmrc ]; then
+            NODE_VERSION=$(cat .nvmrc | tr -d '\n' | tr -d '\r')
+          else
+            NODE_VERSION=22
+          fi
+          echo "node_version=$NODE_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ steps.read_node.outputs.node_version }}
+
+      - name: Extract version from tag
+        id: vars
+        run: |
+          echo "GITHUB_REF=${GITHUB_REF}"
+          TAG=${GITHUB_REF#refs/tags/}
+          VERSION=${TAG#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Determine default branch and checkout
+        id: determine
+        run: |
+          # detect default branch (e.g. main) and checkout it
+          DEFAULT_BRANCH=$(git remote show origin | sed -n '/HEAD branch/s/.*: //p')
+          echo "default_branch=$DEFAULT_BRANCH" >> $GITHUB_OUTPUT
+          git checkout "$DEFAULT_BRANCH"
+
+      - name: Set build time
+        id: set_build_time
+        run: |
+          BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          echo "BUILD_TIME=$BUILD_TIME" >> $GITHUB_ENV
+          echo "build_time=$BUILD_TIME" >> $GITHUB_OUTPUT
+
+      - name: Write public/version.json
+        run: |
+          echo "{ \"version\": \"${{ steps.vars.outputs.version }}\", \"buildTime\": \"${{ env.BUILD_TIME }}\" }" > public/version.json
+
+      - name: Commit and push public/version.json (if changed)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git status --porcelain | grep -q 'public/version.json'; then
+            git add public/version.json
+            git commit -m "Bump version to ${{ steps.vars.outputs.version }} [skip ci]" || echo "No commit needed"
+            git push origin ${{ steps.determine.outputs.default_branch }}
+          else
+            echo "public/version.json unchanged"
+          fi
+
+      - name: Pull updated default branch
+        run: |
+          git pull origin ${{ steps.determine.outputs.default_branch }}
+
+      - name: Enable Corepack + pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@latest --activate
+
+      - name: Install dependencies (pnpm)
+        run: pnpm install
+
+      - name: Build (pnpm)
+        run: pnpm run build
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: ${{ vars.CLOUDFLARE_PROJECT_NAME }}
+          directory: './dist'
