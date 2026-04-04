@@ -34,6 +34,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ steps.read_node.outputs.node_version }}
+          cache: pnpm
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.2
 
       - name: Extract version from tag
         id: vars
@@ -78,13 +84,8 @@ jobs:
         run: |
           git pull origin ${{ steps.determine.outputs.default_branch }}
 
-      - name: Enable Corepack + pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@latest --activate
-
       - name: Install dependencies (pnpm)
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Build (pnpm)
         run: pnpm run build
