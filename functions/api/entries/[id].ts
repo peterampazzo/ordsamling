@@ -27,6 +27,15 @@ const json = (body: unknown, init?: ResponseInit) =>
     ...init,
   });
 
+function hasValidAccessToken(request: Request): boolean {
+  const cookieHeader = request.headers.get("cookie");
+  if (!cookieHeader) return false;
+
+  // Look for CF_Authorization cookie
+  const cookies = cookieHeader.split(";").map(c => c.trim());
+  return cookies.some(c => c.startsWith("CF_Authorization="));
+}
+
 async function readEntries(env: Env): Promise<LexisEntry[]> {
   const raw = await env.LEXICON.get(STORAGE_KEY, "json");
 
@@ -110,6 +119,10 @@ function getEntryId(params: Record<string, string | undefined>) {
 }
 
 export const onRequestPut: PagesFunction<Env> = async ({ request, env, params }) => {
+  if (!hasValidAccessToken(request)) {
+    return json({ error: "Unauthorized." }, { status: 401 });
+  }
+
   const id = getEntryId(params);
 
   if (!id) {
@@ -141,7 +154,11 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env, params })
   return json({ entry: nextEntry });
 };
 
-export const onRequestDelete: PagesFunction<Env> = async ({ env, params }) => {
+export const onRequestDelete: PagesFunction<Env> = async ({ request, env, params }) => {
+  if (!hasValidAccessToken(request)) {
+    return json({ error: "Unauthorized." }, { status: 401 });
+  }
+
   const id = getEntryId(params);
 
   if (!id) {
