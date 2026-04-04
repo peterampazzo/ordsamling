@@ -91,7 +91,7 @@ const Index = () => {
           </div>
         ) : (
           <div className="space-y-3">
-            {entries.map((entry) => (
+            {sorted.map((entry) => (
               <LexisCard
                 key={entry.id}
                 entry={entry}
