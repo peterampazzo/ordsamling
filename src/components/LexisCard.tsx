@@ -7,21 +7,29 @@ import type { LexisEntry } from "@/hooks/useLexicon";
 
 interface Props {
   entry: LexisEntry;
-  onUpdate: (id: string, updates: Partial<Omit<LexisEntry, "id" | "createdAt">>) => void;
-  onDelete: (id: string) => void;
+  onUpdate: (id: string, updates: Partial<Omit<LexisEntry, "id" | "createdAt">>) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
   linkedWords: LexisEntry[];
   startEditing?: boolean;
   onEditingDone?: () => void;
+  disabled?: boolean;
 }
 
-export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing = false, onEditingDone }: Props) {
+export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing = false, onEditingDone, disabled = false }: Props) {
   const [editing, setEditing] = useState(startEditing);
   const [draft, setDraft] = useState(entry);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const save = () => {
-    onUpdate(entry.id, { danish: draft.danish, english: draft.english, italian: draft.italian, notes: draft.notes, type: draft.type });
-    setEditing(false);
-    onEditingDone?.();
+  const save = async () => {
+    setIsSubmitting(true);
+
+    try {
+      await onUpdate(entry.id, { danish: draft.danish, english: draft.english, italian: draft.italian, notes: draft.notes, type: draft.type });
+      setEditing(false);
+      onEditingDone?.();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const cancel = () => {
@@ -33,14 +41,14 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
     return (
       <div className="rounded-lg border border-ring/30 bg-card p-4 shadow-sm space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          <Input value={draft.danish} onChange={(e) => setDraft({ ...draft, danish: e.target.value })} autoFocus />
-          <Input value={draft.english} onChange={(e) => setDraft({ ...draft, english: e.target.value })} />
-          <Input value={draft.italian} onChange={(e) => setDraft({ ...draft, italian: e.target.value })} />
+          <Input value={draft.danish} onChange={(e) => setDraft({ ...draft, danish: e.target.value })} autoFocus disabled={disabled || isSubmitting} />
+          <Input value={draft.english} onChange={(e) => setDraft({ ...draft, english: e.target.value })} disabled={disabled || isSubmitting} />
+          <Input value={draft.italian} onChange={(e) => setDraft({ ...draft, italian: e.target.value })} disabled={disabled || isSubmitting} />
         </div>
-        <Textarea value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} rows={2} />
+        <Textarea value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} rows={2} disabled={disabled || isSubmitting} />
         <div className="flex gap-2 justify-end">
-          <Button size="sm" variant="ghost" onClick={cancel}><X className="h-4 w-4" /></Button>
-          <Button size="sm" onClick={save}><Check className="h-4 w-4" /></Button>
+          <Button size="sm" variant="ghost" onClick={cancel} disabled={isSubmitting}><X className="h-4 w-4" /></Button>
+          <Button size="sm" onClick={() => void save()} disabled={disabled || isSubmitting}><Check className="h-4 w-4" /></Button>
         </div>
       </div>
     );
@@ -73,10 +81,10 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
           </div>
         </div>
         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-          <button onClick={() => { setDraft(entry); setEditing(true); }} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+          <button onClick={() => { setDraft(entry); setEditing(true); }} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" disabled={disabled}>
             <Pencil className="h-3.5 w-3.5" />
           </button>
-          <button onClick={() => onDelete(entry.id)} className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
+          <button onClick={() => void onDelete(entry.id)} className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors" disabled={disabled}>
             <Trash2 className="h-3.5 w-3.5" />
           </button>
         </div>

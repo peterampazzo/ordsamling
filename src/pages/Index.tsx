@@ -27,7 +27,19 @@ const SORT_OPTIONS: { value: SortMode; label: string; icon: typeof Clock }[] = [
 ];
 
 const Index = () => {
-  const { entries, allEntries, search, setSearch, addEntry, updateEntry, deleteEntry, findMatches, findLinkedWords } = useLexicon();
+  const {
+    entries,
+    allEntries,
+    search,
+    setSearch,
+    addEntry,
+    updateEntry,
+    deleteEntry,
+    findMatches,
+    findLinkedWords,
+    isLoading,
+    isSaving,
+  } = useLexicon();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [sort, setSort] = useState<SortMode>("newest");
 
@@ -56,7 +68,7 @@ const Index = () => {
               className="pl-9"
             />
           </div>
-          <AddEntryForm onAdd={addEntry} onEdit={(id) => setEditingId(id)} findMatches={findMatches} />
+          <AddEntryForm onAdd={addEntry} onEdit={(id) => setEditingId(id)} findMatches={findMatches} disabled={isSaving} />
         </div>
 
         {/* Sort controls */}
@@ -77,7 +89,11 @@ const Index = () => {
           ))}
         </div>
 
-        {entries.length === 0 ? (
+        {isLoading ? (
+          <div className="text-center py-20 text-muted-foreground">
+            <p className="text-lg">Indlæser ord...</p>
+          </div>
+        ) : entries.length === 0 ? (
           <div className="text-center py-20 text-muted-foreground">
             {allEntries.length === 0 ? (
               <>
@@ -100,6 +116,7 @@ const Index = () => {
                 linkedWords={findLinkedWords(entry)}
                 startEditing={editingId === entry.id}
                 onEditingDone={() => setEditingId(null)}
+                disabled={isSaving}
               />
             ))}
           </div>

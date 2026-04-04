@@ -6,18 +6,20 @@ import { Plus, X, ArrowRight } from "lucide-react";
 import type { LexisEntry, EntryType } from "@/hooks/useLexicon";
 
 interface Props {
-  onAdd: (entry: Omit<LexisEntry, "id" | "createdAt">) => void;
+  onAdd: (entry: Omit<LexisEntry, "id" | "createdAt">) => Promise<void>;
   onEdit: (id: string) => void;
   findMatches: (query: string) => LexisEntry[];
+  disabled?: boolean;
 }
 
-export function AddEntryForm({ onAdd, onEdit, findMatches }: Props) {
+export function AddEntryForm({ onAdd, onEdit, findMatches, disabled = false }: Props) {
   const [open, setOpen] = useState(false);
   const [danish, setDanish] = useState("");
   const [english, setEnglish] = useState("");
   const [italian, setItalian] = useState("");
   const [notes, setNotes] = useState("");
   const [type, setType] = useState<EntryType>("word");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const reset = () => {
     setDanish(""); setEnglish(""); setItalian(""); setNotes(""); setType("word");
@@ -27,16 +29,23 @@ export function AddEntryForm({ onAdd, onEdit, findMatches }: Props) {
   const activeQuery = danish || english || italian;
   const matches = useMemo(() => findMatches(activeQuery), [findMatches, activeQuery]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!danish.trim() && !english.trim() && !italian.trim()) return;
-    onAdd({ danish: danish.trim(), english: english.trim(), italian: italian.trim(), notes: notes.trim(), type });
-    reset();
+    setIsSubmitting(true);
+
+    try {
+      await onAdd({ danish: danish.trim(), english: english.trim(), italian: italian.trim(), notes: notes.trim(), type });
+      reset();
+      setOpen(false);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!open) {
     return (
-      <Button onClick={() => setOpen(true)} className="gap-2">
+      <Button onClick={() => setOpen(true)} className="gap-2" disabled={disabled}>
         <Plus className="h-4 w-4" />
         Tilføj ord
       </Button>
@@ -59,6 +68,7 @@ export function AddEntryForm({ onAdd, onEdit, findMatches }: Props) {
             key={t}
             type="button"
             onClick={() => setType(t)}
+            disabled={disabled || isSubmitting}
             className={`px-3 py-1 text-xs rounded-full border transition-colors ${
               type === t
                 ? "bg-primary text-primary-foreground border-primary"
@@ -73,15 +83,15 @@ export function AddEntryForm({ onAdd, onEdit, findMatches }: Props) {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
           <label className="text-xs font-medium text-lang-da mb-1 block">🇩🇰 Dansk</label>
-          <Input value={danish} onChange={(e) => setDanish(e.target.value)} placeholder="dansk ord..." autoFocus />
+          <Input value={danish} onChange={(e) => setDanish(e.target.value)} placeholder="dansk ord..." autoFocus disabled={disabled || isSubmitting} />
         </div>
         <div>
           <label className="text-xs font-medium text-lang-en mb-1 block">🇬🇧 English</label>
-          <Input value={english} onChange={(e) => setEnglish(e.target.value)} placeholder="english word..." />
+          <Input value={english} onChange={(e) => setEnglish(e.target.value)} placeholder="english word..." disabled={disabled || isSubmitting} />
         </div>
         <div>
           <label className="text-xs font-medium text-lang-it mb-1 block">🇮🇹 Italiano</label>
-          <Input value={italian} onChange={(e) => setItalian(e.target.value)} placeholder="parola italiana..." />
+          <Input value={italian} onChange={(e) => setItalian(e.target.value)} placeholder="parola italiana..." disabled={disabled || isSubmitting} />
         </div>
       </div>
 
@@ -109,11 +119,11 @@ export function AddEntryForm({ onAdd, onEdit, findMatches }: Props) {
 
       <div>
         <label className="text-xs font-medium text-muted-foreground mb-1 block">📝 Noter</label>
-        <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="grammatik, eksempler, kontekst..." rows={2} />
+        <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="grammatik, eksempler, kontekst..." rows={2} disabled={disabled || isSubmitting} />
       </div>
       <div className="flex gap-2 justify-end">
-        <Button type="button" variant="ghost" onClick={() => { setOpen(false); reset(); }}>Annuller</Button>
-        <Button type="submit">Gem</Button>
+        <Button type="button" variant="ghost" onClick={() => { setOpen(false); reset(); }} disabled={isSubmitting}>Annuller</Button>
+        <Button type="submit" disabled={disabled || isSubmitting}>{isSubmitting ? "Gemmer..." : "Gem"}</Button>
       </div>
     </form>
   );

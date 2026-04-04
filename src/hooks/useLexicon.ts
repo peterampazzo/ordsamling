@@ -1,93 +1,271 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "@/components/ui/sonner";
+import type { EntryType, LexisEntry, LexisEntryInput } from "@/lib/lexicon";
 
-export type EntryType = "word" | "expression";
-
-export interface LexisEntry {
-  id: string;
-  danish: string;
-  english: string;
-  italian: string;
-  notes: string;
-  type: EntryType;
-  createdAt: number;
-}
+export type { EntryType, LexisEntry } from "@/lib/lexicon";
 
 const STORAGE_KEY = "lexikon-entries";
+const ENTRIES_QUERY_KEY = ["entries"];
 
-function loadEntries(): LexisEntry[] {
+function normalizeEntry(entry: Partial<LexisEntry>): LexisEntry {
+  return {
+    id: entry.id || crypto.randomUUID(),
+    danish: entry.danish || "",
+    english: entry.english || "",
+    italian: entry.italian || "",
+    notes: entry.notes || "",
+    type: entry.type === "expression" ? "expression" : "word",
+    createdAt: typeof entry.createdAt === "number" ? entry.createdAt : Date.now(),
+  };
+}
+
+function loadLocalEntries(): LexisEntry[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
-    // migrate old entries without type
-    return parsed.map((e: any) => ({ ...e, type: e.type || "word" }));
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.map((entry) => normalizeEntry(entry));
   } catch {
     return [];
   }
 }
 
+function saveLocalEntries(entries: LexisEntry[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+}
+
+async function requestJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
+  const response = await fetch(input, init);
+
+  if (!response.ok) {
+    let message = "Request failed.";
+
+    try {
+      const body = (await response.json()) as { error?: string };
+      if (body.error) {
+        message = body.error;
+      }
+    } catch {
+      // Ignore JSON parsing failures and fall back to the default message.
+    }
+
+    throw new Error(message);
+  }
+
+  return (await response.json()) as T;
+}
+
+let apiSupport: boolean | null = null;
+
+async function hasApiSupport() {
+  if (apiSupport !== null) {
+    return apiSupport;
+  }
+
+  try {
+    const response = await fetch("/api/entries");
+    apiSupport = response.ok;
+  } catch {
+    apiSupport = false;
+  }
+
+  return apiSupport;
+}
+
+async function fetchEntries(): Promise<LexisEntry[]> {
+  try {
+    const response = await requestJson<{ entries: LexisEntry[] }>("/api/entries");
+    const entries = response.entries.map((entry) => normalizeEntry(entry));
+    saveLocalEntries(entries);
+    apiSupport = true;
+    return entries;
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      apiSupport = false;
+      return loadLocalEntries();
+    }
+
+    throw error;
+  }
+}
+
 export function useLexicon() {
-  const [entries, setEntries] = useState<LexisEntry[]>(loadEntries);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-  }, [entries]);
-
-  const addEntry = useCallback((entry: Omit<LexisEntry, "id" | "createdAt">) => {
-    setEntries((prev) => [
-      { ...entry, id: crypto.randomUUID(), createdAt: Date.now() },
-      ...prev,
-    ]);
-  }, []);
-
-  const updateEntry = useCallback((id: string, updates: Partial<Omit<LexisEntry, "id" | "createdAt">>) => {
-    setEntries((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, ...updates } : e))
-    );
-  }, []);
-
-  const deleteEntry = useCallback((id: string) => {
-    setEntries((prev) => prev.filter((e) => e.id !== id));
-  }, []);
-
-  /** Find entries matching a partial query across all language fields */
-  const findMatches = useCallback((query: string): LexisEntry[] => {
-    if (!query || query.length < 2) return [];
-    const q = query.toLowerCase();
-    return entries.filter(
-      (e) =>
-        e.danish.toLowerCase().includes(q) ||
-        e.english.toLowerCase().includes(q) ||
-        e.italian.toLowerCase().includes(q)
-    );
-  }, [entries]);
-
-  /** Find single-word entries that appear within an expression's text */
-  const findLinkedWords = useCallback((entry: LexisEntry): LexisEntry[] => {
-    if (entry.type !== "expression") return [];
-    const words = [entry.danish, entry.english, entry.italian]
-      .flatMap((t) => t.toLowerCase().split(/\s+/))
-      .filter((w) => w.length > 2);
-    return entries.filter(
-      (e) =>
-        e.type === "word" &&
-        e.id !== entry.id &&
-        [e.danish, e.english, e.italian].some((field) =>
-          words.includes(field.toLowerCase())
-        )
-    );
-  }, [entries]);
-
-  const filtered = entries.filter((e) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (
-      e.danish.toLowerCase().includes(q) ||
-      e.english.toLowerCase().includes(q) ||
-      e.italian.toLowerCase().includes(q) ||
-      e.notes.toLowerCase().includes(q)
-    );
+  const entriesQuery = useQuery({
+    queryKey: ENTRIES_QUERY_KEY,
+    queryFn: fetchEntries,
+    initialData: loadLocalEntries,
   });
 
-  return { entries: filtered, allEntries: entries, search, setSearch, addEntry, updateEntry, deleteEntry, findMatches, findLinkedWords };
+  const allEntries = useMemo(() => entriesQuery.data || [], [entriesQuery.data]);
+
+  const addMutation = useMutation({
+    mutationFn: async (entry: LexisEntryInput) => {
+      if (import.meta.env.DEV && !(await hasApiSupport())) {
+        const createdEntry = normalizeEntry({
+          ...entry,
+          id: crypto.randomUUID(),
+          createdAt: Date.now(),
+        });
+        const nextEntries = [createdEntry, ...loadLocalEntries()];
+        saveLocalEntries(nextEntries);
+        return createdEntry;
+      }
+
+      apiSupport = true;
+      const response = await requestJson<{ entry: LexisEntry }>("/api/entries", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(entry),
+      });
+
+      return normalizeEntry(response.entry);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ENTRIES_QUERY_KEY });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Could not save entry.");
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<LexisEntryInput> }) => {
+      if (import.meta.env.DEV && !(await hasApiSupport())) {
+        const nextEntries = loadLocalEntries().map((entry) =>
+          entry.id === id ? normalizeEntry({ ...entry, ...updates }) : entry,
+        );
+        saveLocalEntries(nextEntries);
+        return nextEntries.find((entry) => entry.id === id) || null;
+      }
+
+      apiSupport = true;
+      const response = await requestJson<{ entry: LexisEntry }>(`/api/entries/${id}`, {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(updates),
+      });
+
+      return normalizeEntry(response.entry);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ENTRIES_QUERY_KEY });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Could not update entry.");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      if (import.meta.env.DEV && !(await hasApiSupport())) {
+        const nextEntries = loadLocalEntries().filter((entry) => entry.id !== id);
+        saveLocalEntries(nextEntries);
+        return;
+      }
+
+      apiSupport = true;
+      const response = await fetch(`/api/entries/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("Could not delete entry.");
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ENTRIES_QUERY_KEY });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Could not delete entry.");
+    },
+  });
+
+  const addEntry = useCallback(async (entry: LexisEntryInput) => {
+    await addMutation.mutateAsync(entry);
+  }, [addMutation]);
+
+  const updateEntry = useCallback(async (id: string, updates: Partial<LexisEntryInput>) => {
+    await updateMutation.mutateAsync({ id, updates });
+  }, [updateMutation]);
+
+  const deleteEntry = useCallback(async (id: string) => {
+    await deleteMutation.mutateAsync(id);
+  }, [deleteMutation]);
+
+  const findMatches = useCallback((query: string): LexisEntry[] => {
+    if (!query || query.length < 2) {
+      return [];
+    }
+
+    const lowerQuery = query.toLowerCase();
+
+    return allEntries.filter(
+      (entry) =>
+        entry.danish.toLowerCase().includes(lowerQuery) ||
+        entry.english.toLowerCase().includes(lowerQuery) ||
+        entry.italian.toLowerCase().includes(lowerQuery),
+    );
+  }, [allEntries]);
+
+  const findLinkedWords = useCallback((entry: LexisEntry): LexisEntry[] => {
+    if (entry.type !== "expression") {
+      return [];
+    }
+
+    const words = [entry.danish, entry.english, entry.italian]
+      .flatMap((text) => text.toLowerCase().split(/\s+/))
+      .filter((word) => word.length > 2);
+
+    return allEntries.filter(
+      (candidate) =>
+        candidate.type === "word" &&
+        candidate.id !== entry.id &&
+        [candidate.danish, candidate.english, candidate.italian].some((field) =>
+          words.includes(field.toLowerCase()),
+        ),
+    );
+  }, [allEntries]);
+
+  const filtered = useMemo(() => {
+    return allEntries.filter((entry) => {
+      if (!search) {
+        return true;
+      }
+
+      const lowerQuery = search.toLowerCase();
+
+      return (
+        entry.danish.toLowerCase().includes(lowerQuery) ||
+        entry.english.toLowerCase().includes(lowerQuery) ||
+        entry.italian.toLowerCase().includes(lowerQuery) ||
+        entry.notes.toLowerCase().includes(lowerQuery)
+      );
+    });
+  }, [allEntries, search]);
+
+  return {
+    entries: filtered,
+    allEntries,
+    search,
+    setSearch,
+    addEntry,
+    updateEntry,
+    deleteEntry,
+    findMatches,
+    findLinkedWords,
+    isLoading: entriesQuery.isLoading,
+    isSaving: addMutation.isPending || updateMutation.isPending || deleteMutation.isPending,
+  };
 }

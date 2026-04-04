@@ -60,7 +60,7 @@ jobs:
 
       - name: Write public/version.json
         run: |
-          echo "{ \"version\": \"${{ steps.vars.outputs.version }}\", \"buildTime\": \"${{ env.BUILD_TIME }}\" }" > public/version.json
+          echo "{ \"version\": \"${{ steps.vars.outputs.version }}\", \"buildTime\": \"${{ steps.set_build_time.outputs.build_time }}\" }" > public/version.json
 
       - name: Commit and push public/version.json (if changed)
         run: |
@@ -89,10 +89,9 @@ jobs:
       - name: Build (pnpm)
         run: pnpm run build
 
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/pages-action@v1
+      - name: Deploy to Cloudflare Pages with Wrangler
+        uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: ${{ vars.CLOUDFLARE_PROJECT_NAME }}
-          directory: './dist'
+          command: pages deploy dist --project-name=${{ vars.CLOUDFLARE_PROJECT_NAME }}
