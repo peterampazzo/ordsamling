@@ -86,6 +86,18 @@ const Index = () => {
               variant="outline"
               className="shrink-0 h-9 w-9 p-0"
               asChild
+              aria-label="Ordquiz"
+            >
+              <Link to="/quiz">
+                <Brain className="h-4 w-4" />
+              </Link>
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="shrink-0 h-9 w-9 p-0"
+              asChild
               aria-label="Masseimport"
             >
               <Link to="/import">
