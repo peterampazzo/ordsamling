@@ -51,7 +51,7 @@ const Index = () => {
   } = useLexicon();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [addFormOpen, setAddFormOpen] = useState(false);
-  const [sort, setSort] = useState<SortMode>("newest");
+  const [sort, setSort] = useState<SortMode>("alpha");
 
   const sorted = useMemo(() => sortEntries(entries, sort), [entries, sort]);
 
