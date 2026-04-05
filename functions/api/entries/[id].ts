@@ -176,8 +176,9 @@ async function getPayload<T>(request: Request): Promise<T | null> {
   }
 }
 
-function getEntryId(params: Record<string, string | undefined>) {
-  return typeof params.id === "string" ? params.id : null;
+function getEntryId(params: Params) {
+  const id = params.id;
+  return typeof id === "string" ? id : null;
 }
 
 export const onRequestPut: PagesFunction<Env> = async ({ request, env, params }) => {
