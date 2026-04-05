@@ -320,7 +320,7 @@ export default function BulkImport() {
       try {
         await addEntry(row.entry);
         newResults.push({ rowIndex: row.rowIndex, status: "imported" });
-        await sleep(50); // Throttle to avoid overwhelming the backend
+        await new Promise((r) => setTimeout(r, 50)); // Throttle
       } catch (err) {
         console.error(`Failed to import row ${row.rowIndex}:`, err);
         newResults.push({
