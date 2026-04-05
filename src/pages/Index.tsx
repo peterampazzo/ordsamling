@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
-import { Search, BookOpen, ArrowDownAZ, Clock, Tag, Plus } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Search, BookOpen, ArrowDownAZ, Clock, Tag, Plus, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -79,6 +80,18 @@ const Index = () => {
                 aria-label="Søg i ordbogen"
               />
             </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="shrink-0 h-9 w-9 p-0"
+              asChild
+              aria-label="Masseimport"
+            >
+              <Link to="/import">
+                <Upload className="h-4 w-4" />
+              </Link>
+            </Button>
             <Button
               type="button"
               size="sm"
