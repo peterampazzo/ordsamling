@@ -1,9 +1,16 @@
 import { useCallback, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/components/ui/sonner";
-import type { EntryType, LexisEntry, LexisEntryInput } from "@/lib/lexicon";
+import {
+  normalizeEntryType,
+  normalizeGrammar,
+  WORD_LIKE_TYPES,
+  type EntryType,
+  type LexisEntry,
+  type LexisEntryInput,
+} from "@/lib/lexicon";
 
-export type { EntryType, LexisEntry } from "@/lib/lexicon";
+export type { EntryGrammar, EntryType, LexisEntry } from "@/lib/lexicon";
 
 const STORAGE_KEY = "lexikon-entries";
 const ENTRIES_QUERY_KEY = ["entries"];
@@ -15,7 +22,8 @@ function normalizeEntry(entry: Partial<LexisEntry>): LexisEntry {
     english: entry.english || "",
     italian: entry.italian || "",
     notes: entry.notes || "",
-    type: entry.type === "expression" ? "expression" : "word",
+    type: normalizeEntryType(entry.type),
+    grammar: normalizeGrammar(entry.grammar),
     createdAt: typeof entry.createdAt === "number" ? entry.createdAt : Date.now(),
   };
 }
@@ -119,13 +127,31 @@ export function useLexicon() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Partial<LexisEntryInput> }) => {
+    mutationFn: async ({
+      id,
+      updates,
+    }: {
+      id: string;
+      updates: Partial<LexisEntryInput> & { grammar?: LexisEntry["grammar"] | null };
+    }) => {
       if (isLocalStorageMode()) {
-        const nextEntries = loadLocalEntries().map((entry) =>
-          entry.id === id ? normalizeEntry({ ...entry, ...updates }) : entry,
-        );
+        const nextEntries = loadLocalEntries().map((entry) => {
+          if (entry.id !== id) return entry;
+          const merged: LexisEntry = { ...entry, ...updates };
+          if (updates.grammar === null) {
+            delete merged.grammar;
+          } else if (updates.grammar !== undefined) {
+            merged.grammar = updates.grammar;
+          }
+          return normalizeEntry(merged);
+        });
         saveLocalEntries(nextEntries);
         return nextEntries.find((entry) => entry.id === id) || null;
+      }
+
+      const body: Record<string, unknown> = { ...updates };
+      if ("grammar" in updates) {
+        body.grammar = updates.grammar === undefined || updates.grammar === null ? null : updates.grammar;
       }
 
       const response = await requestJson<{ entry: LexisEntry }>(`/api/entries/${id}`, {
@@ -133,7 +159,7 @@ export function useLexicon() {
         headers: {
           "content-type": "application/json",
         },
-        body: JSON.stringify(updates),
+        body: JSON.stringify(body),
       });
 
       return normalizeEntry(response.entry);
@@ -174,9 +200,12 @@ export function useLexicon() {
     await addMutation.mutateAsync(entry);
   }, [addMutation]);
 
-  const updateEntry = useCallback(async (id: string, updates: Partial<LexisEntryInput>) => {
-    await updateMutation.mutateAsync({ id, updates });
-  }, [updateMutation]);
+  const updateEntry = useCallback(
+    async (id: string, updates: Partial<LexisEntryInput> & { grammar?: LexisEntry["grammar"] | null }) => {
+      await updateMutation.mutateAsync({ id, updates });
+    },
+    [updateMutation],
+  );
 
   const deleteEntry = useCallback(async (id: string) => {
     await deleteMutation.mutateAsync(id);
@@ -189,12 +218,21 @@ export function useLexicon() {
 
     const lowerQuery = query.toLowerCase();
 
-    return allEntries.filter(
-      (entry) =>
+    return allEntries.filter((entry) => {
+      const grammarHaystack = entry.grammar
+        ? Object.values(entry.grammar)
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase()
+        : "";
+
+      return (
         entry.danish.toLowerCase().includes(lowerQuery) ||
         entry.english.toLowerCase().includes(lowerQuery) ||
-        entry.italian.toLowerCase().includes(lowerQuery),
-    );
+        entry.italian.toLowerCase().includes(lowerQuery) ||
+        grammarHaystack.includes(lowerQuery)
+      );
+    });
   }, [allEntries]);
 
   const findLinkedWords = useCallback((entry: LexisEntry): LexisEntry[] => {
@@ -208,7 +246,7 @@ export function useLexicon() {
 
     return allEntries.filter(
       (candidate) =>
-        candidate.type === "word" &&
+        WORD_LIKE_TYPES.has(candidate.type) &&
         candidate.id !== entry.id &&
         [candidate.danish, candidate.english, candidate.italian].some((field) =>
           words.includes(field.toLowerCase()),
@@ -224,11 +262,19 @@ export function useLexicon() {
 
       const lowerQuery = search.toLowerCase();
 
+      const grammarHaystack = entry.grammar
+        ? Object.values(entry.grammar)
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase()
+        : "";
+
       return (
         entry.danish.toLowerCase().includes(lowerQuery) ||
         entry.english.toLowerCase().includes(lowerQuery) ||
         entry.italian.toLowerCase().includes(lowerQuery) ||
-        entry.notes.toLowerCase().includes(lowerQuery)
+        entry.notes.toLowerCase().includes(lowerQuery) ||
+        grammarHaystack.includes(lowerQuery)
       );
     });
   }, [allEntries, search]);
