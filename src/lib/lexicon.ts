@@ -104,6 +104,7 @@ export interface LexisEntry {
   id: string;
   danish: string;
   english: string;
+  italian: string;
   notes: string;
   type: EntryType;
   grammar?: EntryGrammar;

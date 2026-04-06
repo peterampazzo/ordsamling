@@ -18,6 +18,7 @@ interface Props {
 export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = false }: Props) {
   const [danish, setDanish] = useState("");
   const [english, setEnglish] = useState("");
+  const [italian, setItalian] = useState("");
   const [notes, setNotes] = useState("");
   const [type, setType] = useState<EntryType>("word");
   const [grammar, setGrammar] = useState<EntryGrammar>({});
@@ -26,17 +27,18 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
   const reset = () => {
     setDanish("");
     setEnglish("");
+    setItalian("");
     setNotes("");
     setType("word");
     setGrammar({});
   };
 
-  const activeQuery = danish || english;
+  const activeQuery = danish || english || italian;
   const matches = useMemo(() => findMatches(activeQuery), [findMatches, activeQuery]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!danish.trim() && !english.trim()) return;
+    if (!danish.trim() && !english.trim() && !italian.trim()) return;
     setIsSubmitting(true);
 
     try {
@@ -44,6 +46,7 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
       await onAdd({
         danish: danish.trim(),
         english: english.trim(),
+        italian: italian.trim(),
         notes: notes.trim(),
         type,
         ...(g ? { grammar: g } : {}),
@@ -64,7 +67,10 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
         <h3 className="text-base font-semibold truncate">Nyt ord</h3>
         <button
           type="button"
-          onClick={() => { reset(); onCancel(); }}
+          onClick={() => {
+            reset();
+            onCancel();
+          }}
           className="shrink-0 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           aria-label="Luk"
         >
@@ -77,7 +83,10 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
           <button
             key={t}
             type="button"
-            onClick={() => { if (type !== t) setGrammar({}); setType(t); }}
+            onClick={() => {
+              if (type !== t) setGrammar({});
+              setType(t);
+            }}
             disabled={disabled || isSubmitting}
             className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
               type === t
@@ -91,15 +100,43 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
       </div>
 
       <div className="space-y-1 min-w-0">
-        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Dansk</span>
-        <Input value={danish} onChange={(e) => setDanish(e.target.value)} placeholder="Dansk…" autoFocus disabled={disabled || isSubmitting} className="text-base font-medium min-w-0" />
+        <span className="sr-only">Dansk</span>
+        <Input
+          value={danish}
+          onChange={(e) => setDanish(e.target.value)}
+          placeholder="Dansk…"
+          autoFocus
+          disabled={disabled || isSubmitting}
+          className="text-base font-medium min-w-0"
+        />
       </div>
 
       <GrammarFields type={type} value={grammar} onChange={setGrammar} disabled={disabled || isSubmitting} />
 
-      <div className="space-y-1 min-w-0">
-        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">English</span>
-        <Input value={english} onChange={(e) => setEnglish(e.target.value)} placeholder="English…" disabled={disabled || isSubmitting} className="min-w-0" />
+      <div className="rounded-md border border-border bg-muted/25 p-2.5 space-y-2 min-w-0">
+        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Oversættelser</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 min-w-0">
+          <div className="min-w-0">
+            <span className="text-[10px] font-medium text-lang-en uppercase tracking-wider">English</span>
+            <Input
+              value={english}
+              onChange={(e) => setEnglish(e.target.value)}
+              placeholder="English…"
+              disabled={disabled || isSubmitting}
+              className="mt-0.5 min-w-0"
+            />
+          </div>
+          <div className="min-w-0">
+            <span className="text-[10px] font-medium text-lang-it uppercase tracking-wider">Italiano</span>
+            <Input
+              value={italian}
+              onChange={(e) => setItalian(e.target.value)}
+              placeholder="Italiano…"
+              disabled={disabled || isSubmitting}
+              className="mt-0.5 min-w-0"
+            />
+          </div>
+        </div>
       </div>
 
       {matches.length > 0 && (
@@ -109,12 +146,17 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
             <button
               key={m.id}
               type="button"
-              onClick={() => { onEdit(m.id); reset(); onCancel(); }}
+              onClick={() => {
+                onEdit(m.id);
+                reset();
+                onCancel();
+              }}
               className="flex items-center justify-between w-full min-w-0 text-left text-sm px-2 py-1.5 rounded-md hover:bg-muted transition-colors group gap-2"
             >
               <span className="truncate min-w-0">
                 <span className="text-lang-da">{m.danish}</span>
                 {m.english && <span className="text-muted-foreground"> · {m.english}</span>}
+                {m.italian && <span className="text-muted-foreground"> · {m.italian}</span>}
               </span>
               <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
             </button>
@@ -122,11 +164,31 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
         </div>
       )}
 
-      <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Noter — grammatik, eksempler…" rows={2} disabled={disabled || isSubmitting} className="min-w-0 resize-y" />
+      <Textarea
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        placeholder="Noter — grammatik, eksempler…"
+        rows={2}
+        disabled={disabled || isSubmitting}
+        className="min-w-0 resize-y"
+      />
 
       <div className="flex flex-wrap gap-2 justify-end pt-0.5">
-        <Button type="button" variant="ghost" size="sm" onClick={() => { reset(); onCancel(); }} disabled={isSubmitting}>Annuller</Button>
-        <Button type="submit" size="sm" disabled={disabled || isSubmitting}>{isSubmitting ? "Gemmer…" : "Gem"}</Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            reset();
+            onCancel();
+          }}
+          disabled={isSubmitting}
+        >
+          Annuller
+        </Button>
+        <Button type="submit" size="sm" disabled={disabled || isSubmitting}>
+          {isSubmitting ? "Gemmer…" : "Gem"}
+        </Button>
       </div>
     </form>
   );
