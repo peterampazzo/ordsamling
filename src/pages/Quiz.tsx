@@ -702,7 +702,7 @@ const Quiz = () => {
             <div
               className={cn(
                 "h-full rounded-full transition-all duration-1000 ease-linear",
-                timerPct > 33 ? "bg-primary" : timerPct > 15 ? "bg-amber-500" : "bg-destructive",
+                timerPct > 33 ? "bg-primary" : timerPct > 15 ? "bg-[hsl(var(--warning))]" : "bg-destructive",
               )}
               style={{ width: `${timerPct}%` }}
             />
