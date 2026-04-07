@@ -467,7 +467,7 @@ const Quiz = () => {
       id: crypto.randomUUID(),
       date: Date.now(),
       mode,
-      fromLabel: "Blandet",
+      fromLabel: "Blandet" as string,
       toLabel: "Blandet",
       score,
       total,
