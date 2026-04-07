@@ -6,3 +6,6 @@ pages_build_output_dir = "dist"
 binding = "LEXICON"
 id = "cc3580554ee4412aafaa6a1898d715ca"
 preview_id = "d5391bd73a044d8c93e0298d38bf4ac6"
+
+[ai]
+binding = "AI"
