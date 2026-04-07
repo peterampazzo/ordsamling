@@ -14,7 +14,7 @@ export interface QuizAnswerRecord {
 export interface QuizSessionRecord {
   id: string;
   date: number;
-  mode: "choice" | "type";
+  mode: "choice" | "type" | "completion";
   fromLabel: string;
   toLabel: string;
   score: number;
