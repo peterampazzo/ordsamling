@@ -99,7 +99,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const prompt = buildPrompt(payload);
 
   try {
-    const result = await env.AI.run("@cf/meta/llama-3.1-8b-instruct" as BaseAiTextGeneration["postProcessedOutputs"]["0"], {
+    const result: AiTextGenerationOutput = await env.AI.run("@cf/meta/llama-3.1-8b-instruct", {
       messages: [
         { role: "system", content: "You are a language quiz assistant. Return only JSON arrays, no other text." },
         { role: "user", content: prompt },
