@@ -41,6 +41,9 @@ resource "cloudflare_pages_project" "ordsamling" {
       kv_namespaces = {
         LEXICON = cloudflare_workers_kv_namespace.lexicon_preview.id
       }
+      ai_bindings = {
+        AI = {}
+      }
       compatibility_date  = "2026-04-04"
       compatibility_flags = []
     }
