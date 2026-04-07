@@ -20,7 +20,7 @@ import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { useLexicon } from "@/hooks/useLexicon";
 import type { LexisEntry } from "@/hooks/useLexicon";
-import { entryTypeLabel, GRAMMAR_FIELD_CONFIG, type EntryGrammar } from "@/lib/lexicon";
+import { entryTypeLabel, type EntryGrammar } from "@/lib/lexicon";
 import { saveSession, type QuizAnswerRecord } from "@/lib/quizHistory";
 
 /* ------------------------------------------------------------------ */
