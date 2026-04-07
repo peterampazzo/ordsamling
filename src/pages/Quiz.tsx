@@ -11,6 +11,8 @@ import {
   LayoutGrid,
   History,
   Gauge,
+  PenLine,
+  Timer,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +27,7 @@ import { saveSession, type QuizAnswerRecord } from "@/lib/quizHistory";
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-type QuizMode = "choice" | "type";
+type QuizMode = "choice" | "type" | "completion";
 type Difficulty = "beginner" | "intermediate" | "advanced";
 
 type LangDirection = {
@@ -42,23 +44,43 @@ const DIRECTIONS: LangDirection[] = [
 
 const DIFFICULTIES: { value: Difficulty; label: string; description: string }[] = [
   { value: "beginner", label: "Begynder", description: "Simpel oversættelse, multiple choice" },
-  { value: "intermediate", label: "Øvet", description: "+ bøjningsformer & udfyld-felter" },
-  { value: "advanced", label: "Avanceret", description: "+ staveøvelser & blandede opgaver" },
+  { value: "intermediate", label: "Øvet", description: "+ bøjningsformer & grammatik-fokus" },
+  { value: "advanced", label: "Avanceret", description: "+ AI-distractors & staveøvelser" },
 ];
 
-/** Question types that get progressively harder */
+const TIMER_SECONDS: Record<Difficulty, number> = {
+  beginner: 30,
+  intermediate: 20,
+  advanced: 15,
+};
+
 type QuestionType = "translate" | "conjugation" | "noun_form" | "fill_blank";
 
 interface QuizQuestion {
   entry: LexisEntry;
   prompt: string;
   answer: string;
-  options: string[];       // only used for choice mode
+  options: string[];
   questionType: QuestionType;
-  hint?: string;           // e.g. "Nutid af…" or "Bestemt flertal af…"
+  hint?: string;
+  direction: LangDirection;
+  /** For completion mode: the masked version */
+  masked?: string;
 }
 
 type QuizState = "setup" | "playing" | "result";
+
+/* ------------------------------------------------------------------ */
+/*  Validation                                                         */
+/* ------------------------------------------------------------------ */
+
+/** Reject empty, placeholder, or junk strings */
+function isValid(s: string | undefined): boolean {
+  if (!s) return false;
+  const t = s.trim();
+  if (!t || t === "-" || t === "–" || t === "—" || t === "..." || t === "?") return false;
+  return true;
+}
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -77,7 +99,7 @@ function normalize(s: string) {
   return s.trim().toLowerCase();
 }
 
-/** Create a fill-in-the-blank prompt: mask 30-60% of inner characters */
+/** Create a word completion mask: show first, last, and ~40% of chars */
 function makeBlank(word: string): string {
   if (word.length <= 2) return "_".repeat(word.length);
   const chars = word.split("");
@@ -91,13 +113,16 @@ function makeBlank(word: string): string {
   return chars.join("");
 }
 
-/** Get a grammar value from an entry if it exists */
 function getGrammarValue(entry: LexisEntry, key: keyof EntryGrammar): string | undefined {
-  return entry.grammar?.[key]?.trim() || undefined;
+  const v = entry.grammar?.[key]?.trim();
+  return isValid(v) ? v : undefined;
 }
 
-/** Build verb conjugation questions */
-function buildConjugationQuestions(entries: LexisEntry[]): QuizQuestion[] {
+/* ------------------------------------------------------------------ */
+/*  Question builders                                                  */
+/* ------------------------------------------------------------------ */
+
+function buildConjugationQuestions(entries: LexisEntry[], dir: LangDirection): QuizQuestion[] {
   const questions: QuizQuestion[] = [];
   const verbs = entries.filter((e) => e.type === "verb" && e.grammar);
   const tenseMap: { key: keyof EntryGrammar; label: string }[] = [
@@ -117,6 +142,7 @@ function buildConjugationQuestions(entries: LexisEntry[]): QuizQuestion[] {
           options: [],
           questionType: "conjugation",
           hint: `${label} af «${verb.danish}»`,
+          direction: dir,
         });
       }
     }
@@ -124,8 +150,7 @@ function buildConjugationQuestions(entries: LexisEntry[]): QuizQuestion[] {
   return questions;
 }
 
-/** Build noun form questions */
-function buildNounFormQuestions(entries: LexisEntry[]): QuizQuestion[] {
+function buildNounFormQuestions(entries: LexisEntry[], dir: LangDirection): QuizQuestion[] {
   const questions: QuizQuestion[] = [];
   const nouns = entries.filter((e) => e.type === "noun" && e.grammar);
   const formMap: { key: keyof EntryGrammar; label: string }[] = [
@@ -145,6 +170,7 @@ function buildNounFormQuestions(entries: LexisEntry[]): QuizQuestion[] {
           options: [],
           questionType: "noun_form",
           hint: `${label} af «${noun.danish}»`,
+          direction: dir,
         });
       }
     }
@@ -152,79 +178,140 @@ function buildNounFormQuestions(entries: LexisEntry[]): QuizQuestion[] {
   return questions;
 }
 
-/** Build fill-in-the-blank questions */
-function buildFillBlankQuestions(entries: LexisEntry[], direction: LangDirection): QuizQuestion[] {
-  const eligible = entries.filter((e) => e[direction.to].trim().length >= 3);
+function buildFillBlankQuestions(entries: LexisEntry[], dir: LangDirection): QuizQuestion[] {
+  const eligible = entries.filter((e) => isValid(e[dir.to]) && e[dir.to].trim().length >= 3);
   return eligible.map((entry) => {
-    const answer = entry[direction.to];
+    const answer = entry[dir.to];
     return {
       entry,
       prompt: makeBlank(answer),
       answer,
       options: [],
       questionType: "fill_blank" as QuestionType,
-      hint: `Udfyld: ${entry[direction.from]}`,
+      hint: `Udfyld: ${entry[dir.from]}`,
+      direction: dir,
+      masked: makeBlank(answer),
     };
   });
 }
 
+/** Build a pool of questions with true bilingual alternation */
 function buildQuestions(
   entries: LexisEntry[],
-  direction: LangDirection,
   count: number,
   difficulty: Difficulty,
   mode: QuizMode,
 ): QuizQuestion[] {
-  const eligible = entries.filter((e) => e[direction.from].trim() && e[direction.to].trim());
-  if (eligible.length < 2) return [];
-
-  // Pool of all potential questions
   let pool: QuizQuestion[] = [];
 
-  // Always include translation questions
-  const translateQs: QuizQuestion[] = eligible.map((entry) => ({
-    entry,
-    prompt: entry[direction.from],
-    answer: entry[direction.to],
-    options: [],
-    questionType: "translate" as QuestionType,
-  }));
-  pool.push(...translateQs);
+  // Build questions in BOTH directions for true bilingual mix
+  for (const dir of DIRECTIONS) {
+    const eligible = entries.filter((e) => isValid(e[dir.from]) && isValid(e[dir.to]));
+    if (eligible.length < 2) continue;
 
-  // Intermediate: add conjugation & noun forms
-  if (difficulty !== "beginner") {
-    pool.push(...buildConjugationQuestions(entries));
-    pool.push(...buildNounFormQuestions(entries));
-  }
+    // Translation questions
+    const translateQs: QuizQuestion[] = eligible.map((entry) => ({
+      entry,
+      prompt: entry[dir.from],
+      answer: entry[dir.to],
+      options: [],
+      questionType: "translate" as QuestionType,
+      direction: dir,
+    }));
+    pool.push(...translateQs);
 
-  // Advanced: add fill-in-the-blank
-  if (difficulty === "advanced") {
-    pool.push(...buildFillBlankQuestions(entries, direction));
-  }
-
-  // Pick questions
-  const picked = shuffle(pool).slice(0, count);
-
-  // Generate MC options for choice mode
-  if (mode === "choice") {
-    const allTranslations = eligible.map((e) => e[direction.to]);
-    const allGrammarValues: string[] = [];
-    for (const e of entries) {
-      if (e.grammar) {
-        Object.values(e.grammar).filter(Boolean).forEach((v) => {
-          if (typeof v === "string" && v.trim()) allGrammarValues.push(v.trim());
-        });
-      }
+    // Intermediate+: grammar questions (more weight)
+    if (difficulty !== "beginner") {
+      const conjQs = buildConjugationQuestions(entries, dir);
+      const nounQs = buildNounFormQuestions(entries, dir);
+      // Double grammar questions for emphasis
+      pool.push(...conjQs, ...conjQs, ...nounQs, ...nounQs);
     }
 
+    // Advanced: fill-in-the-blank / completion
+    if (difficulty === "advanced") {
+      pool.push(...buildFillBlankQuestions(entries, dir));
+    }
+  }
+
+  // Shuffle and pick, ensuring alternating directions
+  const shuffled = shuffle(pool);
+  const picked: QuizQuestion[] = [];
+  let lastDir: string | null = null;
+
+  // First pass: try alternating directions
+  const remaining = [...shuffled];
+  while (picked.length < count && remaining.length > 0) {
+    const idx = remaining.findIndex(
+      (q) => lastDir === null || `${q.direction.from}-${q.direction.to}` !== lastDir,
+    );
+    const pickIdx = idx >= 0 ? idx : 0;
+    const q = remaining.splice(pickIdx, 1)[0];
+    picked.push(q);
+    lastDir = `${q.direction.from}-${q.direction.to}`;
+  }
+
+  // For completion mode, add masked versions
+  if (mode === "completion") {
     for (const q of picked) {
-      const answerPool = q.questionType === "translate" ? allTranslations : allGrammarValues;
-      const wrong = shuffle(answerPool.filter((a) => normalize(a) !== normalize(q.answer))).slice(0, 3);
-      q.options = shuffle([q.answer, ...wrong]);
+      if (!q.masked) {
+        q.masked = makeBlank(q.answer);
+      }
+    }
+  }
+
+  // Generate local MC options for choice mode (AI distractors fetched async later)
+  if (mode === "choice") {
+    for (const q of picked) {
+      const dir = q.direction;
+      const answerPool =
+        q.questionType === "translate"
+          ? entries.map((e) => e[dir.to]).filter(isValid)
+          : entries
+              .flatMap((e) => (e.grammar ? Object.values(e.grammar).filter(isValid) : []))
+              .filter((v): v is string => typeof v === "string");
+
+      const unique = [...new Set(answerPool.map((a) => a.trim()))];
+      const wrong = shuffle(unique.filter((a) => normalize(a) !== normalize(q.answer))).slice(0, 3);
+      q.options = shuffle([q.answer, ...wrong]).filter(isValid);
     }
   }
 
   return picked;
+}
+
+/* ------------------------------------------------------------------ */
+/*  AI Distractors                                                     */
+/* ------------------------------------------------------------------ */
+
+async function fetchSmartDistractors(
+  question: QuizQuestion,
+  difficulty: Difficulty,
+  scoreRatio: number,
+): Promise<string[]> {
+  try {
+    const res = await fetch("/api/quiz/distractors", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        correctAnswer: question.answer,
+        questionType: question.questionType,
+        entryType: question.entry.type,
+        difficulty,
+        scoreRatio,
+        prompt: question.prompt,
+        answerLang: question.direction.to,
+        existingAnswers: question.options,
+      }),
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { distractors: string[] };
+    return (data.distractors || []).filter(
+      (d) => isValid(d) && normalize(d) !== normalize(question.answer),
+    );
+  } catch {
+    return [];
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -234,7 +321,6 @@ function buildQuestions(
 const Quiz = () => {
   const { allEntries } = useLexicon();
 
-  const [direction, setDirection] = useState<LangDirection>(DIRECTIONS[0]);
   const [mode, setMode] = useState<QuizMode>("choice");
   const [difficulty, setDifficulty] = useState<Difficulty>("beginner");
   const [questionCount, setQuestionCount] = useState(10);
@@ -246,20 +332,99 @@ const Quiz = () => {
   const [answered, setAnswered] = useState<string | null>(null);
   const [typedAnswer, setTypedAnswer] = useState("");
   const [showResult, setShowResult] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [timerActive, setTimerActive] = useState(false);
 
   const answersRef = useRef<QuizAnswerRecord[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const current = questions[currentIdx] ?? null;
   const total = questions.length;
   const progress = total > 0 ? ((currentIdx + (showResult ? 1 : 0)) / total) * 100 : 0;
+  const timerMax = TIMER_SECONDS[difficulty];
+  const timerPct = timerMax > 0 ? (timeLeft / timerMax) * 100 : 100;
 
   const eligibleCount = useMemo(() => {
-    return allEntries.filter((e) => e[direction.from].trim() && e[direction.to].trim()).length;
-  }, [allEntries, direction]);
+    return allEntries.filter((e) => isValid(e.danish) && isValid(e.english)).length;
+  }, [allEntries]);
+
+  // Timer effect
+  useEffect(() => {
+    if (!timerActive || showResult) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      return;
+    }
+    timerRef.current = setInterval(() => {
+      setTimeLeft((t) => {
+        if (t <= 1) {
+          setTimerActive(false);
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [timerActive, showResult]);
+
+  // Auto-submit on timer expiry
+  useEffect(() => {
+    if (timeLeft === 0 && timerActive === false && state === "playing" && !showResult && answered === null && current) {
+      submitAnswer("__timeout__");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeLeft, timerActive]);
+
+  // Focus input for typing modes
+  useEffect(() => {
+    if (state === "playing" && (mode === "type" || mode === "completion") && !showResult) {
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  }, [state, mode, showResult, currentIdx]);
+
+  // Fetch AI distractors for current question (advanced/intermediate + choice mode)
+  useEffect(() => {
+    if (
+      state !== "playing" ||
+      mode !== "choice" ||
+      difficulty === "beginner" ||
+      !current ||
+      showResult
+    )
+      return;
+
+    const scoreRatio = total > 0 ? score / Math.max(currentIdx, 1) : 0;
+    let cancelled = false;
+
+    fetchSmartDistractors(current, difficulty, scoreRatio).then((distractors) => {
+      if (cancelled || distractors.length === 0) return;
+      setQuestions((prev) => {
+        const next = [...prev];
+        const q = { ...next[currentIdx] };
+        // Replace random distractors with AI ones
+        const kept = q.options.filter((o) => normalize(o) === normalize(q.answer));
+        const aiOptions = distractors.slice(0, 3);
+        q.options = shuffle([...kept, ...aiOptions]).filter(isValid);
+        // Ensure correct answer is always present
+        if (!q.options.some((o) => normalize(o) === normalize(q.answer))) {
+          q.options[0] = q.answer;
+          q.options = shuffle(q.options);
+        }
+        next[currentIdx] = q;
+        return next;
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIdx, state]);
 
   const startQuiz = useCallback(() => {
-    const q = buildQuestions(allEntries, direction, questionCount, difficulty, mode);
+    const q = buildQuestions(allEntries, questionCount, difficulty, mode);
     if (q.length < 2) return;
     setQuestions(q);
     setCurrentIdx(0);
@@ -268,29 +433,33 @@ const Quiz = () => {
     setTypedAnswer("");
     setShowResult(false);
     answersRef.current = [];
+    setTimeLeft(TIMER_SECONDS[difficulty]);
+    setTimerActive(true);
     setState("playing");
-  }, [allEntries, direction, questionCount, difficulty, mode]);
+  }, [allEntries, questionCount, difficulty, mode]);
 
   const submitAnswer = useCallback(
     (answer: string) => {
       if (!current || showResult) return;
       const skipped = answer === "__skipped__";
-      const correct = !skipped && normalize(answer) === normalize(current.answer);
+      const timedOut = answer === "__timeout__";
+      const correct = !skipped && !timedOut && normalize(answer) === normalize(current.answer);
       setAnswered(answer);
       setShowResult(true);
+      setTimerActive(false);
       if (correct) setScore((s) => s + 1);
       answersRef.current.push({
         prompt: current.hint || current.prompt,
         correctAnswer: current.answer,
-        givenAnswer: skipped ? "" : answer,
+        givenAnswer: skipped || timedOut ? "" : answer,
         correct,
-        skipped,
-        fromLang: direction.from,
-        toLang: direction.to,
+        skipped: skipped || timedOut,
+        fromLang: current.direction.from,
+        toLang: current.direction.to,
         entryId: current.entry.id,
       });
     },
-    [current, showResult, direction],
+    [current, showResult],
   );
 
   const finishQuiz = useCallback(() => {
@@ -298,14 +467,14 @@ const Quiz = () => {
       id: crypto.randomUUID(),
       date: Date.now(),
       mode,
-      fromLabel: direction.fromLabel,
-      toLabel: direction.toLabel,
+      fromLabel: "Blandet",
+      toLabel: "Blandet",
       score,
       total,
       answers: answersRef.current,
     });
     setState("result");
-  }, [mode, direction, score, total]);
+  }, [mode, score, total]);
 
   const nextQuestion = useCallback(() => {
     if (currentIdx + 1 >= total) finishQuiz();
@@ -314,22 +483,23 @@ const Quiz = () => {
       setAnswered(null);
       setTypedAnswer("");
       setShowResult(false);
+      setTimeLeft(TIMER_SECONDS[difficulty]);
+      setTimerActive(true);
     }
-  }, [currentIdx, total, finishQuiz]);
-
-  useEffect(() => {
-    if (state === "playing" && (mode === "type" || (current?.questionType !== "translate" && mode !== "choice")) && !showResult) {
-      setTimeout(() => inputRef.current?.focus(), 100);
-    }
-  }, [state, mode, showResult, currentIdx, current?.questionType]);
+  }, [currentIdx, total, finishQuiz, difficulty]);
 
   const isCorrect = answered !== null && normalize(answered) === normalize(current?.answer ?? "");
+  const isTimedOut = answered === "__timeout__";
 
-  // Determine if current question should use typing regardless of mode
-  const forceType = current && current.questionType !== "translate" && mode === "choice" && current.options.length < 2;
-  const effectiveMode = forceType ? "type" : mode;
+  // Determine effective input mode for current question
+  const effectiveMode: "choice" | "type" = (() => {
+    if (mode === "completion") return "type";
+    if (mode === "type") return "type";
+    // choice mode but not enough options
+    if (current && current.options.filter(isValid).length < 2) return "type";
+    return "choice";
+  })();
 
-  /* ---- Question type badge ---- */
   const questionTypeBadge = (qt: QuestionType) => {
     const labels: Record<QuestionType, string> = {
       translate: "Oversæt",
@@ -396,42 +566,27 @@ const Quiz = () => {
                 </div>
               </section>
 
-              {/* Direction */}
-              <section className="space-y-3">
-                <h2 className="text-sm font-medium text-foreground">Retning</h2>
-                <div className="grid grid-cols-2 gap-2">
-                  {DIRECTIONS.map((d) => (
-                    <button
-                      key={`${d.from}-${d.to}`}
-                      type="button"
-                      onClick={() => setDirection(d)}
-                      className={cn(
-                        "px-3 py-2.5 rounded-lg border text-sm transition-colors text-left",
-                        direction.from === d.from && direction.to === d.to
-                          ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                          : "bg-card text-foreground border-border hover:border-primary/40",
-                      )}
-                    >
-                      {d.fromLabel} → {d.toLabel}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground">{eligibleCount} ord tilgængelige</p>
-              </section>
-
               {/* Mode */}
               <section className="space-y-3">
                 <h2 className="text-sm font-medium text-foreground">Tilstand</h2>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   <button type="button" onClick={() => setMode("choice")}
-                    className={cn("flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition-colors",
+                    className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
                       mode === "choice" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
-                    <LayoutGrid className="h-4 w-4" /> Multiple choice
+                    <LayoutGrid className="h-4 w-4" />
+                    <span className="text-xs">Vælg svar</span>
                   </button>
                   <button type="button" onClick={() => setMode("type")}
-                    className={cn("flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition-colors",
+                    className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
                       mode === "type" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
-                    <Keyboard className="h-4 w-4" /> Skriv svar
+                    <Keyboard className="h-4 w-4" />
+                    <span className="text-xs">Skriv svar</span>
+                  </button>
+                  <button type="button" onClick={() => setMode("completion")}
+                    className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
+                      mode === "completion" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
+                    <PenLine className="h-4 w-4" />
+                    <span className="text-xs">Udfyld ord</span>
                   </button>
                 </div>
               </section>
@@ -448,6 +603,7 @@ const Quiz = () => {
                     </button>
                   ))}
                 </div>
+                <p className="text-xs text-muted-foreground">{eligibleCount} ord tilgængelige · Spørgsmål blander dansk↔engelsk</p>
               </section>
 
               <Button onClick={startQuiz} disabled={eligibleCount < 2} className="w-full h-11 text-base">
@@ -521,16 +677,43 @@ const Quiz = () => {
             <div className="flex items-center gap-2">
               <Brain className="h-5 w-5 text-primary" />
               <span className="text-sm font-medium text-foreground">{currentIdx + 1} / {total}</span>
+              <span className={cn(
+                "text-[10px] uppercase px-1.5 py-0.5 rounded font-medium",
+                "bg-muted text-muted-foreground",
+              )}>
+                {current?.direction.fromLabel} → {current?.direction.toLabel}
+              </span>
             </div>
-            <span className="text-sm text-muted-foreground tabular-nums">{score} rigtige</span>
+            <div className="flex items-center gap-3">
+              {/* Timer */}
+              <div className={cn(
+                "flex items-center gap-1 text-sm font-mono tabular-nums transition-colors",
+                timeLeft <= 5 && !showResult ? "text-destructive animate-pulse" : "text-muted-foreground",
+              )}>
+                <Timer className="h-4 w-4" />
+                <span>{timeLeft}s</span>
+              </div>
+              <span className="text-sm text-muted-foreground tabular-nums">{score} rigtige</span>
+            </div>
           </div>
           <Progress value={progress} className="h-1.5" />
+          {/* Timer bar */}
+          <div className="h-1 rounded-full bg-muted overflow-hidden">
+            <div
+              className={cn(
+                "h-full rounded-full transition-all duration-1000 ease-linear",
+                timerPct > 33 ? "bg-primary" : timerPct > 15 ? "bg-amber-500" : "bg-destructive",
+              )}
+              style={{ width: `${timerPct}%` }}
+            />
+          </div>
         </div>
       </header>
 
       <main className="flex-1 flex items-center justify-center px-4 py-8">
         {current && (
           <div className="max-w-md w-full space-y-8">
+            {/* Question prompt */}
             <div className="text-center space-y-2">
               {current.hint ? (
                 <>
@@ -538,9 +721,15 @@ const Quiz = () => {
                   <p className="text-sm text-muted-foreground">{current.hint}</p>
                   <p className="text-2xl sm:text-3xl font-bold text-foreground font-mono tracking-wide">{current.prompt}</p>
                 </>
+              ) : mode === "completion" && current.masked ? (
+                <>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Udfyld ordet</p>
+                  <p className="text-sm text-muted-foreground">{current.prompt} ({current.direction.fromLabel})</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-foreground font-mono tracking-widest">{current.masked}</p>
+                </>
               ) : (
                 <>
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground">{direction.fromLabel}</p>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">{current.direction.fromLabel}</p>
                   <p className="text-2xl sm:text-3xl font-bold text-foreground">{current.prompt}</p>
                 </>
               )}
@@ -549,9 +738,10 @@ const Quiz = () => {
               </span>
             </div>
 
+            {/* Answer area */}
             {effectiveMode === "choice" ? (
               <div className="grid grid-cols-1 gap-2.5">
-                {current.options.map((opt) => {
+                {current.options.filter(isValid).map((opt, i) => {
                   const isThis = answered === opt;
                   const isRight = normalize(opt) === normalize(current.answer);
                   let cls = "bg-card text-foreground border-border hover:border-primary/40";
@@ -561,7 +751,7 @@ const Quiz = () => {
                     else cls = "bg-muted/50 text-muted-foreground border-border opacity-60";
                   }
                   return (
-                    <button key={opt} type="button" disabled={showResult} onClick={() => submitAnswer(opt)}
+                    <button key={`${opt}-${i}`} type="button" disabled={showResult} onClick={() => submitAnswer(opt)}
                       className={cn("px-4 py-3 rounded-lg border text-sm text-left transition-all", cls)}>
                       <span className="flex items-center gap-2">
                         {showResult && isRight && <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />}
@@ -575,13 +765,13 @@ const Quiz = () => {
             ) : (
               <div className="space-y-3">
                 <p className="text-xs text-muted-foreground text-center">
-                  {current.questionType === "fill_blank"
-                    ? "Udfyld det manglende ord"
+                  {mode === "completion"
+                    ? "Skriv det fulde ord"
                     : current.questionType === "conjugation"
                     ? "Skriv den korrekte bøjningsform"
                     : current.questionType === "noun_form"
                     ? "Skriv den korrekte form"
-                    : `Skriv oversættelsen på ${direction.toLabel.toLowerCase()}`}
+                    : `Skriv oversættelsen på ${current.direction.toLabel.toLowerCase()}`}
                 </p>
                 <form onSubmit={(e) => { e.preventDefault(); if (!showResult && typedAnswer.trim()) submitAnswer(typedAnswer); }} className="flex gap-2">
                   <Input ref={inputRef} value={typedAnswer} onChange={(e) => setTypedAnswer(e.target.value)}
@@ -589,8 +779,13 @@ const Quiz = () => {
                   <Button type="submit" disabled={showResult || !typedAnswer.trim()} size="sm">Svar</Button>
                 </form>
                 {showResult && (
-                  <div className={cn("rounded-lg px-3 py-2 text-sm", isCorrect ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive")}>
-                    {isCorrect ? (
+                  <div className={cn("rounded-lg px-3 py-2.5 text-sm space-y-1", isCorrect ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive")}>
+                    {isTimedOut ? (
+                      <div>
+                        <span className="flex items-center gap-1.5"><Timer className="h-4 w-4" /> Tiden udløb!</span>
+                        <p className="mt-1 text-foreground">Rigtigt svar: <strong>{current.answer}</strong></p>
+                      </div>
+                    ) : isCorrect ? (
                       <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" /> Korrekt!</span>
                     ) : (
                       <div>
@@ -603,6 +798,15 @@ const Quiz = () => {
               </div>
             )}
 
+            {/* Timeout feedback for choice mode */}
+            {effectiveMode === "choice" && showResult && isTimedOut && (
+              <div className="rounded-lg px-3 py-2.5 text-sm bg-destructive/10 text-destructive space-y-1">
+                <span className="flex items-center gap-1.5"><Timer className="h-4 w-4" /> Tiden udløb!</span>
+                <p className="text-foreground">Rigtigt svar: <strong>{current.answer}</strong></p>
+              </div>
+            )}
+
+            {/* Navigation */}
             <div className="flex justify-between items-center pt-2">
               {!showResult ? (
                 <Button variant="ghost" size="sm" onClick={() => submitAnswer("__skipped__")} className="text-muted-foreground">
