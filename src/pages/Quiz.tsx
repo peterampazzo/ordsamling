@@ -13,6 +13,7 @@ import {
   Gauge,
   PenLine,
   Timer,
+  Shuffle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,7 +28,7 @@ import { saveSession, type QuizAnswerRecord } from "@/lib/quizHistory";
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-type QuizMode = "choice" | "type" | "completion";
+type QuizMode = "choice" | "type" | "completion" | "mixed";
 type Difficulty = "beginner" | "intermediate" | "advanced";
 
 type LangDirection = {
@@ -66,6 +67,8 @@ interface QuizQuestion {
   direction: LangDirection;
   /** For completion mode: the masked version */
   masked?: string;
+  /** For mixed mode: which display mode this question uses */
+  displayMode?: "choice" | "type" | "completion";
 }
 
 type QuizState = "setup" | "playing" | "result";
@@ -251,30 +254,37 @@ function buildQuestions(
     lastDir = `${q.direction.from}-${q.direction.to}`;
   }
 
-  // For completion mode, add masked versions
-  if (mode === "completion") {
-    for (const q of picked) {
-      if (!q.masked) {
-        q.masked = makeBlank(q.answer);
-      }
+  // Assign display modes for mixed mode
+  const MIXED_CYCLE: ("choice" | "type" | "completion")[] = ["choice", "type", "completion"];
+  if (mode === "mixed") {
+    for (let i = 0; i < picked.length; i++) {
+      picked[i].displayMode = MIXED_CYCLE[i % MIXED_CYCLE.length];
     }
   }
 
-  // Generate local MC options for choice mode (AI distractors fetched async later)
-  if (mode === "choice") {
-    for (const q of picked) {
-      const dir = q.direction;
-      const answerPool =
-        q.questionType === "translate"
-          ? entries.map((e) => e[dir.to]).filter(isValid)
-          : entries
-              .flatMap((e) => (e.grammar ? Object.values(e.grammar).filter(isValid) : []))
-              .filter((v): v is string => typeof v === "string");
-
-      const unique = [...new Set(answerPool.map((a) => a.trim()))];
-      const wrong = shuffle(unique.filter((a) => normalize(a) !== normalize(q.answer))).slice(0, 3);
-      q.options = shuffle([q.answer, ...wrong]).filter(isValid);
+  // For completion mode (or mixed questions that are completion), add masked versions
+  for (const q of picked) {
+    const isCompletion = mode === "completion" || q.displayMode === "completion";
+    if (isCompletion && !q.masked) {
+      q.masked = makeBlank(q.answer);
     }
+  }
+
+  // Generate local MC options for choice-mode questions (or mixed questions that are choice)
+  for (const q of picked) {
+    const isChoice = mode === "choice" || q.displayMode === "choice";
+    if (!isChoice) continue;
+    const dir = q.direction;
+    const answerPool =
+      q.questionType === "translate"
+        ? entries.map((e) => e[dir.to]).filter(isValid)
+        : entries
+            .flatMap((e) => (e.grammar ? Object.values(e.grammar).filter(isValid) : []))
+            .filter((v): v is string => typeof v === "string");
+
+    const unique = [...new Set(answerPool.map((a) => a.trim()))];
+    const wrong = shuffle(unique.filter((a) => normalize(a) !== normalize(q.answer))).slice(0, 3);
+    q.options = shuffle([q.answer, ...wrong]).filter(isValid);
   }
 
   return picked;
@@ -321,7 +331,7 @@ async function fetchSmartDistractors(
 const Quiz = () => {
   const { allEntries } = useLexicon();
 
-  const [mode, setMode] = useState<QuizMode>("choice");
+  const [mode, setMode] = useState<QuizMode>("mixed");
   const [difficulty, setDifficulty] = useState<Difficulty>("beginner");
   const [questionCount, setQuestionCount] = useState(10);
 
@@ -379,16 +389,18 @@ const Quiz = () => {
 
   // Focus input for typing modes
   useEffect(() => {
-    if (state === "playing" && (mode === "type" || mode === "completion") && !showResult) {
+    const dm = current?.displayMode ?? mode;
+    if (state === "playing" && (dm === "type" || dm === "completion") && !showResult) {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [state, mode, showResult, currentIdx]);
+  }, [state, mode, showResult, currentIdx, current?.displayMode]);
 
   // Fetch AI distractors for current question (advanced/intermediate + choice mode)
   useEffect(() => {
+    const dm = current?.displayMode ?? mode;
     if (
       state !== "playing" ||
-      mode !== "choice" ||
+      (dm !== "choice") ||
       difficulty === "beginner" ||
       !current ||
       showResult
@@ -492,9 +504,10 @@ const Quiz = () => {
   const isTimedOut = answered === "__timeout__";
 
   // Determine effective input mode for current question
+  const currentDisplayMode: QuizMode = current?.displayMode ?? mode;
   const effectiveMode: "choice" | "type" = (() => {
-    if (mode === "completion") return "type";
-    if (mode === "type") return "type";
+    if (currentDisplayMode === "completion") return "type";
+    if (currentDisplayMode === "type") return "type";
     // choice mode but not enough options
     if (current && current.options.filter(isValid).length < 2) return "type";
     return "choice";
@@ -569,7 +582,13 @@ const Quiz = () => {
               {/* Mode */}
               <section className="space-y-3">
                 <h2 className="text-sm font-medium text-foreground">Tilstand</h2>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-2">
+                  <button type="button" onClick={() => setMode("mixed")}
+                    className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
+                      mode === "mixed" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
+                    <Shuffle className="h-4 w-4" />
+                    <span className="text-xs">Blandet</span>
+                  </button>
                   <button type="button" onClick={() => setMode("choice")}
                     className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
                       mode === "choice" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
@@ -721,7 +740,7 @@ const Quiz = () => {
                   <p className="text-sm text-muted-foreground">{current.hint}</p>
                   <p className="text-2xl sm:text-3xl font-bold text-foreground font-mono tracking-wide">{current.prompt}</p>
                 </>
-              ) : mode === "completion" && current.masked ? (
+              ) : currentDisplayMode === "completion" && current.masked ? (
                 <>
                   <p className="text-xs uppercase tracking-wider text-muted-foreground">Udfyld ordet</p>
                   <p className="text-sm text-muted-foreground">{current.prompt} ({current.direction.fromLabel})</p>
@@ -765,7 +784,7 @@ const Quiz = () => {
             ) : (
               <div className="space-y-3">
                 <p className="text-xs text-muted-foreground text-center">
-                  {mode === "completion"
+                  {currentDisplayMode === "completion"
                     ? "Skriv det fulde ord"
                     : current.questionType === "conjugation"
                     ? "Skriv den korrekte bøjningsform"
