@@ -23,6 +23,7 @@ import { useLexicon } from "@/hooks/useLexicon";
 import type { LexisEntry } from "@/hooks/useLexicon";
 import { entryTypeLabel, type EntryGrammar } from "@/lib/lexicon";
 import { saveSession, type QuizAnswerRecord } from "@/lib/quizHistory";
+import { t } from "@/i18n";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -39,14 +40,14 @@ type LangDirection = {
 };
 
 const DIRECTIONS: LangDirection[] = [
-  { from: "danish", to: "english", fromLabel: "Dansk", toLabel: "Engelsk" },
-  { from: "english", to: "danish", fromLabel: "Engelsk", toLabel: "Dansk" },
+  { from: "danish", to: "english", fromLabel: t("directions.danish"), toLabel: t("directions.english") },
+  { from: "english", to: "danish", fromLabel: t("directions.english"), toLabel: t("directions.danish") },
 ];
 
 const DIFFICULTIES: { value: Difficulty; label: string; description: string }[] = [
-  { value: "beginner", label: "Begynder", description: "Simpel oversættelse, multiple choice" },
-  { value: "intermediate", label: "Øvet", description: "+ bøjningsformer & grammatik-fokus" },
-  { value: "advanced", label: "Avanceret", description: "+ AI-distractors & staveøvelser" },
+  { value: "beginner", label: t("quiz.diffBeginner"), description: t("quiz.diffBeginnerDesc") },
+  { value: "intermediate", label: t("quiz.diffIntermediate"), description: t("quiz.diffIntermediateDesc") },
+  { value: "advanced", label: t("quiz.diffAdvanced"), description: t("quiz.diffAdvancedDesc") },
 ];
 
 const TIMER_SECONDS: Record<Difficulty, number> = {
@@ -479,8 +480,8 @@ const Quiz = () => {
       id: crypto.randomUUID(),
       date: Date.now(),
       mode,
-      fromLabel: "Blandet" as string,
-      toLabel: "Blandet",
+      fromLabel: t("quiz.dirMixed"),
+      toLabel: t("quiz.dirMixed"),
       score,
       total,
       answers: answersRef.current,
@@ -514,13 +515,7 @@ const Quiz = () => {
   })();
 
   const questionTypeBadge = (qt: QuestionType) => {
-    const labels: Record<QuestionType, string> = {
-      translate: "Oversæt",
-      conjugation: "Bøjning",
-      noun_form: "Substantiv",
-      fill_blank: "Udfyld",
-    };
-    return labels[qt];
+    return t(`quiz.questionTypes.${qt}`);
   };
 
   /* ---- Setup screen ---- */
@@ -534,12 +529,12 @@ const Quiz = () => {
                 <Link to="/"><ArrowLeft className="h-5 w-5" /></Link>
               </Button>
               <Brain className="h-5 w-5 text-primary" />
-              <h1 className="text-base sm:text-lg font-semibold text-foreground">Ordquiz</h1>
+              <h1 className="text-base sm:text-lg font-semibold text-foreground">{t("quiz.title")}</h1>
             </div>
             <Button variant="outline" size="sm" className="gap-1.5" asChild>
               <Link to="/quiz/history">
                 <History className="h-4 w-4" />
-                <span className="hidden sm:inline">Historik</span>
+                <span className="hidden sm:inline">{t("quiz.history")}</span>
               </Link>
             </Button>
           </div>
@@ -549,15 +544,15 @@ const Quiz = () => {
           {allEntries.length < 4 ? (
             <div className="text-center py-12 text-muted-foreground space-y-2">
               <Brain className="h-10 w-10 mx-auto opacity-30" />
-              <p className="text-base">Du har brug for mindst 4 ord for at starte en quiz</p>
-              <Button variant="outline" asChild className="mt-4"><Link to="/">Tilføj ord</Link></Button>
+              <p className="text-base">{t("quiz.minWordsNeeded")}</p>
+              <Button variant="outline" asChild className="mt-4"><Link to="/">{t("quiz.addWords")}</Link></Button>
             </div>
           ) : (
             <>
               {/* Difficulty */}
               <section className="space-y-3">
                 <h2 className="text-sm font-medium text-foreground flex items-center gap-1.5">
-                  <Gauge className="h-4 w-4" /> Sværhedsgrad
+                  <Gauge className="h-4 w-4" /> {t("quiz.difficulty")}
                 </h2>
                 <div className="grid grid-cols-1 gap-2">
                   {DIFFICULTIES.map((d) => (
@@ -581,38 +576,38 @@ const Quiz = () => {
 
               {/* Mode */}
               <section className="space-y-3">
-                <h2 className="text-sm font-medium text-foreground">Tilstand</h2>
+                <h2 className="text-sm font-medium text-foreground">{t("quiz.mode")}</h2>
                 <div className="grid grid-cols-4 gap-2">
                   <button type="button" onClick={() => setMode("mixed")}
                     className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
                       mode === "mixed" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
                     <Shuffle className="h-4 w-4" />
-                    <span className="text-xs">Blandet</span>
+                    <span className="text-xs">{t("quiz.modeMixed")}</span>
                   </button>
                   <button type="button" onClick={() => setMode("choice")}
                     className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
                       mode === "choice" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
                     <LayoutGrid className="h-4 w-4" />
-                    <span className="text-xs">Vælg svar</span>
+                    <span className="text-xs">{t("quiz.modeChoice")}</span>
                   </button>
                   <button type="button" onClick={() => setMode("type")}
                     className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
                       mode === "type" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
                     <Keyboard className="h-4 w-4" />
-                    <span className="text-xs">Skriv svar</span>
+                    <span className="text-xs">{t("quiz.modeType")}</span>
                   </button>
                   <button type="button" onClick={() => setMode("completion")}
                     className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
                       mode === "completion" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
                     <PenLine className="h-4 w-4" />
-                    <span className="text-xs">Udfyld ord</span>
+                    <span className="text-xs">{t("quiz.modeCompletion")}</span>
                   </button>
                 </div>
               </section>
 
               {/* Count */}
               <section className="space-y-3">
-                <h2 className="text-sm font-medium text-foreground">Antal spørgsmål</h2>
+                <h2 className="text-sm font-medium text-foreground">{t("quiz.questionCount")}</h2>
                 <div className="flex gap-2">
                   {[5, 10, 20, 50].map((n) => (
                     <button key={n} type="button" onClick={() => setQuestionCount(n)}
@@ -622,11 +617,11 @@ const Quiz = () => {
                     </button>
                   ))}
                 </div>
-                <p className="text-xs text-muted-foreground">{eligibleCount} ord tilgængelige · Spørgsmål blander dansk↔engelsk</p>
+                <p className="text-xs text-muted-foreground">{t("quiz.questionsAvailable", { count: eligibleCount })}</p>
               </section>
 
               <Button onClick={startQuiz} disabled={eligibleCount < 2} className="w-full h-11 text-base">
-                Start quiz
+                {t("quiz.startQuiz")}
               </Button>
             </>
           )}
@@ -645,7 +640,7 @@ const Quiz = () => {
         <header className="border-b border-border bg-card/90 shadow-sm">
           <div className="max-w-2xl mx-auto px-3 sm:px-4 flex items-center gap-3 py-3">
             <Brain className="h-5 w-5 text-primary" />
-            <h1 className="text-base sm:text-lg font-semibold text-foreground">Resultat</h1>
+            <h1 className="text-base sm:text-lg font-semibold text-foreground">{t("quiz.result")}</h1>
           </div>
         </header>
 
@@ -653,14 +648,14 @@ const Quiz = () => {
           <div className="max-w-md mx-auto space-y-8">
             <div className="text-center space-y-3">
               <div className={cn("text-6xl font-bold", pct >= 80 ? "text-primary" : pct >= 50 ? "text-accent-foreground" : "text-destructive")}>{pct}%</div>
-              <p className="text-lg text-foreground">{score} af {total} rigtige</p>
+              <p className="text-lg text-foreground">{t("quiz.scoreOf", { score, total })}</p>
               <p className="text-sm text-muted-foreground">
-                {pct >= 90 ? "Fantastisk! 🎉" : pct >= 70 ? "Godt gået! 👍" : pct >= 50 ? "Ikke dårligt, men øv dig lidt mere" : "Bliv ved med at øve! 💪"}
+                {pct >= 90 ? t("quiz.feedback90") : pct >= 70 ? t("quiz.feedback70") : pct >= 50 ? t("quiz.feedback50") : t("quiz.feedbackLow")}
               </p>
             </div>
 
             <div className="space-y-2">
-              <h2 className="text-sm font-medium text-foreground">Dine svar</h2>
+              <h2 className="text-sm font-medium text-foreground">{t("quiz.yourAnswers")}</h2>
               <div className="divide-y divide-border rounded-lg border border-border overflow-hidden">
                 {sessionAnswers.map((a, i) => (
                   <div key={i} className={cn("px-3 py-2.5 text-sm flex items-start gap-2", a.correct ? "bg-card" : "bg-destructive/5")}>
@@ -669,8 +664,8 @@ const Quiz = () => {
                       <span className="font-medium text-foreground">{a.prompt}</span>
                       <span className="text-muted-foreground"> → </span>
                       <span className={cn("font-medium", a.correct ? "text-primary" : "text-destructive")}>{a.skipped ? "—" : a.givenAnswer}</span>
-                      {!a.correct && !a.skipped && <p className="text-xs text-muted-foreground mt-0.5">Rigtigt: <span className="text-foreground">{a.correctAnswer}</span></p>}
-                      {a.skipped && <p className="text-xs text-muted-foreground mt-0.5">Svar: <span className="text-foreground">{a.correctAnswer}</span></p>}
+                      {!a.correct && !a.skipped && <p className="text-xs text-muted-foreground mt-0.5">{t("quiz.correctAnswer")}: <span className="text-foreground">{a.correctAnswer}</span></p>}
+                      {a.skipped && <p className="text-xs text-muted-foreground mt-0.5">{t("common.answer")}: <span className="text-foreground">{a.correctAnswer}</span></p>}
                     </div>
                   </div>
                 ))}
@@ -678,8 +673,8 @@ const Quiz = () => {
             </div>
 
             <div className="flex gap-3 justify-center pt-2">
-              <Button variant="outline" onClick={() => setState("setup")}><ArrowLeft className="h-4 w-4 mr-1" /> Indstillinger</Button>
-              <Button onClick={startQuiz}><RotateCcw className="h-4 w-4 mr-1" /> Prøv igen</Button>
+              <Button variant="outline" onClick={() => setState("setup")}><ArrowLeft className="h-4 w-4 mr-1" /> {t("common.settings")}</Button>
+              <Button onClick={startQuiz}><RotateCcw className="h-4 w-4 mr-1" /> {t("quiz.tryAgain")}</Button>
             </div>
           </div>
         </main>
@@ -712,7 +707,7 @@ const Quiz = () => {
                 <Timer className="h-4 w-4" />
                 <span>{timeLeft}s</span>
               </div>
-              <span className="text-sm text-muted-foreground tabular-nums">{score} rigtige</span>
+              <span className="text-sm text-muted-foreground tabular-nums">{t("quiz.correctCount", { count: score })}</span>
             </div>
           </div>
           <Progress value={progress} className="h-1.5" />
@@ -742,7 +737,7 @@ const Quiz = () => {
                 </>
               ) : currentDisplayMode === "completion" && current.masked ? (
                 <>
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Udfyld ordet</p>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">{t("quiz.fillWord")}</p>
                   <p className="text-sm text-muted-foreground">{current.prompt} ({current.direction.fromLabel})</p>
                   <p className="text-2xl sm:text-3xl font-bold text-foreground font-mono tracking-widest">{current.masked}</p>
                 </>
@@ -785,31 +780,31 @@ const Quiz = () => {
               <div className="space-y-3">
                 <p className="text-xs text-muted-foreground text-center">
                   {currentDisplayMode === "completion"
-                    ? "Skriv det fulde ord"
+                    ? t("quiz.writeFullWord")
                     : current.questionType === "conjugation"
-                    ? "Skriv den korrekte bøjningsform"
+                    ? t("quiz.writeConjugation")
                     : current.questionType === "noun_form"
-                    ? "Skriv den korrekte form"
-                    : `Skriv oversættelsen på ${current.direction.toLabel.toLowerCase()}`}
+                    ? t("quiz.writeNounForm")
+                    : t("quiz.writeTranslation", { lang: current.direction.toLabel.toLowerCase() })}
                 </p>
                 <form onSubmit={(e) => { e.preventDefault(); if (!showResult && typedAnswer.trim()) submitAnswer(typedAnswer); }} className="flex gap-2">
                   <Input ref={inputRef} value={typedAnswer} onChange={(e) => setTypedAnswer(e.target.value)}
-                    disabled={showResult} placeholder="Dit svar…" className="flex-1" autoComplete="off" spellCheck={false} />
-                  <Button type="submit" disabled={showResult || !typedAnswer.trim()} size="sm">Svar</Button>
+                    disabled={showResult} placeholder={t("quiz.yourAnswerPlaceholder")} className="flex-1" autoComplete="off" spellCheck={false} />
+                  <Button type="submit" disabled={showResult || !typedAnswer.trim()} size="sm">{t("common.answer")}</Button>
                 </form>
                 {showResult && (
                   <div className={cn("rounded-lg px-3 py-2.5 text-sm space-y-1", isCorrect ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive")}>
                     {isTimedOut ? (
                       <div>
-                        <span className="flex items-center gap-1.5"><Timer className="h-4 w-4" /> Tiden udløb!</span>
-                        <p className="mt-1 text-foreground">Rigtigt svar: <strong>{current.answer}</strong></p>
+                        <span className="flex items-center gap-1.5"><Timer className="h-4 w-4" /> {t("quiz.timerExpired")}</span>
+                        <p className="mt-1 text-foreground">{t("quiz.correctAnswer")}: <strong>{current.answer}</strong></p>
                       </div>
                     ) : isCorrect ? (
-                      <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" /> Korrekt!</span>
+                      <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" /> {t("common.correct")}</span>
                     ) : (
                       <div>
-                        <span className="flex items-center gap-1.5"><XCircle className="h-4 w-4" /> Forkert</span>
-                        <p className="mt-1 text-foreground">Rigtigt svar: <strong>{current.answer}</strong></p>
+                        <span className="flex items-center gap-1.5"><XCircle className="h-4 w-4" /> {t("common.incorrect")}</span>
+                        <p className="mt-1 text-foreground">{t("quiz.correctAnswer")}: <strong>{current.answer}</strong></p>
                       </div>
                     )}
                   </div>
@@ -820,8 +815,8 @@ const Quiz = () => {
             {/* Timeout feedback for choice mode */}
             {effectiveMode === "choice" && showResult && isTimedOut && (
               <div className="rounded-lg px-3 py-2.5 text-sm bg-destructive/10 text-destructive space-y-1">
-                <span className="flex items-center gap-1.5"><Timer className="h-4 w-4" /> Tiden udløb!</span>
-                <p className="text-foreground">Rigtigt svar: <strong>{current.answer}</strong></p>
+                <span className="flex items-center gap-1.5"><Timer className="h-4 w-4" /> {t("quiz.timerExpired")}</span>
+                <p className="text-foreground">{t("quiz.correctAnswer")}: <strong>{current.answer}</strong></p>
               </div>
             )}
 
@@ -829,14 +824,14 @@ const Quiz = () => {
             <div className="flex justify-between items-center pt-2">
               {!showResult ? (
                 <Button variant="ghost" size="sm" onClick={() => submitAnswer("__skipped__")} className="text-muted-foreground">
-                  <SkipForward className="h-4 w-4 mr-1" /> Spring over
+                  <SkipForward className="h-4 w-4 mr-1" /> {t("common.skip")}
                 </Button>
               ) : (
                 <div />
               )}
               {showResult && (
                 <Button onClick={nextQuestion} size="sm">
-                  {currentIdx + 1 >= total ? "Se resultat" : "Næste →"}
+                  {currentIdx + 1 >= total ? t("quiz.seeResult") : t("common.next")}
                 </Button>
               )}
             </div>

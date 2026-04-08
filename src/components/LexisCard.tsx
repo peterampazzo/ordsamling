@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import type { LexisEntry } from "@/hooks/useLexicon";
 import { ENTRY_TYPES, entryTypeLabel, entryTypePillClass, pruneGrammar, type EntryType } from "@/lib/lexicon";
 import { GrammarDisplay, GrammarFields } from "@/components/EntryGrammar";
+import { t } from "@/i18n";
 
 interface Props {
   entry: LexisEntry;
@@ -37,7 +38,6 @@ interface Props {
 }
 
 const SWIPE_PX = 72;
-/** Horizontal swipe strip on small screens — must match grid + translate classes below. */
 const MOBILE_STRIP_W = "5.5rem";
 
 export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing = false, onEditingDone, disabled = false }: Props) {
@@ -132,38 +132,38 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
     return (
       <div className="rounded-lg border border-ring/30 bg-card p-3 shadow-sm space-y-2.5">
         <div className="flex flex-wrap gap-1.5">
-          {ENTRY_TYPES.map((t) => (
+          {ENTRY_TYPES.map((et) => (
             <button
-              key={t}
+              key={et}
               type="button"
               onClick={() =>
-                setDraft((d) => (d.type === t ? d : { ...d, type: t, grammar: {} }))
+                setDraft((d) => (d.type === et ? d : { ...d, type: et, grammar: {} }))
               }
               disabled={disabled || isSubmitting}
               className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
-                draft.type === t
+                draft.type === et
                   ? "bg-primary text-primary-foreground border-primary"
                   : "bg-secondary text-secondary-foreground border-border hover:border-primary/40"
               }`}
             >
-              {entryTypeLabel(t)}
+              {entryTypeLabel(et)}
             </button>
           ))}
         </div>
         <div className="space-y-1">
-          <span className="sr-only">Dansk</span>
-          <Input value={draft.danish} onChange={(e) => setDraft({ ...draft, danish: e.target.value })} autoFocus disabled={disabled || isSubmitting} className="text-base font-medium" placeholder="Dansk…" />
+          <span className="sr-only">{t("directions.danish")}</span>
+          <Input value={draft.danish} onChange={(e) => setDraft({ ...draft, danish: e.target.value })} autoFocus disabled={disabled || isSubmitting} className="text-base font-medium" placeholder={t("addEntry.danishPlaceholder")} />
         </div>
         <GrammarFields type={draft.type} value={draft.grammar ?? {}} onChange={(g) => setDraft({ ...draft, grammar: g })} disabled={disabled || isSubmitting} />
         <div className="rounded-md border border-border bg-muted/25 p-2.5 space-y-2">
-          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Oversættelser</p>
+          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t("lexisCard.translations")}</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
-              <span className="text-[10px] font-medium text-lang-en uppercase tracking-wider">English</span>
+              <span className="text-[10px] font-medium text-lang-en uppercase tracking-wider">{t("lexisCard.english")}</span>
               <Input value={draft.english} onChange={(e) => setDraft({ ...draft, english: e.target.value })} disabled={disabled || isSubmitting} className="mt-0.5" />
             </div>
             <div>
-              <span className="text-[10px] font-medium text-lang-it uppercase tracking-wider">Italiano</span>
+              <span className="text-[10px] font-medium text-lang-it uppercase tracking-wider">{t("lexisCard.italian")}</span>
               <Input value={draft.italian} onChange={(e) => setDraft({ ...draft, italian: e.target.value })} disabled={disabled || isSubmitting} className="mt-0.5" />
             </div>
           </div>
@@ -180,11 +180,11 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
   const translationBlock = (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
       <div>
-        <span className="text-[10px] font-medium text-lang-en uppercase tracking-wider">English</span>
+        <span className="text-[10px] font-medium text-lang-en uppercase tracking-wider">{t("lexisCard.english")}</span>
         <p className="text-muted-foreground leading-snug break-words">{entry.english || "—"}</p>
       </div>
       <div>
-        <span className="text-[10px] font-medium text-lang-it uppercase tracking-wider">Italiano</span>
+        <span className="text-[10px] font-medium text-lang-it uppercase tracking-wider">{t("lexisCard.italian")}</span>
         <p className="text-muted-foreground leading-snug break-words">{entry.italian || "—"}</p>
       </div>
     </div>
@@ -199,7 +199,7 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
         type="button"
         className="flex flex-1 min-w-0 h-full items-center justify-center text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground active:bg-muted-foreground/15 disabled:opacity-50"
         disabled={disabled}
-        aria-label="Rediger"
+        aria-label={t("common.edit")}
         onClick={() => {
           setSwipeOpen(false);
           startEdit();
@@ -211,7 +211,7 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
         type="button"
         className="flex flex-1 min-w-0 h-full items-center justify-center text-destructive hover:bg-destructive/10 active:bg-destructive/15 disabled:opacity-50"
         disabled={disabled}
-        aria-label="Slet"
+        aria-label={t("common.delete")}
         onClick={() => {
           setSwipeOpen(false);
           setDeleteDialogOpen(true);
@@ -227,7 +227,7 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
       <div className="absolute top-1.5 right-1.5 z-40 hidden sm:block opacity-0 pointer-events-none group-hover/card:opacity-100 group-hover/card:pointer-events-auto group-focus-within/card:opacity-100 group-focus-within/card:pointer-events-auto transition-opacity">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" disabled={disabled} aria-label="Handlinger">
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" disabled={disabled} aria-label={t("common.actions")}>
               <MoreVertical className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -238,7 +238,7 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
               }}
             >
               <Pencil className="mr-2 h-4 w-4" />
-              Rediger
+              {t("common.edit")}
             </DropdownMenuItem>
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
@@ -247,7 +247,7 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
               }}
             >
               <Trash2 className="mr-2 h-4 w-4" />
-              Slet
+              {t("common.delete")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -283,7 +283,7 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
             <div className="border-t border-border bg-muted/15 px-3 py-2.5 space-y-3">
               <GrammarDisplay type={entry.type} grammar={entry.grammar} />
               <div>
-                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1.5">Oversættelser</p>
+                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1.5">{t("lexisCard.translations")}</p>
                 {translationBlock}
               </div>
               {(entry.notes || linkedWords.length > 0) && (
@@ -316,15 +316,15 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
       >
         <AlertDialogContent className="max-w-[min(100%,24rem)]">
           <AlertDialogHeader>
-            <AlertDialogTitle>Slet dette ord?</AlertDialogTitle>
+            <AlertDialogTitle>{t("lexisCard.deleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              «{entry.danish || entry.english || "dette opslag"}» slettes permanent. Det kan ikke fortrydes.
+              {t("lexisCard.deleteDescription", { word: entry.danish || entry.english || "dette opslag" })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Annuller</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>{t("common.cancel")}</AlertDialogCancel>
             <Button variant="destructive" disabled={disabled || isDeleting} onClick={() => void confirmDelete()}>
-              {isDeleting ? "Sletter…" : "Slet"}
+              {isDeleting ? t("common.deleting") : t("common.delete")}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

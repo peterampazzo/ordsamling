@@ -1,5 +1,6 @@
 import { Input } from "@/components/ui/input";
 import { GRAMMAR_FIELD_CONFIG, grammarHasContent, type EntryGrammar, type EntryType } from "@/lib/lexicon";
+import { t } from "@/i18n";
 
 export function GrammarFields({
   type,
@@ -21,7 +22,7 @@ export function GrammarFields({
 
   return (
     <div className="rounded-md border border-border bg-muted/25 p-2.5 space-y-2 min-w-0">
-      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Dansk bøjning / former</p>
+      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t("grammar.sectionTitle")}</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 min-w-0">
         {fields.map(({ key, label, placeholder }) => (
           <div key={key} className="min-w-0">
@@ -46,7 +47,7 @@ export function GrammarDisplay({ type, grammar }: { type: EntryType; grammar: En
 
   return (
     <div className="space-y-1 text-sm text-muted-foreground">
-      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/90">Bøjning</p>
+      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/90">{t("grammar.displayTitle")}</p>
       <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
         {fields.map(({ key, label }) => {
           const v = grammar[key]?.trim();

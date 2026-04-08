@@ -6,6 +6,7 @@ import { X, ArrowRight } from "lucide-react";
 import type { LexisEntry, EntryType } from "@/hooks/useLexicon";
 import { ENTRY_TYPES, entryTypeLabel, pruneGrammar, type EntryGrammar } from "@/lib/lexicon";
 import { GrammarFields } from "@/components/EntryGrammar";
+import { t } from "@/i18n";
 
 interface Props {
   onAdd: (entry: Omit<LexisEntry, "id" | "createdAt">) => Promise<void>;
@@ -64,7 +65,7 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
       className="w-full min-w-0 rounded-lg border border-ring/30 bg-card p-3 shadow-sm space-y-2.5"
     >
       <div className="flex items-center justify-between gap-2 min-w-0">
-        <h3 className="text-base font-semibold truncate">Nyt ord</h3>
+        <h3 className="text-base font-semibold truncate">{t("addEntry.title")}</h3>
         <button
           type="button"
           onClick={() => {
@@ -72,39 +73,39 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
             onCancel();
           }}
           className="shrink-0 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          aria-label="Luk"
+          aria-label={t("common.close")}
         >
           <X className="h-4 w-4" />
         </button>
       </div>
 
       <div className="flex flex-wrap gap-1.5">
-        {ENTRY_TYPES.map((t) => (
+        {ENTRY_TYPES.map((et) => (
           <button
-            key={t}
+            key={et}
             type="button"
             onClick={() => {
-              if (type !== t) setGrammar({});
-              setType(t);
+              if (type !== et) setGrammar({});
+              setType(et);
             }}
             disabled={disabled || isSubmitting}
             className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
-              type === t
+              type === et
                 ? "bg-primary text-primary-foreground border-primary"
                 : "bg-secondary text-secondary-foreground border-border hover:border-primary/40"
             }`}
           >
-            {entryTypeLabel(t)}
+            {entryTypeLabel(et)}
           </button>
         ))}
       </div>
 
       <div className="space-y-1 min-w-0">
-        <span className="sr-only">Dansk</span>
+        <span className="sr-only">{t("directions.danish")}</span>
         <Input
           value={danish}
           onChange={(e) => setDanish(e.target.value)}
-          placeholder="Dansk…"
+          placeholder={t("addEntry.danishPlaceholder")}
           autoFocus
           disabled={disabled || isSubmitting}
           className="text-base font-medium min-w-0"
@@ -114,24 +115,24 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
       <GrammarFields type={type} value={grammar} onChange={setGrammar} disabled={disabled || isSubmitting} />
 
       <div className="rounded-md border border-border bg-muted/25 p-2.5 space-y-2 min-w-0">
-        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Oversættelser</p>
+        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t("addEntry.translations")}</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 min-w-0">
           <div className="min-w-0">
-            <span className="text-[10px] font-medium text-lang-en uppercase tracking-wider">English</span>
+            <span className="text-[10px] font-medium text-lang-en uppercase tracking-wider">{t("lexisCard.english")}</span>
             <Input
               value={english}
               onChange={(e) => setEnglish(e.target.value)}
-              placeholder="English…"
+              placeholder={t("addEntry.englishPlaceholder")}
               disabled={disabled || isSubmitting}
               className="mt-0.5 min-w-0"
             />
           </div>
           <div className="min-w-0">
-            <span className="text-[10px] font-medium text-lang-it uppercase tracking-wider">Italiano</span>
+            <span className="text-[10px] font-medium text-lang-it uppercase tracking-wider">{t("lexisCard.italian")}</span>
             <Input
               value={italian}
               onChange={(e) => setItalian(e.target.value)}
-              placeholder="Italiano…"
+              placeholder={t("addEntry.italianPlaceholder")}
               disabled={disabled || isSubmitting}
               className="mt-0.5 min-w-0"
             />
@@ -141,7 +142,7 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
 
       {matches.length > 0 && (
         <div className="rounded-md border border-primary/20 bg-accent/50 p-2.5 space-y-2 min-w-0">
-          <p className="text-xs font-medium text-accent-foreground">Findes allerede ({matches.length})</p>
+          <p className="text-xs font-medium text-accent-foreground">{t("addEntry.matchesFound", { count: matches.length })}</p>
           {matches.slice(0, 4).map((m) => (
             <button
               key={m.id}
@@ -167,7 +168,7 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
       <Textarea
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
-        placeholder="Noter — grammatik, eksempler…"
+        placeholder={t("addEntry.notesPlaceholder")}
         rows={2}
         disabled={disabled || isSubmitting}
         className="min-w-0 resize-y"
@@ -184,10 +185,10 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
           }}
           disabled={isSubmitting}
         >
-          Annuller
+          {t("common.cancel")}
         </Button>
         <Button type="submit" size="sm" disabled={disabled || isSubmitting}>
-          {isSubmitting ? "Gemmer…" : "Gem"}
+          {isSubmitting ? t("common.saving") : t("common.save")}
         </Button>
       </div>
     </form>
