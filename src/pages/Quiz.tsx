@@ -640,7 +640,7 @@ const Quiz = () => {
         <header className="border-b border-border bg-card/90 shadow-sm">
           <div className="max-w-2xl mx-auto px-3 sm:px-4 flex items-center gap-3 py-3">
             <Brain className="h-5 w-5 text-primary" />
-            <h1 className="text-base sm:text-lg font-semibold text-foreground">Resultat</h1>
+            <h1 className="text-base sm:text-lg font-semibold text-foreground">{t("quiz.result")}</h1>
           </div>
         </header>
 
@@ -648,14 +648,14 @@ const Quiz = () => {
           <div className="max-w-md mx-auto space-y-8">
             <div className="text-center space-y-3">
               <div className={cn("text-6xl font-bold", pct >= 80 ? "text-primary" : pct >= 50 ? "text-accent-foreground" : "text-destructive")}>{pct}%</div>
-              <p className="text-lg text-foreground">{score} af {total} rigtige</p>
+              <p className="text-lg text-foreground">{t("quiz.scoreOf", { score, total })}</p>
               <p className="text-sm text-muted-foreground">
-                {pct >= 90 ? "Fantastisk! 🎉" : pct >= 70 ? "Godt gået! 👍" : pct >= 50 ? "Ikke dårligt, men øv dig lidt mere" : "Bliv ved med at øve! 💪"}
+                {pct >= 90 ? t("quiz.feedback90") : pct >= 70 ? t("quiz.feedback70") : pct >= 50 ? t("quiz.feedback50") : t("quiz.feedbackLow")}
               </p>
             </div>
 
             <div className="space-y-2">
-              <h2 className="text-sm font-medium text-foreground">Dine svar</h2>
+              <h2 className="text-sm font-medium text-foreground">{t("quiz.yourAnswers")}</h2>
               <div className="divide-y divide-border rounded-lg border border-border overflow-hidden">
                 {sessionAnswers.map((a, i) => (
                   <div key={i} className={cn("px-3 py-2.5 text-sm flex items-start gap-2", a.correct ? "bg-card" : "bg-destructive/5")}>
@@ -664,8 +664,8 @@ const Quiz = () => {
                       <span className="font-medium text-foreground">{a.prompt}</span>
                       <span className="text-muted-foreground"> → </span>
                       <span className={cn("font-medium", a.correct ? "text-primary" : "text-destructive")}>{a.skipped ? "—" : a.givenAnswer}</span>
-                      {!a.correct && !a.skipped && <p className="text-xs text-muted-foreground mt-0.5">Rigtigt: <span className="text-foreground">{a.correctAnswer}</span></p>}
-                      {a.skipped && <p className="text-xs text-muted-foreground mt-0.5">Svar: <span className="text-foreground">{a.correctAnswer}</span></p>}
+                      {!a.correct && !a.skipped && <p className="text-xs text-muted-foreground mt-0.5">{t("quiz.correctAnswer")}: <span className="text-foreground">{a.correctAnswer}</span></p>}
+                      {a.skipped && <p className="text-xs text-muted-foreground mt-0.5">{t("common.answer")}: <span className="text-foreground">{a.correctAnswer}</span></p>}
                     </div>
                   </div>
                 ))}
@@ -673,8 +673,8 @@ const Quiz = () => {
             </div>
 
             <div className="flex gap-3 justify-center pt-2">
-              <Button variant="outline" onClick={() => setState("setup")}><ArrowLeft className="h-4 w-4 mr-1" /> Indstillinger</Button>
-              <Button onClick={startQuiz}><RotateCcw className="h-4 w-4 mr-1" /> Prøv igen</Button>
+              <Button variant="outline" onClick={() => setState("setup")}><ArrowLeft className="h-4 w-4 mr-1" /> {t("common.settings")}</Button>
+              <Button onClick={startQuiz}><RotateCcw className="h-4 w-4 mr-1" /> {t("quiz.tryAgain")}</Button>
             </div>
           </div>
         </main>
