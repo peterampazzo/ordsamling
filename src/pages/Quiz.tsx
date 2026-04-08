@@ -331,7 +331,7 @@ async function fetchSmartDistractors(
 const Quiz = () => {
   const { allEntries } = useLexicon();
 
-  const [mode, setMode] = useState<QuizMode>("choice");
+  const [mode, setMode] = useState<QuizMode>("mixed");
   const [difficulty, setDifficulty] = useState<Difficulty>("beginner");
   const [questionCount, setQuestionCount] = useState(10);
 
