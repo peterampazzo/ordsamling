@@ -529,12 +529,12 @@ const Quiz = () => {
                 <Link to="/"><ArrowLeft className="h-5 w-5" /></Link>
               </Button>
               <Brain className="h-5 w-5 text-primary" />
-              <h1 className="text-base sm:text-lg font-semibold text-foreground">Ordquiz</h1>
+              <h1 className="text-base sm:text-lg font-semibold text-foreground">{t("quiz.title")}</h1>
             </div>
             <Button variant="outline" size="sm" className="gap-1.5" asChild>
               <Link to="/quiz/history">
                 <History className="h-4 w-4" />
-                <span className="hidden sm:inline">Historik</span>
+                <span className="hidden sm:inline">{t("quiz.history")}</span>
               </Link>
             </Button>
           </div>
@@ -544,15 +544,15 @@ const Quiz = () => {
           {allEntries.length < 4 ? (
             <div className="text-center py-12 text-muted-foreground space-y-2">
               <Brain className="h-10 w-10 mx-auto opacity-30" />
-              <p className="text-base">Du har brug for mindst 4 ord for at starte en quiz</p>
-              <Button variant="outline" asChild className="mt-4"><Link to="/">Tilføj ord</Link></Button>
+              <p className="text-base">{t("quiz.minWordsNeeded")}</p>
+              <Button variant="outline" asChild className="mt-4"><Link to="/">{t("quiz.addWords")}</Link></Button>
             </div>
           ) : (
             <>
               {/* Difficulty */}
               <section className="space-y-3">
                 <h2 className="text-sm font-medium text-foreground flex items-center gap-1.5">
-                  <Gauge className="h-4 w-4" /> Sværhedsgrad
+                  <Gauge className="h-4 w-4" /> {t("quiz.difficulty")}
                 </h2>
                 <div className="grid grid-cols-1 gap-2">
                   {DIFFICULTIES.map((d) => (
@@ -576,38 +576,38 @@ const Quiz = () => {
 
               {/* Mode */}
               <section className="space-y-3">
-                <h2 className="text-sm font-medium text-foreground">Tilstand</h2>
+                <h2 className="text-sm font-medium text-foreground">{t("quiz.mode")}</h2>
                 <div className="grid grid-cols-4 gap-2">
                   <button type="button" onClick={() => setMode("mixed")}
                     className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
                       mode === "mixed" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
                     <Shuffle className="h-4 w-4" />
-                    <span className="text-xs">Blandet</span>
+                    <span className="text-xs">{t("quiz.modeMixed")}</span>
                   </button>
                   <button type="button" onClick={() => setMode("choice")}
                     className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
                       mode === "choice" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
                     <LayoutGrid className="h-4 w-4" />
-                    <span className="text-xs">Vælg svar</span>
+                    <span className="text-xs">{t("quiz.modeChoice")}</span>
                   </button>
                   <button type="button" onClick={() => setMode("type")}
                     className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
                       mode === "type" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
                     <Keyboard className="h-4 w-4" />
-                    <span className="text-xs">Skriv svar</span>
+                    <span className="text-xs">{t("quiz.modeType")}</span>
                   </button>
                   <button type="button" onClick={() => setMode("completion")}
                     className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
                       mode === "completion" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
                     <PenLine className="h-4 w-4" />
-                    <span className="text-xs">Udfyld ord</span>
+                    <span className="text-xs">{t("quiz.modeCompletion")}</span>
                   </button>
                 </div>
               </section>
 
               {/* Count */}
               <section className="space-y-3">
-                <h2 className="text-sm font-medium text-foreground">Antal spørgsmål</h2>
+                <h2 className="text-sm font-medium text-foreground">{t("quiz.questionCount")}</h2>
                 <div className="flex gap-2">
                   {[5, 10, 20, 50].map((n) => (
                     <button key={n} type="button" onClick={() => setQuestionCount(n)}
@@ -617,11 +617,12 @@ const Quiz = () => {
                     </button>
                   ))}
                 </div>
-                <p className="text-xs text-muted-foreground">{eligibleCount} ord tilgængelige · Spørgsmål blander dansk↔engelsk</p>
+                <p className="text-xs text-muted-foreground">{t("quiz.questionsAvailable", { count: eligibleCount })}</p>
               </section>
 
               <Button onClick={startQuiz} disabled={eligibleCount < 2} className="w-full h-11 text-base">
-                Start quiz
+                {t("quiz.startQuiz")}
+              </Button>
               </Button>
             </>
           )}
