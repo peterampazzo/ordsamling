@@ -27,7 +27,7 @@ import { saveSession, type QuizAnswerRecord } from "@/lib/quizHistory";
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-type QuizMode = "choice" | "type" | "completion";
+type QuizMode = "choice" | "type" | "completion" | "mixed";
 type Difficulty = "beginner" | "intermediate" | "advanced";
 
 type LangDirection = {
@@ -66,6 +66,8 @@ interface QuizQuestion {
   direction: LangDirection;
   /** For completion mode: the masked version */
   masked?: string;
+  /** For mixed mode: which display mode this question uses */
+  displayMode?: "choice" | "type" | "completion";
 }
 
 type QuizState = "setup" | "playing" | "result";
@@ -251,30 +253,37 @@ function buildQuestions(
     lastDir = `${q.direction.from}-${q.direction.to}`;
   }
 
-  // For completion mode, add masked versions
-  if (mode === "completion") {
-    for (const q of picked) {
-      if (!q.masked) {
-        q.masked = makeBlank(q.answer);
-      }
+  // Assign display modes for mixed mode
+  const MIXED_CYCLE: ("choice" | "type" | "completion")[] = ["choice", "type", "completion"];
+  if (mode === "mixed") {
+    for (let i = 0; i < picked.length; i++) {
+      picked[i].displayMode = MIXED_CYCLE[i % MIXED_CYCLE.length];
     }
   }
 
-  // Generate local MC options for choice mode (AI distractors fetched async later)
-  if (mode === "choice") {
-    for (const q of picked) {
-      const dir = q.direction;
-      const answerPool =
-        q.questionType === "translate"
-          ? entries.map((e) => e[dir.to]).filter(isValid)
-          : entries
-              .flatMap((e) => (e.grammar ? Object.values(e.grammar).filter(isValid) : []))
-              .filter((v): v is string => typeof v === "string");
-
-      const unique = [...new Set(answerPool.map((a) => a.trim()))];
-      const wrong = shuffle(unique.filter((a) => normalize(a) !== normalize(q.answer))).slice(0, 3);
-      q.options = shuffle([q.answer, ...wrong]).filter(isValid);
+  // For completion mode (or mixed questions that are completion), add masked versions
+  for (const q of picked) {
+    const isCompletion = mode === "completion" || q.displayMode === "completion";
+    if (isCompletion && !q.masked) {
+      q.masked = makeBlank(q.answer);
     }
+  }
+
+  // Generate local MC options for choice-mode questions (or mixed questions that are choice)
+  for (const q of picked) {
+    const isChoice = mode === "choice" || q.displayMode === "choice";
+    if (!isChoice) continue;
+    const dir = q.direction;
+    const answerPool =
+      q.questionType === "translate"
+        ? entries.map((e) => e[dir.to]).filter(isValid)
+        : entries
+            .flatMap((e) => (e.grammar ? Object.values(e.grammar).filter(isValid) : []))
+            .filter((v): v is string => typeof v === "string");
+
+    const unique = [...new Set(answerPool.map((a) => a.trim()))];
+    const wrong = shuffle(unique.filter((a) => normalize(a) !== normalize(q.answer))).slice(0, 3);
+    q.options = shuffle([q.answer, ...wrong]).filter(isValid);
   }
 
   return picked;
@@ -492,9 +501,10 @@ const Quiz = () => {
   const isTimedOut = answered === "__timeout__";
 
   // Determine effective input mode for current question
+  const currentDisplayMode: QuizMode = current?.displayMode ?? mode;
   const effectiveMode: "choice" | "type" = (() => {
-    if (mode === "completion") return "type";
-    if (mode === "type") return "type";
+    if (currentDisplayMode === "completion") return "type";
+    if (currentDisplayMode === "type") return "type";
     // choice mode but not enough options
     if (current && current.options.filter(isValid).length < 2) return "type";
     return "choice";
