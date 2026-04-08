@@ -388,16 +388,18 @@ const Quiz = () => {
 
   // Focus input for typing modes
   useEffect(() => {
-    if (state === "playing" && (mode === "type" || mode === "completion") && !showResult) {
+    const dm = current?.displayMode ?? mode;
+    if (state === "playing" && (dm === "type" || dm === "completion") && !showResult) {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [state, mode, showResult, currentIdx]);
+  }, [state, mode, showResult, currentIdx, current?.displayMode]);
 
   // Fetch AI distractors for current question (advanced/intermediate + choice mode)
   useEffect(() => {
+    const dm = current?.displayMode ?? mode;
     if (
       state !== "playing" ||
-      mode !== "choice" ||
+      (dm !== "choice") ||
       difficulty === "beginner" ||
       !current ||
       showResult
