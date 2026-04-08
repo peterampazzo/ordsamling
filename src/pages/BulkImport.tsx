@@ -7,12 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { useLexicon } from "@/hooks/useLexicon";
 import { ENTRY_TYPES, entryTypeLabel, normalizeEntryType, type EntryType } from "@/lib/lexicon";
 import type { LexisEntryInput } from "@/lib/lexicon";
+import { t } from "@/i18n";
 
 // ---------------------------------------------------------------------------
 // CSV parsing
 // ---------------------------------------------------------------------------
 
-/** Split a single CSV line respecting double-quoted fields. */
 function splitCsvLine(line: string): string[] {
   const fields: string[] = [];
   let current = "";
@@ -22,7 +22,6 @@ function splitCsvLine(line: string): string[] {
     const ch = line[i];
     if (ch === '"') {
       if (inQuotes && line[i + 1] === '"') {
-        // Escaped quote inside quoted field
         current += '"';
         i++;
       } else {
@@ -39,7 +38,6 @@ function splitCsvLine(line: string): string[] {
   return fields;
 }
 
-/** Detect whether the text uses tabs or commas as delimiter. */
 function detectDelimiter(text: string): "tab" | "comma" {
   const firstLine = text.split("\n")[0] || "";
   const tabCount = (firstLine.match(/\t/g) || []).length;
@@ -59,74 +57,34 @@ function splitLine(line: string, delimiter: "tab" | "comma"): string[] {
 // ---------------------------------------------------------------------------
 
 const KNOWN_COLUMNS = [
-  "danish",
-  "english",
-  "italian",
-  "type",
-  "notes",
-  // grammar fields
-  "article",
-  "singularDefinite",
-  "pluralIndefinite",
-  "pluralDefinite",
-  "present",
-  "past",
-  "perfect",
-  "neuter",
-  "definite",
-  "plural",
-  "comparative",
-  "superlative",
+  "danish", "english", "italian", "type", "notes",
+  "article", "singularDefinite", "pluralIndefinite", "pluralDefinite",
+  "present", "past", "perfect",
+  "neuter", "definite", "plural", "comparative", "superlative",
 ] as const;
 
 type KnownColumn = (typeof KNOWN_COLUMNS)[number];
 
-/** Normalise a header string to a known column key, or null. */
 function normalizeHeader(raw: string): KnownColumn | null {
   const s = raw.toLowerCase().replace(/[\s_-]/g, "");
   const map: Record<string, KnownColumn> = {
-    danish: "danish",
-    dansk: "danish",
-    da: "danish",
-    english: "english",
-    engelsk: "english",
-    en: "english",
-    italian: "italian",
-    italiano: "italian",
-    it: "italian",
-    type: "type",
-    type_: "type",
-    ordklasse: "type",
-    notes: "notes",
-    noter: "notes",
-    note: "notes",
-    comment: "notes",
-    comments: "notes",
-    // grammar
-    article: "article",
-    artikel: "article",
-    singulardefinite: "singularDefinite",
-    bestemtental: "singularDefinite",
-    pluralindefinite: "pluralIndefinite",
-    ubestemtflertal: "pluralIndefinite",
-    pluraldefinite: "pluralDefinite",
-    bestemtflertal: "pluralDefinite",
-    present: "present",
-    nutid: "present",
-    past: "past",
-    datid: "past",
-    perfect: "perfect",
-    perfektum: "perfect",
-    neuter: "neuter",
-    tform: "neuter",
-    definite: "definite",
-    bestemtform: "definite",
-    plural: "plural",
-    flertal: "plural",
-    comparative: "comparative",
-    komparativ: "comparative",
-    superlative: "superlative",
-    superlativ: "superlative",
+    danish: "danish", dansk: "danish", da: "danish",
+    english: "english", engelsk: "english", en: "english",
+    italian: "italian", italiano: "italian", it: "italian",
+    type: "type", type_: "type", ordklasse: "type",
+    notes: "notes", noter: "notes", note: "notes", comment: "notes", comments: "notes",
+    article: "article", artikel: "article",
+    singulardefinite: "singularDefinite", bestemtental: "singularDefinite",
+    pluralindefinite: "pluralIndefinite", ubestemtflertal: "pluralIndefinite",
+    pluraldefinite: "pluralDefinite", bestemtflertal: "pluralDefinite",
+    present: "present", nutid: "present",
+    past: "past", datid: "past",
+    perfect: "perfect", perfektum: "perfect",
+    neuter: "neuter", tform: "neuter",
+    definite: "definite", bestemtform: "definite",
+    plural: "plural", flertal: "plural",
+    comparative: "comparative", komparativ: "comparative",
+    superlative: "superlative", superlativ: "superlative",
   };
   return map[s] ?? null;
 }
@@ -136,7 +94,7 @@ function normalizeHeader(raw: string): KnownColumn | null {
 // ---------------------------------------------------------------------------
 
 export interface ParsedRow {
-  rowIndex: number; // 1-based (excluding header)
+  rowIndex: number;
   raw: string[];
   entry: LexisEntryInput | null;
   errors: string[];
@@ -164,7 +122,6 @@ function parseRows(text: string): { rows: ParsedRow[]; headers: string[] } {
     const errors: string[] = [];
     const warnings: string[] = [];
 
-    // Build a field map
     const fields: Partial<Record<KnownColumn, string>> = {};
     for (let c = 0; c < columnMap.length; c++) {
       const col = columnMap[c];
@@ -178,7 +135,7 @@ function parseRows(text: string): { rows: ParsedRow[]; headers: string[] } {
     const italian = fields.italian ?? "";
 
     if (!danish && !english && !italian) {
-      errors.push("Mindst ét af felterne dansk, engelsk eller italiensk skal udfyldes.");
+      errors.push(t("bulkImport.rowValidationError"));
     }
 
     const rawType = fields.type ?? "";
@@ -187,10 +144,9 @@ function parseRows(text: string): { rows: ParsedRow[]; headers: string[] } {
       : "word";
 
     if (rawType && !ENTRY_TYPES.includes(type)) {
-      warnings.push(`Ukendt type «${rawType}» — sat til «ord».`);
+      warnings.push(t("bulkImport.unknownType", { type: rawType }));
     }
 
-    // Grammar fields
     const grammarFields: Record<string, string> = {};
     const grammarKeys = [
       "article", "singularDefinite", "pluralIndefinite", "pluralDefinite",
@@ -228,39 +184,35 @@ function statusBadge(status: RowStatus) {
     case "valid":
       return (
         <span className="inline-flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-300">
-          <CheckCircle2 className="h-3.5 w-3.5" /> OK
+          <CheckCircle2 className="h-3.5 w-3.5" /> {t("common.ok")}
         </span>
       );
     case "warning":
       return (
         <span className="inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-300">
-          <AlertCircle className="h-3.5 w-3.5" /> Advarsel
+          <AlertCircle className="h-3.5 w-3.5" /> {t("common.warning")}
         </span>
       );
     case "error":
       return (
         <span className="inline-flex items-center gap-1 text-xs text-destructive">
-          <XCircle className="h-3.5 w-3.5" /> Fejl
+          <XCircle className="h-3.5 w-3.5" /> {t("common.error")}
         </span>
       );
     case "imported":
       return (
         <span className="inline-flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-300 font-medium">
-          <CheckCircle2 className="h-3.5 w-3.5" /> Importeret
+          <CheckCircle2 className="h-3.5 w-3.5" /> {t("common.imported")}
         </span>
       );
     case "failed":
       return (
         <span className="inline-flex items-center gap-1 text-xs text-destructive font-medium">
-          <XCircle className="h-3.5 w-3.5" /> Fejlede
+          <XCircle className="h-3.5 w-3.5" /> {t("common.failed")}
         </span>
       );
   }
 }
-
-// ---------------------------------------------------------------------------
-// Example CSV shown in the placeholder
-// ---------------------------------------------------------------------------
 
 const EXAMPLE_CSV = `danish,english,italian,type,notes
 hus,house,casa,noun,
@@ -299,7 +251,6 @@ export default function BulkImport() {
   const validRows = parsed?.rows.filter((r) => r.entry !== null) ?? [];
   const errorRows = parsed?.rows.filter((r) => r.entry === null) ?? [];
 
-  // Detect duplicates against existing entries
   const existingKeys = new Set(
     allEntries.map((e) => [e.danish, e.english, e.italian].join("|").toLowerCase()),
   );
@@ -320,13 +271,13 @@ export default function BulkImport() {
       try {
         await addEntry(row.entry);
         newResults.push({ rowIndex: row.rowIndex, status: "imported" });
-        await new Promise((r) => setTimeout(r, 50)); // Throttle
+        await new Promise((r) => setTimeout(r, 50));
       } catch (err) {
         console.error(`Failed to import row ${row.rowIndex}:`, err);
         newResults.push({
           rowIndex: row.rowIndex,
           status: "failed",
-          error: err instanceof Error ? err.message : "Ukendt fejl",
+          error: err instanceof Error ? err.message : t("bulkImport.unknownError"),
         });
       }
     }
@@ -349,7 +300,6 @@ export default function BulkImport() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="sticky top-0 z-30 border-b border-border bg-card/90 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80">
         <div className="max-w-3xl mx-auto px-3 sm:px-4">
           <div className="flex items-center gap-3 py-3">
@@ -357,13 +307,13 @@ export default function BulkImport() {
               type="button"
               onClick={() => navigate("/")}
               className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              aria-label="Tilbage"
+              aria-label={t("common.back")}
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
             <div className="flex items-center gap-2 min-w-0">
               <Upload className="h-5 w-5 text-primary shrink-0" aria-hidden />
-              <h1 className="text-base sm:text-lg font-semibold text-foreground truncate">Masseimport</h1>
+              <h1 className="text-base sm:text-lg font-semibold text-foreground truncate">{t("bulkImport.title")}</h1>
             </div>
           </div>
         </div>
@@ -375,11 +325,10 @@ export default function BulkImport() {
         <div className="rounded-lg border border-border bg-card p-4 space-y-3">
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-            <h2 className="text-sm font-semibold">Format</h2>
+            <h2 className="text-sm font-semibold">{t("bulkImport.formatTitle")}</h2>
           </div>
           <p className="text-sm text-muted-foreground">
-            Indsæt CSV-data eller tabulatorseparerede data (f.eks. kopieret fra et regneark). Første linje skal
-            indeholde kolonnenavne.
+            {t("bulkImport.formatDescription")}
           </p>
           <div className="flex flex-wrap gap-1.5">
             {(["danish", "english", "italian", "type", "notes"] as const).map((col) => (
@@ -387,16 +336,16 @@ export default function BulkImport() {
                 {col}
               </code>
             ))}
-            <span className="text-[11px] text-muted-foreground self-center">+ grammatikfelter</span>
+            <span className="text-[11px] text-muted-foreground self-center">{t("bulkImport.grammarFields")}</span>
           </div>
           <p className="text-xs text-muted-foreground">
-            Gyldige typer:{" "}
-            {ENTRY_TYPES.map((t) => (
-              <code key={t} className="font-mono">
-                {t}
+            {t("bulkImport.validTypes")}{": "}
+            {ENTRY_TYPES.map((et) => (
+              <code key={et} className="font-mono">
+                {et}
               </code>
             )).reduce<React.ReactNode[]>((acc, el, i) => (i === 0 ? [el] : [...acc, ", ", el]), [])}
-            . Ukendte typer sættes til <code className="font-mono">word</code>.
+            . {t("bulkImport.unknownTypeDefault")} <code className="font-mono">word</code>.
           </p>
         </div>
 
@@ -416,12 +365,12 @@ export default function BulkImport() {
               placeholder={EXAMPLE_CSV}
               rows={10}
               className="font-mono text-xs resize-y"
-              aria-label="CSV-data"
+              aria-label={t("bulkImport.csvLabel")}
             />
             <div className="flex gap-2 justify-end">
               {rawText.trim() && (
                 <Button type="button" variant="ghost" size="sm" onClick={handleReset}>
-                  Ryd
+                  {t("common.clear")}
                 </Button>
               )}
               <Button
@@ -430,7 +379,7 @@ export default function BulkImport() {
                 onClick={handleParse}
                 disabled={!rawText.trim()}
               >
-                Analysér
+                {t("bulkImport.analyze")}
               </Button>
             </div>
           </div>
@@ -439,37 +388,35 @@ export default function BulkImport() {
         {/* Preview table */}
         {parsed && parsed.rows.length > 0 && (
           <div className="space-y-4">
-            {/* Summary */}
             <div className="flex flex-wrap gap-2 items-center">
-              <span className="text-sm font-medium">{parsed.rows.length} rækker fundet</span>
+              <span className="text-sm font-medium">{t("bulkImport.rowsFound", { count: parsed.rows.length })}</span>
               {validRows.length > 0 && (
                 <Badge variant="secondary" className="text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800">
-                  {validRows.length} gyldige
+                  {t("bulkImport.validCount", { count: validRows.length })}
                 </Badge>
               )}
               {errorRows.length > 0 && (
                 <Badge variant="secondary" className="text-destructive bg-destructive/10 border-destructive/20">
-                  {errorRows.length} fejl
+                  {t("bulkImport.errorCount", { count: errorRows.length })}
                 </Badge>
               )}
               {validRows.filter(isDuplicate).length > 0 && (
                 <Badge variant="secondary" className="text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800">
-                  {validRows.filter(isDuplicate).length} mulige dubletter
+                  {t("bulkImport.duplicateCount", { count: validRows.filter(isDuplicate).length })}
                 </Badge>
               )}
             </div>
 
-            {/* Table */}
             <div className="rounded-lg border border-border overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-border bg-muted/50">
                     <th className="text-left px-3 py-2 font-medium text-muted-foreground w-8">#</th>
-                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">Dansk</th>
-                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">Engelsk</th>
-                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">Italiensk</th>
-                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">Type</th>
-                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">Status</th>
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t("bulkImport.tableDanish")}</th>
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t("bulkImport.tableEnglish")}</th>
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t("bulkImport.tableItalian")}</th>
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t("bulkImport.tableType")}</th>
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t("bulkImport.tableStatus")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -522,7 +469,7 @@ export default function BulkImport() {
                           <div className="space-y-0.5">
                             {statusBadge(rowStatus)}
                             {duplicate && !result && (
-                              <div className="text-[10px] text-amber-700 dark:text-amber-400">Mulig dublet</div>
+                              <div className="text-[10px] text-amber-700 dark:text-amber-400">{t("bulkImport.possibleDuplicate")}</div>
                             )}
                             {row.errors.map((e, i) => (
                               <div key={i} className="text-[10px] text-destructive">{e}</div>
@@ -542,11 +489,10 @@ export default function BulkImport() {
               </table>
             </div>
 
-            {/* Import actions */}
             {importStatus !== "done" && (
               <div className="flex flex-wrap gap-2 justify-between items-center">
                 <Button type="button" variant="ghost" size="sm" onClick={handleReset}>
-                  Start forfra
+                  {t("bulkImport.startOver")}
                 </Button>
                 <div className="flex gap-2">
                   <Button
@@ -558,7 +504,7 @@ export default function BulkImport() {
                       setImportStatus("idle");
                     }}
                   >
-                    Rediger
+                    {t("common.edit")}
                   </Button>
                   <Button
                     type="button"
@@ -570,12 +516,12 @@ export default function BulkImport() {
                     {importStatus === "importing" ? (
                       <>
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        Importerer…
+                        {t("bulkImport.importing")}
                       </>
                     ) : (
                       <>
                         <Upload className="h-3.5 w-3.5" />
-                        Importér {validRows.length} {validRows.length === 1 ? "ord" : "ord"}
+                        {t("bulkImport.importN", { count: validRows.length })}
                       </>
                     )}
                   </Button>
@@ -583,36 +529,35 @@ export default function BulkImport() {
               </div>
             )}
 
-            {/* Done summary */}
             {importStatus === "done" && (
               <div className="rounded-lg border border-border bg-card p-4 space-y-3">
-                <h3 className="text-sm font-semibold">Import afsluttet</h3>
+                <h3 className="text-sm font-semibold">{t("bulkImport.importDone")}</h3>
                 <div className="flex flex-wrap gap-3 text-sm">
                   {importedCount > 0 && (
                     <span className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300">
                       <CheckCircle2 className="h-4 w-4" />
-                      {importedCount} importeret
+                      {t("bulkImport.importedCount", { count: importedCount })}
                     </span>
                   )}
                   {failedCount > 0 && (
                     <span className="flex items-center gap-1.5 text-destructive">
                       <XCircle className="h-4 w-4" />
-                      {failedCount} fejlede
+                      {t("bulkImport.failedCount", { count: failedCount })}
                     </span>
                   )}
                   {errorRows.length > 0 && (
                     <span className="flex items-center gap-1.5 text-muted-foreground">
                       <AlertCircle className="h-4 w-4" />
-                      {errorRows.length} sprunget over (valideringsfejl)
+                      {t("bulkImport.skippedCount", { count: errorRows.length })}
                     </span>
                   )}
                 </div>
                 <div className="flex flex-wrap gap-2 pt-1">
                   <Button type="button" variant="outline" size="sm" onClick={handleReset}>
-                    Importér flere
+                    {t("bulkImport.importMore")}
                   </Button>
                   <Button type="button" size="sm" onClick={() => navigate("/")}>
-                    Gå til ordbogen
+                    {t("bulkImport.goToDict")}
                   </Button>
                 </div>
               </div>
@@ -620,13 +565,12 @@ export default function BulkImport() {
           </div>
         )}
 
-        {/* Empty parse result */}
         {parsed && parsed.rows.length === 0 && (
           <div className="rounded-lg border border-border bg-card p-6 text-center text-muted-foreground space-y-2">
             <AlertCircle className="h-8 w-8 mx-auto opacity-40" />
-            <p className="text-sm">Ingen rækker fundet. Kontrollér at første linje indeholder kolonnenavne.</p>
+            <p className="text-sm">{t("bulkImport.noRowsFound")}</p>
             <Button type="button" variant="ghost" size="sm" onClick={() => setImportStatus("idle")}>
-              Prøv igen
+              {t("common.retry")}
             </Button>
           </div>
         )}
