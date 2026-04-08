@@ -740,7 +740,7 @@ const Quiz = () => {
                   <p className="text-sm text-muted-foreground">{current.hint}</p>
                   <p className="text-2xl sm:text-3xl font-bold text-foreground font-mono tracking-wide">{current.prompt}</p>
                 </>
-              ) : mode === "completion" && current.masked ? (
+              ) : currentDisplayMode === "completion" && current.masked ? (
                 <>
                   <p className="text-xs uppercase tracking-wider text-muted-foreground">Udfyld ordet</p>
                   <p className="text-sm text-muted-foreground">{current.prompt} ({current.direction.fromLabel})</p>
@@ -784,7 +784,7 @@ const Quiz = () => {
             ) : (
               <div className="space-y-3">
                 <p className="text-xs text-muted-foreground text-center">
-                  {mode === "completion"
+                  {currentDisplayMode === "completion"
                     ? "Skriv det fulde ord"
                     : current.questionType === "conjugation"
                     ? "Skriv den korrekte bøjningsform"
