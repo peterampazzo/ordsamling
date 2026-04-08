@@ -623,7 +623,6 @@ const Quiz = () => {
               <Button onClick={startQuiz} disabled={eligibleCount < 2} className="w-full h-11 text-base">
                 {t("quiz.startQuiz")}
               </Button>
-              </Button>
             </>
           )}
         </main>
