@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { loadHistory, clearHistory, wordStats, type QuizSessionRecord } from "@/lib/quizHistory";
+import { t } from "@/i18n";
 
 function formatDate(ts: number) {
   return new Date(ts).toLocaleDateString("da-DK", {
@@ -22,6 +23,10 @@ function formatDate(ts: number) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function modeLabel(mode: QuizSessionRecord["mode"]): string {
+  return t(`quizHistory.modeLabels.${mode}`);
 }
 
 const SessionCard = ({ session }: { session: QuizSessionRecord }) => {
@@ -49,7 +54,7 @@ const SessionCard = ({ session }: { session: QuizSessionRecord }) => {
               {session.fromLabel} → {session.toLabel}
             </p>
             <p className="text-xs text-muted-foreground">
-              {formatDate(session.date)} · {session.score}/{session.total} · {session.mode === "choice" ? "MC" : "Skriv"}
+              {formatDate(session.date)} · {session.score}/{session.total} · {modeLabel(session.mode)}
             </p>
           </div>
         </div>
@@ -92,7 +97,7 @@ const QuizHistory = () => {
   const stats = useMemo(() => wordStats(history), [history]);
 
   const handleClear = () => {
-    if (window.confirm("Slet al quizhistorik?")) {
+    if (window.confirm(t("common.confirmDeleteAll"))) {
       clearHistory();
       setHistory([]);
     }
@@ -107,7 +112,7 @@ const QuizHistory = () => {
               <Link to="/quiz"><ArrowLeft className="h-5 w-5" /></Link>
             </Button>
             <History className="h-5 w-5 text-primary" />
-            <h1 className="text-base sm:text-lg font-semibold text-foreground">Quizhistorik</h1>
+            <h1 className="text-base sm:text-lg font-semibold text-foreground">{t("quizHistory.title")}</h1>
           </div>
           {history.length > 0 && (
             <Button variant="ghost" size="sm" onClick={handleClear} className="text-muted-foreground hover:text-destructive">
@@ -123,12 +128,12 @@ const QuizHistory = () => {
           <button type="button" onClick={() => setTab("sessions")}
             className={cn("px-3 py-1.5 text-xs rounded-full border transition-colors",
               tab === "sessions" ? "bg-primary text-primary-foreground border-primary" : "bg-secondary/80 text-secondary-foreground border-border hover:border-primary/40")}>
-            Sessioner ({history.length})
+            {t("quizHistory.sessions")} ({history.length})
           </button>
           <button type="button" onClick={() => setTab("words")}
             className={cn("px-3 py-1.5 text-xs rounded-full border transition-colors flex items-center gap-1",
               tab === "words" ? "bg-primary text-primary-foreground border-primary" : "bg-secondary/80 text-secondary-foreground border-border hover:border-primary/40")}>
-            <TrendingDown className="h-3 w-3" /> Svagest ord
+            <TrendingDown className="h-3 w-3" /> {t("quizHistory.weakestWords")}
           </button>
         </div>
 
@@ -136,13 +141,13 @@ const QuizHistory = () => {
           {history.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
               <History className="h-10 w-10 mx-auto mb-3 opacity-30" />
-              <p>Ingen historik endnu</p>
-              <p className="text-sm mt-1">Tag en quiz for at begynde</p>
+              <p>{t("quizHistory.noHistory")}</p>
+              <p className="text-sm mt-1">{t("quizHistory.noHistoryHint")}</p>
             </div>
           ) : tab === "sessions" ? (
             history.map((s) => <SessionCard key={s.id} session={s} />)
           ) : stats.length === 0 ? (
-            <p className="text-center py-8 text-muted-foreground text-sm">Ingen data endnu</p>
+            <p className="text-center py-8 text-muted-foreground text-sm">{t("quizHistory.noData")}</p>
           ) : (
             <div className="border border-border rounded-lg overflow-hidden divide-y divide-border">
               {stats.map((w, i) => {
