@@ -10,6 +10,7 @@ import { AddEntryForm } from "@/components/AddEntryForm";
 import { LexisCard } from "@/components/LexisCard";
 import type { LexisEntry } from "@/hooks/useLexicon";
 import { TYPE_SORT_ORDER } from "@/lib/lexicon";
+import { t } from "@/i18n";
 
 type SortMode = "newest" | "alpha" | "type";
 
@@ -29,10 +30,10 @@ const sortEntries = (entries: LexisEntry[], mode: SortMode) => {
   }
 };
 
-const SORT_OPTIONS: { value: SortMode; label: string; description: string; icon: typeof Clock }[] = [
-  { value: "newest", label: "Nyeste", description: "Senest tilføjet først", icon: Clock },
-  { value: "alpha", label: "A–Å (dansk)", description: "Alfabetisk efter det danske ord", icon: ArrowDownAZ },
-  { value: "type", label: "Type", description: "Grupperet efter ordklasse (ord, substantiv, verbum …), derefter dansk A–Å", icon: Tag },
+const SORT_OPTIONS: { value: SortMode; labelKey: string; descKey: string; icon: typeof Clock }[] = [
+  { value: "newest", labelKey: "index.sortNewest", descKey: "index.sortNewestDesc", icon: Clock },
+  { value: "alpha", labelKey: "index.sortAlpha", descKey: "index.sortAlphaDesc", icon: ArrowDownAZ },
+  { value: "type", labelKey: "index.sortType", descKey: "index.sortTypeDesc", icon: Tag },
 ];
 
 const Index = () => {
@@ -62,10 +63,10 @@ const Index = () => {
           <div className="flex items-center justify-between gap-3 py-2.5 border-b border-border/60">
             <div className="flex items-center gap-2 min-w-0">
               <BookOpen className="h-5 w-5 text-primary shrink-0" aria-hidden />
-              <h1 className="text-base sm:text-lg font-semibold text-foreground truncate">Ordsamling</h1>
+              <h1 className="text-base sm:text-lg font-semibold text-foreground truncate">{t("index.title")}</h1>
             </div>
-            <span className="text-xs text-muted-foreground tabular-nums shrink-0" title="Antal opslag">
-              {allEntries.length} ord
+            <span className="text-xs text-muted-foreground tabular-nums shrink-0" title={t("common.wordCount", { count: allEntries.length })}>
+              {t("common.wordCount", { count: allEntries.length })}
             </span>
           </div>
 
@@ -75,9 +76,9 @@ const Index = () => {
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Søg…"
+                placeholder={t("common.search")}
                 className="h-9 pl-9 text-sm"
-                aria-label="Søg i ordbogen"
+                aria-label={t("index.searchLabel")}
               />
             </div>
             <Button
@@ -86,7 +87,7 @@ const Index = () => {
               variant="outline"
               className="shrink-0 h-9 w-9 p-0"
               asChild
-              aria-label="Ordquiz"
+              aria-label={t("index.quizLabel")}
             >
               <Link to="/quiz">
                 <Brain className="h-4 w-4" />
@@ -98,7 +99,7 @@ const Index = () => {
               variant="outline"
               className="shrink-0 h-9 w-9 p-0"
               asChild
-              aria-label="Masseimport"
+              aria-label={t("index.importLabel")}
             >
               <Link to="/import">
                 <Upload className="h-4 w-4" />
@@ -112,24 +113,24 @@ const Index = () => {
               disabled={isSaving}
               aria-haspopup="dialog"
               aria-expanded={addFormOpen}
-              aria-label="Tilføj nyt ord"
+              aria-label={t("index.addWord")}
             >
               <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Tilføj</span>
+              <span className="hidden sm:inline">{t("common.add")}</span>
             </Button>
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5 pb-2.5">
             <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider shrink-0 mr-0.5">
-              Sortér
+              {t("common.sort")}
             </span>
-            {SORT_OPTIONS.map(({ value, label, description, icon: Icon }) => (
+            {SORT_OPTIONS.map(({ value, labelKey, descKey, icon: Icon }) => (
               <button
                 key={value}
                 type="button"
                 onClick={() => setSort(value)}
                 aria-pressed={sort === value}
-                title={description}
+                title={t(descKey)}
                 className={`flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-full border transition-colors ${
                   sort === value
                     ? "bg-primary text-primary-foreground border-primary shadow-sm"
@@ -137,7 +138,7 @@ const Index = () => {
                 }`}
               >
                 <Icon className="h-3 w-3 shrink-0" aria-hidden />
-                {label}
+                {t(labelKey)}
               </button>
             ))}
           </div>
@@ -153,7 +154,7 @@ const Index = () => {
             "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 duration-200",
           )}
         >
-          <DialogTitle className="sr-only">Tilføj nyt ord</DialogTitle>
+          <DialogTitle className="sr-only">{t("index.addWord")}</DialogTitle>
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))]">
             <div className="mx-auto w-full max-w-3xl">
               <AddEntryForm
@@ -174,18 +175,18 @@ const Index = () => {
       <main className="max-w-3xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
         {isLoading ? (
           <div className="text-center py-16 text-muted-foreground">
-            <p className="text-base">Indlæser ord…</p>
+            <p className="text-base">{t("index.loadingWords")}</p>
           </div>
         ) : entries.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground">
             {allEntries.length === 0 ? (
               <>
                 <BookOpen className="h-10 w-10 mx-auto mb-3 opacity-30" />
-                <p className="text-base">Ingen ord endnu</p>
-                <p className="text-sm mt-1">Tryk «Tilføj» ovenfor for at komme i gang</p>
+                <p className="text-base">{t("index.noWordsYet")}</p>
+                <p className="text-sm mt-1">{t("index.noWordsHint")}</p>
               </>
             ) : (
-              <p>Ingen resultater for «{search}»</p>
+              <p>{t("common.noResults", { query: search })}</p>
             )}
           </div>
         ) : (
