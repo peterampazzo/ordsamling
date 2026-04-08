@@ -23,6 +23,7 @@ import { useLexicon } from "@/hooks/useLexicon";
 import type { LexisEntry } from "@/hooks/useLexicon";
 import { entryTypeLabel, type EntryGrammar } from "@/lib/lexicon";
 import { saveSession, type QuizAnswerRecord } from "@/lib/quizHistory";
+import { t } from "@/i18n";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -39,14 +40,14 @@ type LangDirection = {
 };
 
 const DIRECTIONS: LangDirection[] = [
-  { from: "danish", to: "english", fromLabel: "Dansk", toLabel: "Engelsk" },
-  { from: "english", to: "danish", fromLabel: "Engelsk", toLabel: "Dansk" },
+  { from: "danish", to: "english", fromLabel: t("directions.danish"), toLabel: t("directions.english") },
+  { from: "english", to: "danish", fromLabel: t("directions.english"), toLabel: t("directions.danish") },
 ];
 
 const DIFFICULTIES: { value: Difficulty; label: string; description: string }[] = [
-  { value: "beginner", label: "Begynder", description: "Simpel oversættelse, multiple choice" },
-  { value: "intermediate", label: "Øvet", description: "+ bøjningsformer & grammatik-fokus" },
-  { value: "advanced", label: "Avanceret", description: "+ AI-distractors & staveøvelser" },
+  { value: "beginner", label: t("quiz.diffBeginner"), description: t("quiz.diffBeginnerDesc") },
+  { value: "intermediate", label: t("quiz.diffIntermediate"), description: t("quiz.diffIntermediateDesc") },
+  { value: "advanced", label: t("quiz.diffAdvanced"), description: t("quiz.diffAdvancedDesc") },
 ];
 
 const TIMER_SECONDS: Record<Difficulty, number> = {
@@ -514,13 +515,7 @@ const Quiz = () => {
   })();
 
   const questionTypeBadge = (qt: QuestionType) => {
-    const labels: Record<QuestionType, string> = {
-      translate: "Oversæt",
-      conjugation: "Bøjning",
-      noun_form: "Substantiv",
-      fill_blank: "Udfyld",
-    };
-    return labels[qt];
+    return t(`quiz.questionTypes.${qt}`);
   };
 
   /* ---- Setup screen ---- */
