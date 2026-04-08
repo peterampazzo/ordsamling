@@ -707,7 +707,7 @@ const Quiz = () => {
                 <Timer className="h-4 w-4" />
                 <span>{timeLeft}s</span>
               </div>
-              <span className="text-sm text-muted-foreground tabular-nums">{score} rigtige</span>
+              <span className="text-sm text-muted-foreground tabular-nums">{t("quiz.correctCount", { count: score })}</span>
             </div>
           </div>
           <Progress value={progress} className="h-1.5" />
@@ -737,7 +737,7 @@ const Quiz = () => {
                 </>
               ) : currentDisplayMode === "completion" && current.masked ? (
                 <>
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Udfyld ordet</p>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">{t("quiz.fillWord")}</p>
                   <p className="text-sm text-muted-foreground">{current.prompt} ({current.direction.fromLabel})</p>
                   <p className="text-2xl sm:text-3xl font-bold text-foreground font-mono tracking-widest">{current.masked}</p>
                 </>
@@ -780,31 +780,31 @@ const Quiz = () => {
               <div className="space-y-3">
                 <p className="text-xs text-muted-foreground text-center">
                   {currentDisplayMode === "completion"
-                    ? "Skriv det fulde ord"
+                    ? t("quiz.writeFullWord")
                     : current.questionType === "conjugation"
-                    ? "Skriv den korrekte bøjningsform"
+                    ? t("quiz.writeConjugation")
                     : current.questionType === "noun_form"
-                    ? "Skriv den korrekte form"
-                    : `Skriv oversættelsen på ${current.direction.toLabel.toLowerCase()}`}
+                    ? t("quiz.writeNounForm")
+                    : t("quiz.writeTranslation", { lang: current.direction.toLabel.toLowerCase() })}
                 </p>
                 <form onSubmit={(e) => { e.preventDefault(); if (!showResult && typedAnswer.trim()) submitAnswer(typedAnswer); }} className="flex gap-2">
                   <Input ref={inputRef} value={typedAnswer} onChange={(e) => setTypedAnswer(e.target.value)}
-                    disabled={showResult} placeholder="Dit svar…" className="flex-1" autoComplete="off" spellCheck={false} />
-                  <Button type="submit" disabled={showResult || !typedAnswer.trim()} size="sm">Svar</Button>
+                    disabled={showResult} placeholder={t("quiz.yourAnswerPlaceholder")} className="flex-1" autoComplete="off" spellCheck={false} />
+                  <Button type="submit" disabled={showResult || !typedAnswer.trim()} size="sm">{t("common.answer")}</Button>
                 </form>
                 {showResult && (
                   <div className={cn("rounded-lg px-3 py-2.5 text-sm space-y-1", isCorrect ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive")}>
                     {isTimedOut ? (
                       <div>
-                        <span className="flex items-center gap-1.5"><Timer className="h-4 w-4" /> Tiden udløb!</span>
-                        <p className="mt-1 text-foreground">Rigtigt svar: <strong>{current.answer}</strong></p>
+                        <span className="flex items-center gap-1.5"><Timer className="h-4 w-4" /> {t("quiz.timerExpired")}</span>
+                        <p className="mt-1 text-foreground">{t("quiz.correctAnswer")}: <strong>{current.answer}</strong></p>
                       </div>
                     ) : isCorrect ? (
-                      <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" /> Korrekt!</span>
+                      <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" /> {t("common.correct")}</span>
                     ) : (
                       <div>
-                        <span className="flex items-center gap-1.5"><XCircle className="h-4 w-4" /> Forkert</span>
-                        <p className="mt-1 text-foreground">Rigtigt svar: <strong>{current.answer}</strong></p>
+                        <span className="flex items-center gap-1.5"><XCircle className="h-4 w-4" /> {t("common.incorrect")}</span>
+                        <p className="mt-1 text-foreground">{t("quiz.correctAnswer")}: <strong>{current.answer}</strong></p>
                       </div>
                     )}
                   </div>
@@ -815,8 +815,8 @@ const Quiz = () => {
             {/* Timeout feedback for choice mode */}
             {effectiveMode === "choice" && showResult && isTimedOut && (
               <div className="rounded-lg px-3 py-2.5 text-sm bg-destructive/10 text-destructive space-y-1">
-                <span className="flex items-center gap-1.5"><Timer className="h-4 w-4" /> Tiden udløb!</span>
-                <p className="text-foreground">Rigtigt svar: <strong>{current.answer}</strong></p>
+                <span className="flex items-center gap-1.5"><Timer className="h-4 w-4" /> {t("quiz.timerExpired")}</span>
+                <p className="text-foreground">{t("quiz.correctAnswer")}: <strong>{current.answer}</strong></p>
               </div>
             )}
 
@@ -824,14 +824,14 @@ const Quiz = () => {
             <div className="flex justify-between items-center pt-2">
               {!showResult ? (
                 <Button variant="ghost" size="sm" onClick={() => submitAnswer("__skipped__")} className="text-muted-foreground">
-                  <SkipForward className="h-4 w-4 mr-1" /> Spring over
+                  <SkipForward className="h-4 w-4 mr-1" /> {t("common.skip")}
                 </Button>
               ) : (
                 <div />
               )}
               {showResult && (
                 <Button onClick={nextQuestion} size="sm">
-                  {currentIdx + 1 >= total ? "Se resultat" : "Næste →"}
+                  {currentIdx + 1 >= total ? t("quiz.seeResult") : t("common.next")}
                 </Button>
               )}
             </div>
