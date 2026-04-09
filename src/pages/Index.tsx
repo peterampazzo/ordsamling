@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { Search, BookOpen, ArrowDownAZ, Clock, Tag, Plus, Upload, Brain } from "lucide-react";
+import { Search, BookOpen, ArrowDownAZ, Clock, Tag, Plus, Upload, Brain, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -9,10 +9,11 @@ import { useLexicon } from "@/hooks/useLexicon";
 import { AddEntryForm } from "@/components/AddEntryForm";
 import { LexisCard } from "@/components/LexisCard";
 import type { LexisEntry } from "@/hooks/useLexicon";
-import { TYPE_SORT_ORDER } from "@/lib/lexicon";
+import { ENTRY_TYPES, entryTypeLabel, TYPE_SORT_ORDER, type EntryType } from "@/lib/lexicon";
 import { t } from "@/i18n";
 
 type SortMode = "newest" | "alpha" | "type";
+type TypeFilter = "all" | EntryType;
 
 const sortEntries = (entries: LexisEntry[], mode: SortMode) => {
   const sorted = [...entries];
@@ -53,8 +54,14 @@ const Index = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [addFormOpen, setAddFormOpen] = useState(false);
   const [sort, setSort] = useState<SortMode>("alpha");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
 
-  const sorted = useMemo(() => sortEntries(entries, sort), [entries, sort]);
+  const filtered = useMemo(
+    () => typeFilter === "all" ? entries : entries.filter((e) => e.type === typeFilter),
+    [entries, typeFilter],
+  );
+
+  const sorted = useMemo(() => sortEntries(filtered, sort), [filtered, sort]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -77,9 +84,19 @@ const Index = () => {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={t("common.search")}
-                className="h-9 pl-9 text-sm"
+                className="h-9 pl-9 pr-8 text-sm"
                 aria-label={t("index.searchLabel")}
               />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label={t("common.clearSearch")}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
             </div>
             <Button
               type="button"
@@ -120,27 +137,62 @@ const Index = () => {
             </Button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5 pb-2.5">
-            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider shrink-0 mr-0.5">
-              {t("common.sort")}
-            </span>
-            {SORT_OPTIONS.map(({ value, labelKey, descKey, icon: Icon }) => (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 pb-2.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider shrink-0 mr-0.5">
+                {t("common.sort")}
+              </span>
+              {SORT_OPTIONS.map(({ value, labelKey, descKey, icon: Icon }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setSort(value)}
+                  aria-pressed={sort === value}
+                  title={t(descKey)}
+                  className={`flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-full border transition-colors ${
+                    sort === value
+                      ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                      : "bg-secondary/80 text-secondary-foreground border-border hover:border-primary/40"
+                  }`}
+                >
+                  <Icon className="h-3 w-3 shrink-0" aria-hidden />
+                  {t(labelKey)}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider shrink-0 mr-0.5">
+                {t("common.filter")}
+              </span>
               <button
-                key={value}
                 type="button"
-                onClick={() => setSort(value)}
-                aria-pressed={sort === value}
-                title={t(descKey)}
-                className={`flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-full border transition-colors ${
-                  sort === value
+                onClick={() => setTypeFilter("all")}
+                aria-pressed={typeFilter === "all"}
+                className={`px-2.5 py-1 text-[11px] rounded-full border transition-colors ${
+                  typeFilter === "all"
                     ? "bg-primary text-primary-foreground border-primary shadow-sm"
                     : "bg-secondary/80 text-secondary-foreground border-border hover:border-primary/40"
                 }`}
               >
-                <Icon className="h-3 w-3 shrink-0" aria-hidden />
-                {t(labelKey)}
+                {t("common.allTypes")}
               </button>
-            ))}
+              {ENTRY_TYPES.map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setTypeFilter(type)}
+                  aria-pressed={typeFilter === type}
+                  className={`px-2.5 py-1 text-[11px] rounded-full border transition-colors ${
+                    typeFilter === type
+                      ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                      : "bg-secondary/80 text-secondary-foreground border-border hover:border-primary/40"
+                  }`}
+                >
+                  {entryTypeLabel(type)}
+                </button>
+              ))}
+            </div>
           </div>
 
         </div>
@@ -177,7 +229,7 @@ const Index = () => {
           <div className="text-center py-16 text-muted-foreground">
             <p className="text-base">{t("index.loadingWords")}</p>
           </div>
-        ) : entries.length === 0 ? (
+        ) : sorted.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground">
             {allEntries.length === 0 ? (
               <>
@@ -186,7 +238,7 @@ const Index = () => {
                 <p className="text-sm mt-1">{t("index.noWordsHint")}</p>
               </>
             ) : (
-              <p>{t("common.noResults", { query: search })}</p>
+              <p>{t("common.noResults", { query: search || (typeFilter !== "all" ? entryTypeLabel(typeFilter) : "") })}</p>
             )}
           </div>
         ) : (
