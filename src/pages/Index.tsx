@@ -11,7 +11,7 @@ import { useLexicon } from "@/hooks/useLexicon";
 import { AddEntryForm } from "@/components/AddEntryForm";
 import { LexisCard } from "@/components/LexisCard";
 import type { LexisEntry } from "@/hooks/useLexicon";
-import { ENTRY_TYPES, entryTypeLabel, TYPE_SORT_ORDER, type EntryType } from "@/lib/lexicon";
+import { ENTRY_TYPES, entryTypeLabel, type EntryType } from "@/lib/lexicon";
 import { t } from "@/i18n";
 
 type SortMode = "newest" | "alpha";
@@ -254,7 +254,7 @@ const Index = () => {
                 <p className="text-sm mt-1">{t("index.noWordsHint")}</p>
               </>
             ) : (
-              <p>{t("common.noResults", { query: search || (typeFilter !== "all" ? entryTypeLabel(typeFilter) : "") })}</p>
+              <p>{t("common.noResults", { query: search || (typeFilters.size > 0 ? [...typeFilters].map(entryTypeLabel).join(", ") : "") })}</p>
             )}
           </div>
         ) : (
