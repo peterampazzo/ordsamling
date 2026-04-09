@@ -229,7 +229,7 @@ const Index = () => {
           <div className="text-center py-16 text-muted-foreground">
             <p className="text-base">{t("index.loadingWords")}</p>
           </div>
-        ) : entries.length === 0 ? (
+        ) : sorted.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground">
             {allEntries.length === 0 ? (
               <>
@@ -238,7 +238,7 @@ const Index = () => {
                 <p className="text-sm mt-1">{t("index.noWordsHint")}</p>
               </>
             ) : (
-              <p>{t("common.noResults", { query: search })}</p>
+              <p>{t("common.noResults", { query: search || (typeFilter !== "all" ? entryTypeLabel(typeFilter) : "") })}</p>
             )}
           </div>
         ) : (
