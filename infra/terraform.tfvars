@@ -9,4 +9,4 @@ access_allowed_emails = [
   "pietro@rampazzo.eu",
 ]
 
-access_session_duration = "24h"
+access_session_duration = "360h"
