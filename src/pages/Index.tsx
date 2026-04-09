@@ -1,9 +1,11 @@
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { Search, BookOpen, ArrowDownAZ, Clock, Tag, Plus, Upload, Brain, X } from "lucide-react";
+import { Search, BookOpen, ArrowDownAZ, Clock, Plus, Upload, Brain, X, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { useLexicon } from "@/hooks/useLexicon";
 import { AddEntryForm } from "@/components/AddEntryForm";
@@ -12,8 +14,7 @@ import type { LexisEntry } from "@/hooks/useLexicon";
 import { ENTRY_TYPES, entryTypeLabel, TYPE_SORT_ORDER, type EntryType } from "@/lib/lexicon";
 import { t } from "@/i18n";
 
-type SortMode = "newest" | "alpha" | "type";
-type TypeFilter = "all" | EntryType;
+type SortMode = "newest" | "alpha";
 
 const sortEntries = (entries: LexisEntry[], mode: SortMode) => {
   const sorted = [...entries];
@@ -22,19 +23,12 @@ const sortEntries = (entries: LexisEntry[], mode: SortMode) => {
       return sorted.sort((a, b) => b.createdAt - a.createdAt);
     case "alpha":
       return sorted.sort((a, b) => (a.danish || a.english).localeCompare(b.danish || b.english, "da"));
-    case "type":
-      return sorted.sort(
-        (a, b) =>
-          TYPE_SORT_ORDER[a.type] - TYPE_SORT_ORDER[b.type] ||
-          (a.danish || a.english).localeCompare(b.danish || b.english, "da"),
-      );
   }
 };
 
 const SORT_OPTIONS: { value: SortMode; labelKey: string; descKey: string; icon: typeof Clock }[] = [
   { value: "newest", labelKey: "index.sortNewest", descKey: "index.sortNewestDesc", icon: Clock },
   { value: "alpha", labelKey: "index.sortAlpha", descKey: "index.sortAlphaDesc", icon: ArrowDownAZ },
-  { value: "type", labelKey: "index.sortType", descKey: "index.sortTypeDesc", icon: Tag },
 ];
 
 const Index = () => {
@@ -54,11 +48,20 @@ const Index = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [addFormOpen, setAddFormOpen] = useState(false);
   const [sort, setSort] = useState<SortMode>("alpha");
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const [typeFilters, setTypeFilters] = useState<Set<EntryType>>(new Set());
+
+  const toggleTypeFilter = (type: EntryType) => {
+    setTypeFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) next.delete(type);
+      else next.add(type);
+      return next;
+    });
+  };
 
   const filtered = useMemo(
-    () => typeFilter === "all" ? entries : entries.filter((e) => e.type === typeFilter),
-    [entries, typeFilter],
+    () => typeFilters.size === 0 ? entries : entries.filter((e) => typeFilters.has(e.type)),
+    [entries, typeFilters],
   );
 
   const sorted = useMemo(() => sortEntries(filtered, sort), [filtered, sort]);
@@ -137,7 +140,7 @@ const Index = () => {
             </Button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 pb-2.5">
+          <div className="flex items-center gap-2 pb-2.5">
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider shrink-0 mr-0.5">
                 {t("common.sort")}
@@ -161,38 +164,51 @@ const Index = () => {
               ))}
             </div>
 
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider shrink-0 mr-0.5">
-                {t("common.filter")}
-              </span>
-              <button
-                type="button"
-                onClick={() => setTypeFilter("all")}
-                aria-pressed={typeFilter === "all"}
-                className={`px-2.5 py-1 text-[11px] rounded-full border transition-colors ${
-                  typeFilter === "all"
-                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                    : "bg-secondary/80 text-secondary-foreground border-border hover:border-primary/40"
-                }`}
-              >
-                {t("common.allTypes")}
-              </button>
-              {ENTRY_TYPES.map((type) => (
+            <Popover>
+              <PopoverTrigger asChild>
                 <button
-                  key={type}
                   type="button"
-                  onClick={() => setTypeFilter(type)}
-                  aria-pressed={typeFilter === type}
-                  className={`px-2.5 py-1 text-[11px] rounded-full border transition-colors ${
-                    typeFilter === type
+                  className={`flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-full border transition-colors ${
+                    typeFilters.size > 0
                       ? "bg-primary text-primary-foreground border-primary shadow-sm"
                       : "bg-secondary/80 text-secondary-foreground border-border hover:border-primary/40"
                   }`}
                 >
-                  {entryTypeLabel(type)}
+                  <Filter className="h-3 w-3 shrink-0" aria-hidden />
+                  {t("common.filter")}
+                  {typeFilters.size > 0 && (
+                    <span className="ml-0.5 bg-primary-foreground/20 rounded-full px-1.5 text-[10px]">
+                      {typeFilters.size}
+                    </span>
+                  )}
                 </button>
-              ))}
-            </div>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-48 p-2">
+                <div className="space-y-1">
+                  {ENTRY_TYPES.map((type) => (
+                    <label
+                      key={type}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent cursor-pointer text-sm"
+                    >
+                      <Checkbox
+                        checked={typeFilters.has(type)}
+                        onCheckedChange={() => toggleTypeFilter(type)}
+                      />
+                      <span className="capitalize">{entryTypeLabel(type)}</span>
+                    </label>
+                  ))}
+                  {typeFilters.size > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setTypeFilters(new Set())}
+                      className="w-full text-xs text-muted-foreground hover:text-foreground text-center py-1 mt-1 border-t border-border"
+                    >
+                      {t("common.clear")}
+                    </button>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
 
         </div>
