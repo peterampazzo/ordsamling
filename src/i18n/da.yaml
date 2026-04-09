@@ -174,3 +174,7 @@ entryTypes:
 directions:
   danish: "Dansk"
   english: "Engelsk"
+
+demo:
+  banner: "Demo-tilstand — data er kun lokalt og forsvinder når du deaktiverer"
+  disable: "Afslut demo"
