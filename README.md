@@ -1,200 +1,90 @@
 # Ordsamling
 
-Ordsamling is a Vite + React app deployed to Cloudflare Pages. Entries are stored in Workers KV behind Pages Functions.
+Ordsamling is a simple language notebook for collecting and practicing Danish, English, and Italian vocabulary. It is built with React and Vite, and when deployed on Cloudflare Pages it stores entries in Workers KV. In local development, the app can also use browser localStorage so you can continue working even if the backend is not running.
 
-## Local development
+## What this project does
 
-### Quick command reference
+- Add vocabulary entries with translations, notes, and grammar details
+- Practice with quizzes for translation, conjugation, noun forms, and fill-in-the-blank
+- Keep quiz history locally in the browser
+- Run the UI in Vite, or run the full app locally with Cloudflare Pages Functions
 
-Use Node 22 first:
+## Run it locally
 
-```bash
-nvm use
-```
-
-Install dependencies:
+### Install dependencies
 
 ```bash
 pnpm install
 ```
 
-Frontend only (no Functions):
+### Run the frontend only
 
 ```bash
 pnpm dev
 ```
 
-Frontend + Pages Functions locally:
+This starts the app in Vite mode. If the backend API is not available, the app will fall back to browser localStorage and still work for basic entry management.
+
+### Run the full app with Pages Functions
+
+Build once and then start the local Pages preview:
 
 ```bash
 pnpm run build
 pnpm run dev:pages
 ```
 
-Generate Cloudflare worker/binding types:
+This runs the app in the same style as a Cloudflare Pages deployment, including the Workers-backed storage layer.
 
-```bash
-pnpm run cf-typegen
-```
+## Node version
 
-Optional: write directly to remote preview KV from local shell:
-
-```bash
-npx wrangler kv key put entries:v1 "[]" --binding LEXICON --preview --remote
-```
-
-Install dependencies:
-
-```bash
-pnpm install
-```
-
-Run the frontend only:
-
-```bash
-pnpm dev
-```
-
-During plain Vite development, the app falls back to browser localStorage if the `/api/entries` endpoint is not available.
-
-### Node version
-
-This repo pins Node to `22.11.0` via `.nvmrc` and `.node-version`.
-
-Use:
-
-```bash
-nvm use
-```
-
-If you want nvm to switch automatically when you enter the project folder, add this to your `~/.zshrc`:
-
-```bash
-autoload -U add-zsh-hook
-load-nvmrc() {
-	local nvmrc_path
-	nvmrc_path="$(nvm_find_nvmrc)"
-	if [ -n "$nvmrc_path" ]; then
-		nvm use --silent
-	fi
-}
-add-zsh-hook chpwd load-nvmrc
-load-nvmrc
-```
-
-Run against Cloudflare Pages Functions locally after building once:
-
-```bash
-pnpm run build
-pnpm run dev:pages
-```
+This project is designed for Node.js 22. Use `nvm use` in the repository root to switch to the correct version.
 
 ## Cloudflare setup
 
-1. Create two KV namespaces, one for production and one for preview.
-2. Replace the placeholder IDs in `wrangler.toml`.
-3. Deploy the Pages project with Wrangler so the `functions/` directory is included.
+The app uses Cloudflare Pages and Workers KV. The frontend code lives in `src/`, and the backend request handlers are in `functions/`.
 
-Generate Worker types after configuring bindings:
+### Configure Cloudflare
+
+1. Create your KV namespaces in Cloudflare.
+2. Add the namespace IDs to `wrangler.toml`.
+3. Generate binding types:
 
 ```bash
 pnpm run cf-typegen
 ```
 
-Deploy manually:
+### Deploy
 
 ```bash
 pnpm run build
-pnpm run deploy:pages -- --project-name <your-pages-project>
+npx --yes wrangler@4 pages deploy dist --project-name <your-pages-project> --branch main
 ```
 
-## Manual deployment to Cloudflare Pages
+After deployment, the site should be available on your Cloudflare Pages domain, for example `https://ordsamling.pages.dev`.
 
-This project can be deployed manually to the Cloudflare Pages project named ordsamling.
+## Notes
 
-### Prerequisites
+- `functions/` contains the Cloudflare Pages Functions that handle storing entries.
+- `src/` contains the React user interface and the browser fallback behavior.
+- During plain Vite development, the app can still store entries locally in the browser.
 
-- A Cloudflare account with Pages access
-- Node.js 22 available locally (nvm is recommended)
-- Build output present in dist
+## Troubleshooting
 
-### 1) Use Node 22 in your shell
+If data does not appear in KV, verify that the IDs in `wrangler.toml` are correct and inspect the KV content with Wrangler.
 
-```bash
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-nvm install 22
-nvm use 22
-node -v
-```
-
-### 2) Create the Pages project (first time only)
-
-```bash
-npx --yes wrangler@4 pages project create ordsamling --production-branch main
-```
-
-### 3) Build and deploy
-
-```bash
-pnpm install
-pnpm run build
-npx --yes wrangler@4 pages deploy dist --project-name ordsamling --branch main
-```
-
-After deployment, Cloudflare prints a preview URL and the production site is available at https://ordsamling.pages.dev.
-
-## KV troubleshooting
-
-If you do not see data in Cloudflare KV Pairs, run these commands from the project root.
-
-Use Node 22 first:
-
-```bash
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-nvm use 22
-```
-
-List keys in production KV namespace:
-
-```bash
-npx --yes wrangler@4 kv key list --binding LEXICON --remote
-```
-
-List keys in preview KV namespace:
+Example command:
 
 ```bash
 npx --yes wrangler@4 kv key list --binding LEXICON --preview --remote
 ```
 
-Write a test payload to production KV:
-
-```bash
-npx --yes wrangler@4 kv key put entries:v1 "[]" --binding LEXICON --remote
-```
-
-Write a test payload to preview KV:
+To reset preview KV content:
 
 ```bash
 npx --yes wrangler@4 kv key put entries:v1 "[]" --binding LEXICON --preview --remote
 ```
 
-Read back payload from production KV:
+## Deployment reminder
 
-```bash
-npx --yes wrangler@4 kv key get entries:v1 --binding LEXICON --remote
-```
-
-Read back payload from preview KV:
-
-```bash
-npx --yes wrangler@4 kv key get entries:v1 --binding LEXICON --preview --remote
-```
-
-## Release tag
-
-```bash
-git tag -a v1.4.0 -m "Release v1.4.0"
-git push origin v1.4.0
-```
+Build the app first, then deploy the generated `dist` output to Cloudflare Pages. This keeps the deployment process simple and predictable.
