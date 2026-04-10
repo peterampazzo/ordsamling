@@ -68,7 +68,7 @@ async function requestJson<T>(input: RequestInfo, init?: RequestInit): Promise<T
   return (await response.json()) as T;
 }
 
-function isLocalStorageMode() {
+export function isLocalStorageMode() {
   return import.meta.env.DEV || window.location.hostname.endsWith(".pages.dev");
 }
 

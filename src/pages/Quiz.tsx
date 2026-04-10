@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-import { useLexicon } from "@/hooks/useLexicon";
+import { useLexicon, isLocalStorageMode } from "@/hooks/useLexicon";
 import type { LexisEntry } from "@/hooks/useLexicon";
 import { entryTypeLabel, type EntryGrammar } from "@/lib/lexicon";
 import { saveSession, type QuizAnswerRecord } from "@/lib/quizHistory";
@@ -300,6 +300,10 @@ async function fetchSmartDistractors(
   difficulty: Difficulty,
   scoreRatio: number,
 ): Promise<string[]> {
+  if (isLocalStorageMode()) {
+    return [];
+  }
+
   try {
     const res = await fetch("/api/quiz/distractors", {
       method: "POST",
@@ -522,8 +526,8 @@ const Quiz = () => {
   if (state === "setup") {
     return (
       <div className="min-h-screen bg-background">
-        <header className="sticky top-0 z-30 border-b border-border bg-card/90 shadow-sm backdrop-blur-md">
-          <div className="max-w-2xl mx-auto px-3 sm:px-4 flex items-center justify-between py-3">
+        <header className="sticky top-0 z-30 border-b border-border bg-card/90 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80">
+          <div className="max-w-3xl mx-auto px-3 sm:px-4 flex items-center justify-between py-3">
             <div className="flex items-center gap-3">
               <Button variant="ghost" size="icon" className="shrink-0" asChild>
                 <Link to="/"><ArrowLeft className="h-5 w-5" /></Link>
@@ -637,8 +641,8 @@ const Quiz = () => {
 
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <header className="border-b border-border bg-card/90 shadow-sm">
-          <div className="max-w-2xl mx-auto px-3 sm:px-4 flex items-center gap-3 py-3">
+        <header className="sticky top-0 z-30 border-b border-border bg-card/90 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80">
+          <div className="max-w-3xl mx-auto px-3 sm:px-4 flex items-center gap-3 py-3">
             <Brain className="h-5 w-5 text-primary" />
             <h1 className="text-base sm:text-lg font-semibold text-foreground">{t("quiz.result")}</h1>
           </div>
@@ -685,8 +689,8 @@ const Quiz = () => {
   /* ---- Playing screen ---- */
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <header className="border-b border-border bg-card/90 shadow-sm">
-        <div className="max-w-2xl mx-auto px-3 sm:px-4 py-3 space-y-2">
+      <header className="sticky top-0 z-30 border-b border-border bg-card/90 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80">
+        <div className="max-w-3xl mx-auto px-3 sm:px-4 py-3 space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Brain className="h-5 w-5 text-primary" />

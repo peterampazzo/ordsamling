@@ -1,5 +1,6 @@
 interface Env {
   LEXICON: KVNamespace;
+  ALLOW_AUTH_BYPASS?: string;
 }
 
 type EntryType = "word" | "expression" | "noun" | "verb" | "adjective";
@@ -43,7 +44,13 @@ const json = (body: unknown, init?: ResponseInit) =>
     ...init,
   });
 
-function hasValidAccessToken(request: Request): boolean {
+function hasValidAccessToken(request: Request, env: Env): boolean {
+  const allowLocalBypass = env.ALLOW_AUTH_BYPASS === "1" || env.ALLOW_AUTH_BYPASS === "true";
+  const host = request.headers.get("host") ?? "";
+  if (allowLocalBypass && (host.startsWith("localhost") || host.startsWith("127.0.0.1"))) {
+    return true;
+  }
+
   const cookieHeader = request.headers.get("cookie");
   if (!cookieHeader) return false;
 
@@ -182,7 +189,7 @@ function getEntryId(params: Params) {
 }
 
 export const onRequestPut: PagesFunction<Env> = async ({ request, env, params }) => {
-  if (!hasValidAccessToken(request)) {
+  if (!hasValidAccessToken(request, env)) {
     return json({ error: "Unauthorized." }, { status: 401 });
   }
 
@@ -218,7 +225,7 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env, params })
 };
 
 export const onRequestDelete: PagesFunction<Env> = async ({ request, env, params }) => {
-  if (!hasValidAccessToken(request)) {
+  if (!hasValidAccessToken(request, env)) {
     return json({ error: "Unauthorized." }, { status: 401 });
   }
 
