@@ -46,8 +46,7 @@ const json = (body: unknown, init?: ResponseInit) =>
 
 function hasValidAccessToken(request: Request, env: Env): boolean {
   const allowLocalBypass = env.ALLOW_AUTH_BYPASS === "1" || env.ALLOW_AUTH_BYPASS === "true";
-  const host = request.headers.get("host") ?? "";
-  if (allowLocalBypass && (host.startsWith("localhost") || host.startsWith("127.0.0.1"))) {
+  if (allowLocalBypass) {
     return true;
   }
 

@@ -1,9 +1,10 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Upload, ArrowLeft, CheckCircle2, XCircle, AlertCircle, Loader2, FileText } from "lucide-react";
+import { Upload, ArrowLeft, CheckCircle2, XCircle, AlertCircle, Loader2, FileText, RefreshCw, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useLexicon } from "@/hooks/useLexicon";
 import { ENTRY_TYPES, entryTypeLabel, normalizeEntryType, type EntryType } from "@/lib/lexicon";
 import type { LexisEntryInput } from "@/lib/lexicon";
@@ -177,7 +178,7 @@ function parseRows(text: string): { rows: ParsedRow[]; headers: string[] } {
 // Status badge helpers
 // ---------------------------------------------------------------------------
 
-type RowStatus = "valid" | "warning" | "error" | "imported" | "failed";
+type RowStatus = "valid" | "warning" | "error" | "imported" | "failed" | "updated";
 
 function statusBadge(status: RowStatus) {
   switch (status) {
@@ -196,7 +197,7 @@ function statusBadge(status: RowStatus) {
     case "error":
       return (
         <span className="inline-flex items-center gap-1 text-xs text-destructive">
-          <XCircle className="h-3.5 w-3.5" /> {t("common.error")}
+          <XCircle2 className="h-3.5 w-3.5" /> {t("common.error")}
         </span>
       );
     case "imported":
@@ -205,10 +206,16 @@ function statusBadge(status: RowStatus) {
           <CheckCircle2 className="h-3.5 w-3.5" /> {t("common.imported")}
         </span>
       );
+    case "updated":
+      return (
+        <span className="inline-flex items-center gap-1 text-xs text-blue-700 dark:text-blue-300 font-medium">
+          <RefreshCw className="h-3.5 w-3.5" /> {t("bulkImport.updated")}
+        </span>
+      );
     case "failed":
       return (
         <span className="inline-flex items-center gap-1 text-xs text-destructive font-medium">
-          <XCircle className="h-3.5 w-3.5" /> {t("common.failed")}
+          <XCircle2 className="h-3.5 w-3.5" /> {t("common.failed")}
         </span>
       );
   }
@@ -228,37 +235,69 @@ type ImportStatus = "idle" | "parsed" | "importing" | "done";
 
 interface RowResult {
   rowIndex: number;
-  status: "imported" | "failed";
+  status: "imported" | "failed" | "updated";
   error?: string;
+  retryCount?: number;
+}
+
+interface ImportSettings {
+  maxRetries: number;
+  retryDelay: number;
+  updateDuplicates: boolean;
 }
 
 export default function BulkImport() {
   const navigate = useNavigate();
-  const { addEntry, allEntries } = useLexicon();
+  const { addEntry, updateEntry, allEntries } = useLexicon();
 
   const [rawText, setRawText] = useState("");
   const [parsed, setParsed] = useState<{ rows: ParsedRow[]; headers: string[] } | null>(null);
   const [importStatus, setImportStatus] = useState<ImportStatus>("idle");
   const [results, setResults] = useState<RowResult[]>([]);
+  const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
+  const [importSettings, setImportSettings] = useState<ImportSettings>({
+    maxRetries: 3,
+    retryDelay: 1000,
+    updateDuplicates: true,
+  });
+  const [showSettings, setShowSettings] = useState(false);
 
   const handleParse = useCallback(() => {
     const result = parseRows(rawText);
     setParsed(result);
     setImportStatus("parsed");
     setResults([]);
+    // Select all valid rows by default
+    const validRowIndices = result.rows
+      .filter((r) => r.entry !== null)
+      .map((r) => r.rowIndex);
+    setSelectedRows(new Set(validRowIndices));
   }, [rawText]);
 
   const validRows = parsed?.rows.filter((r) => r.entry !== null) ?? [];
   const errorRows = parsed?.rows.filter((r) => r.entry === null) ?? [];
 
+  const selectedValidRows = validRows.filter((row) => selectedRows.has(row.rowIndex));
+  const unselectedValidRows = validRows.filter((row) => !selectedRows.has(row.rowIndex));
+
   const existingKeys = new Set(
-    allEntries.map((e) => [e.danish, e.english, e.italian].join("|").toLowerCase()),
+    allEntries.map((e) => e.danish.toLowerCase()),
+  );
+
+  const existingEntriesMap = new Map(
+    allEntries.map((e) => [e.danish.toLowerCase(), e]),
   );
 
   function isDuplicate(row: ParsedRow): boolean {
     if (!row.entry) return false;
-    const key = [row.entry.danish, row.entry.english, row.entry.italian].join("|").toLowerCase();
+    const key = row.entry.danish.toLowerCase();
     return existingKeys.has(key);
+  }
+
+  function getExistingEntry(row: ParsedRow) {
+    if (!row.entry) return null;
+    const key = row.entry.danish.toLowerCase();
+    return existingEntriesMap.get(key) || null;
   }
 
   const handleImport = useCallback(async () => {
@@ -266,36 +305,99 @@ export default function BulkImport() {
     setImportStatus("importing");
     const newResults: RowResult[] = [];
 
-    for (const row of validRows) {
+    const rowsToImport = parsed.rows.filter((row) => 
+      row.entry !== null && selectedRows.has(row.rowIndex)
+    );
+
+    for (const row of rowsToImport) {
       if (!row.entry) continue;
-      try {
-        await addEntry(row.entry);
-        newResults.push({ rowIndex: row.rowIndex, status: "imported" });
-        await new Promise((r) => setTimeout(r, 50));
-      } catch (err) {
-        console.error(`Failed to import row ${row.rowIndex}:`, err);
+
+      const existingEntry = getExistingEntry(row);
+      const shouldUpdate = importSettings.updateDuplicates && existingEntry;
+
+      let success = false;
+      let lastError: string | undefined;
+      let retryCount = 0;
+
+      while (!success && retryCount <= importSettings.maxRetries) {
+        try {
+          if (shouldUpdate && existingEntry) {
+            await updateEntry(existingEntry.id, row.entry);
+            newResults.push({ 
+              rowIndex: row.rowIndex, 
+              status: "updated",
+              retryCount 
+            });
+          } else {
+            await addEntry(row.entry);
+            newResults.push({ 
+              rowIndex: row.rowIndex, 
+              status: "imported",
+              retryCount 
+            });
+          }
+          success = true;
+        } catch (err) {
+          retryCount++;
+          lastError = err instanceof Error ? err.message : t("bulkImport.unknownError");
+          
+          if (retryCount <= importSettings.maxRetries) {
+            // Wait before retrying with exponential backoff
+            await new Promise((r) => setTimeout(r, importSettings.retryDelay * Math.pow(2, retryCount - 1)));
+          }
+        }
+      }
+
+      if (!success) {
         newResults.push({
           rowIndex: row.rowIndex,
           status: "failed",
-          error: err instanceof Error ? err.message : t("bulkImport.unknownError"),
+          error: lastError,
+          retryCount: importSettings.maxRetries,
         });
       }
+
+      // Small delay between rows to avoid overwhelming the server
+      await new Promise((r) => setTimeout(r, 100));
     }
 
     setResults(newResults);
     setImportStatus("done");
-  }, [parsed, validRows, addEntry]);
+  }, [parsed, selectedRows, importSettings, addEntry, updateEntry, getExistingEntry]);
+
+  const handleRowSelection = (rowIndex: number, checked: boolean) => {
+    setSelectedRows((prev) => {
+      const newSet = new Set(prev);
+      if (checked) {
+        newSet.add(rowIndex);
+      } else {
+        newSet.delete(rowIndex);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    const allValidIndices = validRows.map((row) => row.rowIndex);
+    setSelectedRows(new Set(allValidIndices));
+  };
+
+  const handleSelectNone = () => {
+    setSelectedRows(new Set());
+  };
 
   const handleReset = () => {
     setRawText("");
     setParsed(null);
     setImportStatus("idle");
     setResults([]);
+    setSelectedRows(new Set());
   };
 
   const getRowResult = (rowIndex: number) => results.find((r) => r.rowIndex === rowIndex);
 
   const importedCount = results.filter((r) => r.status === "imported").length;
+  const updatedCount = results.filter((r) => r.status === "updated").length;
   const failedCount = results.filter((r) => r.status === "failed").length;
 
   return (
@@ -348,6 +450,64 @@ export default function BulkImport() {
             . {t("bulkImport.unknownTypeDefault")} <code className="font-mono">word</code>.
           </p>
         </div>
+
+        {/* Settings */}
+        {parsed && parsed.rows.length > 0 && (
+          <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Settings className="h-4 w-4 text-muted-foreground shrink-0" />
+              <h2 className="text-sm font-semibold">{t("bulkImport.settings")}</h2>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowSettings(!showSettings)}
+                className="ml-auto"
+              >
+                {showSettings ? t("common.close") : t("bulkImport.settings")}
+              </Button>
+            </div>
+            {showSettings && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">{t("bulkImport.maxRetries")}</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="10"
+                      value={importSettings.maxRetries}
+                      onChange={(e) => setImportSettings(prev => ({ ...prev, maxRetries: parseInt(e.target.value) || 0 }))}
+                      className="w-full px-2 py-1 text-xs border border-border rounded"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">{t("bulkImport.retryDelay")}</label>
+                    <input
+                      type="number"
+                      min="100"
+                      max="10000"
+                      step="100"
+                      value={importSettings.retryDelay}
+                      onChange={(e) => setImportSettings(prev => ({ ...prev, retryDelay: parseInt(e.target.value) || 100 }))}
+                      className="w-full px-2 py-1 text-xs border border-border rounded"
+                    />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="updateDuplicates"
+                      checked={importSettings.updateDuplicates}
+                      onCheckedChange={(checked) => setImportSettings(prev => ({ ...prev, updateDuplicates: !!checked }))}
+                    />
+                    <label htmlFor="updateDuplicates" className="text-xs font-medium">
+                      {t("bulkImport.updateDuplicates")}
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Input area */}
         {importStatus === "idle" || importStatus === "parsed" ? (
@@ -405,13 +565,50 @@ export default function BulkImport() {
                   {t("bulkImport.duplicateCount", { count: validRows.filter(isDuplicate).length })}
                 </Badge>
               )}
+              {selectedRows.size > 0 && (
+                <Badge variant="secondary" className="text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800">
+                  {t("bulkImport.selectedCount", { count: selectedRows.size })}
+                </Badge>
+              )}
             </div>
+
+            {/* Selection controls */}
+            {validRows.length > 0 && parsed && (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  {t("bulkImport.selectRowsHint")}
+                </p>
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={handleSelectAll}>
+                    {t("bulkImport.selectAll")}
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={handleSelectNone}>
+                    {t("bulkImport.selectNone")}
+                  </Button>
+                </div>
+              </div>
+            )}
 
             <div className="rounded-lg border border-border overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-border bg-muted/50">
                     <th className="text-left px-3 py-2 font-medium text-muted-foreground w-8">#</th>
+                    {parsed && validRows.length > 0 && (
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground w-16">
+                        <div className="flex items-center gap-1">
+                          <Checkbox
+                            checked={selectedRows.size === validRows.length && validRows.length > 0}
+                            onCheckedChange={(checked) => {
+                              if (checked) handleSelectAll();
+                              else handleSelectNone();
+                            }}
+                            aria-label={t("bulkImport.selectAll")}
+                          />
+                          <span className="text-[11px] text-muted-foreground">Vælg</span>
+                        </div>
+                      </th>
+                    )}
                     <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t("bulkImport.tableDanish")}</th>
                     <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t("bulkImport.tableEnglish")}</th>
                     <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t("bulkImport.tableItalian")}</th>
@@ -445,10 +642,21 @@ export default function BulkImport() {
                             ? "bg-amber-50/60 dark:bg-amber-950/20"
                             : rowStatus === "imported"
                             ? "bg-emerald-50/60 dark:bg-emerald-950/20"
+                            : rowStatus === "updated"
+                            ? "bg-blue-50/60 dark:bg-blue-950/20"
                             : ""
                         }`}
                       >
                         <td className="px-3 py-2 text-muted-foreground tabular-nums">{row.rowIndex}</td>
+                        {parsed && row.entry && (
+                          <td className="px-3 py-2">
+                            <Checkbox
+                              checked={selectedRows.has(row.rowIndex)}
+                              onCheckedChange={(checked) => handleRowSelection(row.rowIndex, !!checked)}
+                              disabled={importStatus !== "parsed"}
+                            />
+                          </td>
+                        )}
                         <td className="px-3 py-2 font-medium max-w-[140px] truncate">
                           {row.entry?.danish || <span className="text-muted-foreground/50 italic">—</span>}
                         </td>
@@ -480,6 +688,11 @@ export default function BulkImport() {
                             {result?.error && (
                               <div className="text-[10px] text-destructive">{result.error}</div>
                             )}
+                            {result?.retryCount && result.retryCount > 0 && (
+                              <div className="text-[10px] text-muted-foreground">
+                                {t("bulkImport.retries", { count: result.retryCount })}
+                              </div>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -510,7 +723,7 @@ export default function BulkImport() {
                     type="button"
                     size="sm"
                     onClick={handleImport}
-                    disabled={validRows.length === 0 || importStatus === "importing"}
+                    disabled={selectedRows.size === 0 || importStatus === "importing"}
                     className="gap-1.5"
                   >
                     {importStatus === "importing" ? (
@@ -521,7 +734,7 @@ export default function BulkImport() {
                     ) : (
                       <>
                         <Upload className="h-3.5 w-3.5" />
-                        {t("bulkImport.importN", { count: validRows.length })}
+                        {t("bulkImport.importN", { count: selectedRows.size })}
                       </>
                     )}
                   </Button>
@@ -537,6 +750,12 @@ export default function BulkImport() {
                     <span className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300">
                       <CheckCircle2 className="h-4 w-4" />
                       {t("bulkImport.importedCount", { count: importedCount })}
+                    </span>
+                  )}
+                  {updatedCount > 0 && (
+                    <span className="flex items-center gap-1.5 text-blue-700 dark:text-blue-300">
+                      <RefreshCw className="h-4 w-4" />
+                      {t("bulkImport.updatedCount", { count: updatedCount })}
                     </span>
                   )}
                   {failedCount > 0 && (
