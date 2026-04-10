@@ -1,25 +1,29 @@
-# Ordsamling
+# 🇩🇰 Ordsamling
 
-Ordsamling is a simple language notebook for collecting and practicing Danish, English, and Italian vocabulary. It is built with React and Vite, and when deployed on Cloudflare Pages it stores entries in Workers KV. In local development, the app can also use browser localStorage so you can continue working even if the backend is not running.
+I tend to remember things best by writing them down. While paper helps me memorize, it’s hard to carry everywhere, and I needed a "pocket notebook" that could also help me actively exercise my memory.
 
-## What this project does
+Existing apps like Duolingo often don't match the specific level or vocabulary I encounter at school or in daily life. That’s why I built **Ordsamling** — a minimalist language notebook designed to rescue my Danish, English, and (since I'm Italian) Italian vocabulary from being forgotten.
 
-- Add vocabulary entries with translations, notes, and grammar details
-- Practice with quizzes for translation, conjugation, noun forms, and fill-in-the-blank
-- Keep quiz history locally in the browser
-- Run the UI in Vite, or run the full app locally with Cloudflare Pages Functions
+With the help of some AI agents to polish the engineering, I built this as a Vite JS web app hosted on Cloudflare Pages. It uses Workers KV for persistent storage and Cloudflare Workers AI to keep the practice quizzes challenging and relevant.
+
+**🚀 Check out the live demo: https://ordsamling.pages.dev/?demo**
+
+### What Ordsamling Does 🧠
+
+* **Personal Trilingual Notebook**: A mobile-friendly space to capture Danish, English, and Italian vocabulary from school or daily life.
+
+* **Deep Danish Grammar**: Go beyond translation with dedicated tracking for noun genders (en/et), verb tenses, and adjective inflections.
+
+* **Smart AI Quizzes**: Exercise your memory with practice modes featuring AI-generated "smart distractors" and timers to build real-world conversation speed.
+
+* **Progress Insights**: Automatically track your history to identify "Weakest Words," ensuring you focus your study time where it’s needed most.
 
 ## Run it locally
 
-### Install dependencies
-
 ```bash
+# Install dependencies
 pnpm install
-```
-
-### Run the frontend only
-
-```bash
+# Run the frontend only
 pnpm dev
 ```
 
