@@ -479,17 +479,21 @@ const Quiz = () => {
     [current, showResult],
   );
 
-  const finishQuiz = useCallback(() => {
-    saveSession({
-      id: crypto.randomUUID(),
-      date: Date.now(),
-      mode,
-      fromLabel: t("quiz.dirMixed"),
-      toLabel: t("quiz.dirMixed"),
-      score,
-      total,
-      answers: answersRef.current,
-    });
+  const finishQuiz = useCallback(async () => {
+    try {
+      await saveSession({
+        id: crypto.randomUUID(),
+        date: Date.now(),
+        mode,
+        fromLabel: t("quiz.dirMixed"),
+        toLabel: t("quiz.dirMixed"),
+        score,
+        total,
+        answers: answersRef.current,
+      });
+    } catch (error) {
+      console.error("Failed to save quiz history:", error);
+    }
     setState("result");
   }, [mode, score, total]);
 

@@ -129,7 +129,9 @@ quizHistory:
 bulkImport:
   title: "Masseimport"
   formatTitle: "Format"
-  formatDescription: "Indsæt CSV-data eller tabulatorseparerede data (f.eks. kopieret fra et regneark). Første linje skal indeholde kolonnenavne."
+  formatDescription: "Indsæt CSV-, TSV-, JSON- eller JSONL-data. Første linje skal indeholde kolonnenavne for CSV/TSV, eller brug et JSON-array/JSONL med objektfelter."
+  supportsJsonText: "Understøtter både CSV/TSV og JSON/JSONL. Alle objektfelter vil blive kortlagt til importfelter."
+  sampleJsonExamplesTitle: "Eksempel på JSON-objekter pr. ordtype"
   grammarFields: "+ grammatikfelter"
   validTypes: "Gyldige typer"
   unknownTypeDefault: "Ukendte typer sættes til"
@@ -170,6 +172,11 @@ bulkImport:
   selectRowsHint: "Vælg de rækker, du vil importere, med afkrydsningsfelterne til venstre."
   selectColumn: "Vælg"
   retries: "Forsøg: {count}"
+  documentUpload: "Upload dokument"
+  documentUploadDescription: "Upload en tekstfil (.txt) for automatisk at udtrække nye ord og generere oversættelser."
+  documentProcessed: "Behandlet dokument: {extracted} ord udtrukket, {new} nye, {processed} behandlet"
+  documentEmpty: "Dokumentet ser ud til at være tomt eller indeholder ikke læsbar tekst."
+  authRequired: "Du skal være logget ind for at bruge dokumentbehandling."
 
 notFound:
   title: "404"

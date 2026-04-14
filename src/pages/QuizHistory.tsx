@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowLeft,
@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { loadHistory, clearHistory, wordStats, type QuizSessionRecord } from "@/lib/quizHistory";
+import { fetchHistory, loadHistory, clearHistory, wordStats, type QuizSessionRecord } from "@/lib/quizHistory";
 import { t } from "@/i18n";
 
 function formatDate(ts: number) {
@@ -91,14 +91,29 @@ const SessionCard = ({ session }: { session: QuizSessionRecord }) => {
 };
 
 const QuizHistory = () => {
-  const [history, setHistory] = useState(() => loadHistory());
+  const [history, setHistory] = useState<QuizSessionRecord[]>(() => loadHistory());
   const [tab, setTab] = useState<"sessions" | "words">("sessions");
+  const [loading, setLoading] = useState(true);
 
   const stats = useMemo(() => wordStats(history), [history]);
 
-  const handleClear = () => {
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const remoteHistory = await fetchHistory();
+      if (mounted) {
+        setHistory(remoteHistory);
+        setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const handleClear = async () => {
     if (window.confirm(t("common.confirmDeleteAll"))) {
-      clearHistory();
+      await clearHistory();
       setHistory([]);
     }
   };
@@ -138,7 +153,12 @@ const QuizHistory = () => {
         </div>
 
         <main className="py-4 space-y-3">
-          {history.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-16 text-muted-foreground">
+              <History className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              <p>{t("common.loading")}</p>
+            </div>
+          ) : history.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
               <History className="h-10 w-10 mx-auto mb-3 opacity-30" />
               <p>{t("quizHistory.noHistory")}</p>

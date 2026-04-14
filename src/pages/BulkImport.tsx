@@ -1,6 +1,6 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Upload, ArrowLeft, CheckCircle2, XCircle, AlertCircle, Loader2, FileText, RefreshCw, Settings } from "lucide-react";
+import { Upload, ArrowLeft, CheckCircle2, XCircle, AlertCircle, Loader2, FileText, RefreshCw, Settings, FileUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -102,6 +102,125 @@ export interface ParsedRow {
   warnings: string[];
 }
 
+function normalizeJsonValue(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "";
+}
+
+function parseJsonObjects(items: unknown[]): { rows: ParsedRow[]; headers: string[] } {
+  const rows: ParsedRow[] = [];
+  const headerSet = new Set<string>();
+  const grammarKeys = [
+    "article", "singularDefinite", "pluralIndefinite", "pluralDefinite",
+    "present", "past", "perfect",
+    "neuter", "definite", "plural", "comparative", "superlative",
+  ] as const;
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+
+    const rawObject = item as Record<string, unknown>;
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    const fields: Partial<Record<KnownColumn, string>> = {};
+    const grammarFields: Record<string, string> = {};
+
+    for (const key of Object.keys(rawObject)) {
+      const normalizedKey = normalizeHeader(key);
+      if (normalizedKey) {
+        fields[normalizedKey] = normalizeJsonValue(rawObject[key]);
+        headerSet.add(normalizedKey);
+        continue;
+      }
+
+      if (key === "grammar" && rawObject[key] && typeof rawObject[key] === "object") {
+        const grammarRaw = rawObject[key] as Record<string, unknown>;
+        for (const grammarKey of grammarKeys) {
+          if (grammarKey in grammarRaw) {
+            grammarFields[grammarKey] = normalizeJsonValue(grammarRaw[grammarKey]);
+            headerSet.add(grammarKey);
+          }
+        }
+      }
+    }
+
+    const danish = fields.danish ?? "";
+    const english = fields.english ?? "";
+    const italian = fields.italian ?? "";
+
+    if (!danish && !english && !italian) {
+      errors.push(t("bulkImport.rowValidationError"));
+    }
+
+    const rawType = fields.type ?? "";
+    const type: EntryType = rawType
+      ? normalizeEntryType(rawType.toLowerCase())
+      : "word";
+
+    if (rawType && !ENTRY_TYPES.includes(type)) {
+      warnings.push(t("bulkImport.unknownType", { type: rawType }));
+    }
+
+    const entry: LexisEntryInput = {
+      danish,
+      english,
+      italian,
+      notes: fields.notes ?? "",
+      type,
+      ...(Object.keys(grammarFields).length > 0 ? { grammar: grammarFields } : {}),
+    };
+
+    rows.push({ rowIndex: i + 1, raw: [], entry: errors.length === 0 ? entry : null, errors, warnings });
+  }
+
+  return { rows, headers: Array.from(headerSet) };
+}
+
+function parseInput(text: string): { rows: ParsedRow[]; headers: string[] } {
+  const trimmed = text.trim();
+  if (!trimmed) return { rows: [], headers: [] };
+
+  if (trimmed[0] === "[" || trimmed[0] === "{") {
+    try {
+      const json = JSON.parse(trimmed);
+      if (Array.isArray(json)) {
+        return parseJsonObjects(json);
+      }
+      if (json && typeof json === "object") {
+        const obj = json as Record<string, unknown>;
+        if (Array.isArray(obj.entries)) {
+          return parseJsonObjects(obj.entries as unknown[]);
+        }
+        return parseJsonObjects([json]);
+      }
+    } catch {
+      // fall back to CSV parsing
+    }
+  }
+
+  const lines = trimmed
+    .split("\n")
+    .map((l) => l.replace(/\r$/, ""))
+    .filter((l) => l.trim() !== "");
+  const isJsonl = lines.length > 0 && lines.every((line) => {
+    const s = line.trim();
+    return s.startsWith("{") && s.endsWith("}");
+  });
+
+  if (isJsonl) {
+    try {
+      const items = lines.map((line) => JSON.parse(line));
+      return parseJsonObjects(items);
+    } catch {
+      // fall back to CSV parsing
+    }
+  }
+
+  return parseRows(text);
+}
+
 function parseRows(text: string): { rows: ParsedRow[]; headers: string[] } {
   const lines = text
     .split("\n")
@@ -112,7 +231,7 @@ function parseRows(text: string): { rows: ParsedRow[]; headers: string[] } {
 
   const delimiter = detectDelimiter(text);
   const headerRaw = splitLine(lines[0], delimiter);
-  const headers = headerRaw.map((h) => h.replace(/^["']|["']$/g, "").trim());
+  const headers = headerRaw.map((h) => h.replace(/^(["'])(.*)\1$/g, "$2").trim());
 
   const columnMap: (KnownColumn | null)[] = headers.map(normalizeHeader);
 
@@ -221,11 +340,61 @@ function statusBadge(status: RowStatus) {
   }
 }
 
-const EXAMPLE_CSV = `danish,english,italian,type,notes
+const EXAMPLE_INPUT = `danish,english,italian,type,notes
 hus,house,casa,noun,
 gå,to go,andare,verb,
 stor,big,grande,adjective,
-god morgen,good morning,buongiorno,expression,Hilsen om morgenen`;
+god morgen,good morning,buongiorno,expression,Hilsen om morgenen
+
+{"danish":"hus","english":"house","italian":"casa","type":"noun","grammar":{"article":"et","singularDefinite":"huset","pluralIndefinite":"huse","pluralDefinite":"husene"}}
+{"danish":"gå","english":"to go","italian":"andare","type":"verb","grammar":{"present":"går","past":"gik","perfect":"har gået"}}`;
+
+const EXAMPLE_JSON = `[
+  {
+    "danish": "hus",
+    "english": "house",
+    "italian": "casa",
+    "type": "noun",
+    "notes": "En almindelig bolig",
+    "grammar": {
+      "article": "et",
+      "singularDefinite": "huset",
+      "pluralIndefinite": "huse",
+      "pluralDefinite": "husene"
+    }
+  },
+  {
+    "danish": "spise",
+    "english": "to eat",
+    "italian": "mangiare",
+    "type": "verb",
+    "grammar": {
+      "present": "spiser",
+      "past": "spiste",
+      "perfect": "har spist"
+    }
+  },
+  {
+    "danish": "stor",
+    "english": "big",
+    "italian": "grande",
+    "type": "adjective",
+    "grammar": {
+      "neuter": "stort",
+      "definite": "store",
+      "plural": "store",
+      "comparative": "større",
+      "superlative": "størst"
+    }
+  },
+  {
+    "danish": "godmorgen",
+    "english": "good morning",
+    "italian": "buongiorno",
+    "type": "expression",
+    "notes": "Hilsen om morgenen"
+  }
+]`;
 
 // ---------------------------------------------------------------------------
 // Component
@@ -246,6 +415,14 @@ interface ImportSettings {
   updateDuplicates: boolean;
 }
 
+interface ProcessedDocument {
+  entries: LexisEntryInput[];
+  totalExtracted: number;
+  newWords: number;
+  processed: number;
+  message?: string;
+}
+
 export default function BulkImport() {
   const navigate = useNavigate();
   const { addEntry, updateEntry, allEntries } = useLexicon();
@@ -262,12 +439,110 @@ export default function BulkImport() {
   });
   const [showSettings, setShowSettings] = useState(false);
 
+  // Document processing state
+  const [isProcessingDocument, setIsProcessingDocument] = useState(false);
+  const [processedDocument, setProcessedDocument] = useState<ProcessedDocument | null>(null);
+
+  // Check if user is authenticated by trying a simple API call
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+
+  // Check authentication status
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch("/api/entries", { method: "GET" });
+        setIsAuthenticated(response.ok);
+      } catch {
+        setIsAuthenticated(false);
+      }
+    };
+
+    if (!import.meta.env.DEV && !window.location.hostname.endsWith(".pages.dev")) {
+      checkAuth();
+    } else {
+      // In localStorage mode, consider authenticated for basic functionality
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  const handleProcessDocument = useCallback(async (file: File) => {
+    if (!isAuthenticated) {
+      alert(t("bulkImport.authRequired"));
+      return;
+    }
+
+    setIsProcessingDocument(true);
+    setProcessedDocument(null);
+
+    try {
+      let text: string;
+
+      // Extract text from the file
+      if (file.name.toLowerCase().endsWith('.docx')) {
+        // For now, skip mammoth and just show an error
+        alert("Word document processing is temporarily unavailable. Please use text files (.txt) for now.");
+        return;
+      } else {
+        // Plain text file
+        text = await file.text();
+      }
+
+      if (!text.trim()) {
+        alert(t("bulkImport.documentEmpty"));
+        return;
+      }
+
+      // Send the extracted text to the API
+      const formData = new FormData();
+      formData.append("text", text);
+
+      const response = await fetch("/api/process-document", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to process document");
+      }
+
+      const result: ProcessedDocument = await response.json();
+      setProcessedDocument(result);
+
+      // Convert processed entries to CSV format and parse immediately
+      if (result.entries.length > 0) {
+        const csvLines = ["danish,english,italian,type,notes"];
+        for (const entry of result.entries) {
+          const line = [
+            entry.danish,
+            entry.english,
+            entry.italian,
+            entry.type,
+            entry.notes,
+          ].map(field => `"${field.replace(/"/g, '""')}"`).join(",");
+          csvLines.push(line);
+        }
+        const csvText = csvLines.join("\n");
+        const parsedResult = parseInput(csvText);
+        setRawText(csvText);
+        setParsed(parsedResult);
+        setImportStatus("parsed");
+        setResults([]);
+        setSelectedRows(new Set(parsedResult.rows.filter((row) => row.entry !== null).map((row) => row.rowIndex)));
+      }
+    } catch (error) {
+      console.error("Document processing failed:", error);
+      alert(`Failed to process document: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+      setIsProcessingDocument(false);
+    }
+  }, [isAuthenticated]);
+
   const handleParse = useCallback(() => {
-    const result = parseRows(rawText);
+    const result = parseInput(rawText);
     setParsed(result);
     setImportStatus("parsed");
     setResults([]);
-    // Select all valid rows by default
     const validRowIndices = result.rows
       .filter((r) => r.entry !== null)
       .map((r) => r.rowIndex);
@@ -509,8 +784,52 @@ export default function BulkImport() {
           </div>
         )}
 
+        {/* Document upload - only for authenticated users */}
+        {isAuthenticated && (
+          <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <FileUp className="h-4 w-4 text-muted-foreground shrink-0" />
+              <h2 className="text-sm font-semibold">{t("bulkImport.documentUpload")}</h2>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {t("bulkImport.documentUploadDescription")}
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="file"
+                accept=".txt"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    handleProcessDocument(file);
+                  }
+                }}
+                disabled={isProcessingDocument}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              />
+              {isProcessingDocument && (
+                <Loader2 className="h-4 w-4 animate-spin self-center" />
+              )}
+            </div>
+            {processedDocument && (
+              <div className="text-sm space-y-1">
+                <p className="text-muted-foreground">
+                  {t("bulkImport.documentProcessed", {
+                    extracted: processedDocument.totalExtracted,
+                    new: processedDocument.newWords,
+                    processed: processedDocument.processed
+                  })}
+                </p>
+                {processedDocument.message && (
+                  <p className="text-amber-700 dark:text-amber-300">{processedDocument.message}</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Input area */}
-        {importStatus === "idle" || importStatus === "parsed" ? (
+        {(importStatus === "idle" || importStatus === "parsed") && (
           <div className="space-y-3">
             <Textarea
               value={rawText}
@@ -522,11 +841,24 @@ export default function BulkImport() {
                   setResults([]);
                 }
               }}
-              placeholder={EXAMPLE_CSV}
+              placeholder={EXAMPLE_INPUT}
               rows={10}
               className="font-mono text-xs resize-y"
               aria-label={t("bulkImport.csvLabel")}
             />
+            <div className="rounded-lg border border-border bg-muted/70 p-3 text-[12px]">
+              <p className="text-xs text-muted-foreground">
+                {t("bulkImport.supportsJsonText")}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border bg-card p-3 text-sm">
+              <div className="mb-2 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+                {t("bulkImport.sampleJsonExamplesTitle")}
+              </div>
+              <pre className="overflow-x-auto rounded bg-background/90 p-3 text-[11px] font-mono text-muted-foreground">
+                <code>{EXAMPLE_JSON}</code>
+              </pre>
+            </div>
             <div className="flex gap-2 justify-end">
               {rawText.trim() && (
                 <Button type="button" variant="ghost" size="sm" onClick={handleReset}>
@@ -543,7 +875,7 @@ export default function BulkImport() {
               </Button>
             </div>
           </div>
-        ) : null}
+        )}
 
         {/* Preview table */}
         {parsed && parsed.rows.length > 0 && (
