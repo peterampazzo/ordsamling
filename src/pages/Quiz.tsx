@@ -774,18 +774,23 @@ const Quiz = () => {
                 <>
                   <p className="text-xs uppercase tracking-wider text-muted-foreground">{questionTypeBadge(current.questionType)}</p>
                   <p className="text-sm text-muted-foreground">{current.hint}</p>
-                  <p className="text-2xl sm:text-3xl font-bold text-foreground font-mono tracking-wide">{current.prompt}</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-foreground font-mono tracking-[0.25em]">{current.prompt}</p>
                 </>
               ) : currentDisplayMode === "completion" && current.masked ? (
                 <>
                   <p className="text-xs uppercase tracking-wider text-muted-foreground">{t("quiz.fillWord")}</p>
                   <p className="text-sm text-muted-foreground">{current.prompt} ({current.direction.fromLabel})</p>
-                  <p className="text-2xl sm:text-3xl font-bold text-foreground font-mono tracking-widest">{current.masked}</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-foreground font-mono tracking-[0.25em]">{current.masked}</p>
                 </>
               ) : (
                 <>
                   <p className="text-xs uppercase tracking-wider text-muted-foreground">{current.direction.fromLabel}</p>
                   <p className="text-2xl sm:text-3xl font-bold text-foreground">{current.prompt}</p>
+                  {isValid(current.entry.notes) ? (
+                    <p className="text-xs text-muted-foreground italic">{t("quiz.context")}: {current.entry.notes}</p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">({entryTypeLabel(current.entry.type)})</p>
+                  )}
                 </>
               )}
               <span className={cn("inline-block text-[10px] font-medium uppercase px-2 py-0.5 rounded-full", "bg-muted text-muted-foreground")}>
