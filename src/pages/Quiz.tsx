@@ -493,7 +493,7 @@ const Quiz = () => {
       if (!current || showResult) return;
       const skipped = answer === "__skipped__";
       const timedOut = answer === "__timeout__";
-      const correct = !skipped && !timedOut && normalize(answer) === normalize(current.answer);
+      const correct = !skipped && !timedOut && matchesAnswer(answer, current.answer);
       setAnswered(answer);
       setShowResult(true);
       setTimerActive(false);
