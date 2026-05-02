@@ -803,7 +803,7 @@ const Quiz = () => {
               <div className="grid grid-cols-1 gap-2.5">
                 {current.options.filter(isValid).map((opt, i) => {
                   const isThis = answered === opt;
-                  const isRight = normalize(opt) === normalize(current.answer);
+                  const isRight = matchesAnswer(opt, current.answer);
                   let cls = "bg-card text-foreground border-border hover:border-primary/40";
                   if (showResult) {
                     if (isRight) cls = "bg-primary/10 text-primary border-primary ring-1 ring-primary/30";
