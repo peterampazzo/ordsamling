@@ -208,16 +208,17 @@ function buildNounFormQuestions(entries: LexisEntry[], dir: LangDirection): Quiz
 function buildFillBlankQuestions(entries: LexisEntry[], dir: LangDirection): QuizQuestion[] {
   const eligible = entries.filter((e) => isValid(e[dir.to]) && e[dir.to].trim().length >= 3);
   return eligible.map((entry) => {
-    const answer = entry[dir.to];
+    const fullAnswer = entry[dir.to];
+    const primary = primaryForm(fullAnswer);
     return {
       entry,
-      prompt: makeBlank(answer),
-      answer,
+      prompt: makeBlank(primary),
+      answer: primary, // accept only the primary form in completion mode
       options: [],
       questionType: "fill_blank" as QuestionType,
       hint: `Udfyld: ${entry[dir.from]}`,
       direction: dir,
-      masked: makeBlank(answer),
+      masked: makeBlank(primary),
     };
   });
 }
