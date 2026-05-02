@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { DemoBanner } from "@/components/DemoBanner";
 import { activateDemo } from "@/lib/demo";
+import Landing from "./pages/Landing.tsx";
 import Index from "./pages/Index.tsx";
 import BulkImport from "./pages/BulkImport.tsx";
 import Quiz from "./pages/Quiz.tsx";
@@ -39,7 +40,8 @@ const App = () => (
         <DemoActivator />
         <DemoBanner />
         <Routes>
-          <Route path="/" element={<Index />} />
+          <Route path="/" element={<Landing />} />
+          <Route path="/app" element={<Index />} />
           <Route path="/import" element={<BulkImport />} />
           <Route path="/quiz" element={<Quiz />} />
           <Route path="/quiz/history" element={<QuizHistory />} />

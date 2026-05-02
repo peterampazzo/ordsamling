@@ -682,7 +682,7 @@ export default function BulkImport() {
           <div className="flex items-center gap-3 py-3">
             <button
               type="button"
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/app")}
               className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               aria-label={t("common.back")}
             >
@@ -1107,7 +1107,7 @@ export default function BulkImport() {
                   <Button type="button" variant="outline" size="sm" onClick={handleReset}>
                     {t("bulkImport.importMore")}
                   </Button>
-                  <Button type="button" size="sm" onClick={() => navigate("/")}>
+                  <Button type="button" size="sm" onClick={() => navigate("/app")}>
                     {t("bulkImport.goToDict")}
                   </Button>
                 </div>
