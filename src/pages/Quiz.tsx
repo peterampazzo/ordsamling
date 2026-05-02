@@ -851,6 +851,11 @@ const Quiz = () => {
                       <div>
                         <span className="flex items-center gap-1.5"><XCircle className="h-4 w-4" /> {t("common.incorrect")}</span>
                         <p className="mt-1 text-foreground">{t("quiz.correctAnswer")}: <strong>{current.answer}</strong></p>
+                        {splitAlternatives(current.answer).length > 1 && (
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {t("quiz.acceptedAlternatives")}: {splitAlternatives(current.answer).join(" · ")}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
