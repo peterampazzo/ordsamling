@@ -16,6 +16,8 @@ interface DistractorRequest {
   answerLang: "danish" | "english";
   /** Existing pool of valid answers to avoid duplicating */
   existingAnswers?: string[];
+  /** Verbal infinitive prefix detected on the correct answer ("at" / "to"). Distractors must keep the same prefix. */
+  answerPrefix?: string;
 }
 
 const json = (body: unknown, init?: ResponseInit) =>
