@@ -57,7 +57,7 @@ async function readEntries(env: Env): Promise<LexisEntry[]> {
     .map((value): LexisEntry | null => {
       if (!value || typeof value !== "object") return null;
       const candidate = value as Record<string, unknown>;
-      const grammar = candidate.grammar as EntryGrammar | undefined;
+      const grammar = candidate.grammar as Record<string, string> | undefined;
       const entry: LexisEntry = {
         id: typeof candidate.id === "string" ? candidate.id : "",
         danish: typeof candidate.danish === "string" ? candidate.danish : "",
