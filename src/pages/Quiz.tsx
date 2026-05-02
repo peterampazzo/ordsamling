@@ -567,7 +567,7 @@ const Quiz = () => {
           <div className="max-w-3xl mx-auto px-3 sm:px-4 flex items-center justify-between py-3">
             <div className="flex items-center gap-3">
               <Button variant="ghost" size="icon" className="shrink-0" asChild>
-                <Link to="/"><ArrowLeft className="h-5 w-5" /></Link>
+                <Link to="/app"><ArrowLeft className="h-5 w-5" /></Link>
               </Button>
               <Brain className="h-5 w-5 text-primary" />
               <h1 className="text-base sm:text-lg font-semibold text-foreground">{t("quiz.title")}</h1>
