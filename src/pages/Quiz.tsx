@@ -103,6 +103,29 @@ function normalize(s: string) {
   return s.trim().toLowerCase();
 }
 
+/** Split an answer like "imagine/invent" or "to imagine / to invent" into alternatives. */
+function splitAlternatives(s: string): string[] {
+  return s
+    .split("/")
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+}
+
+/** Check if a given answer matches the correct answer, accepting any slash-separated alternative. */
+function matchesAnswer(given: string, correct: string): boolean {
+  const g = normalize(given);
+  const alts = splitAlternatives(correct).map(normalize);
+  if (alts.includes(g)) return true;
+  // Also accept the full string as-is
+  return normalize(correct) === g;
+}
+
+/** Pick the primary form of a multi-alternative answer (first slash segment). */
+function primaryForm(s: string): string {
+  const alts = splitAlternatives(s);
+  return alts[0] ?? s;
+}
+
 /** Create a word completion mask: show first, last, and ~40% of chars */
 function makeBlank(word: string): string {
   if (word.length <= 2) return "_".repeat(word.length);
