@@ -1107,7 +1107,7 @@ export default function BulkImport() {
                   <Button type="button" variant="outline" size="sm" onClick={handleReset}>
                     {t("bulkImport.importMore")}
                   </Button>
-                  <Button type="button" size="sm" onClick={() => navigate("/")}>
+                  <Button type="button" size="sm" onClick={() => navigate("/app")}>
                     {t("bulkImport.goToDict")}
                   </Button>
                 </div>
