@@ -334,7 +334,7 @@ function statusBadge(status: RowStatus) {
     case "failed":
       return (
         <span className="inline-flex items-center gap-1 text-xs text-destructive font-medium">
-          <XCircle2 className="h-3.5 w-3.5" /> {t("common.failed")}
+          <XCircle className="h-3.5 w-3.5" /> {t("common.failed")}
         </span>
       );
   }
