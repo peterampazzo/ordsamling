@@ -55,6 +55,27 @@ function buildPrompt(req: DistractorRequest): string {
     typeHint = `These should be other real ${lang} words that could be confused with the correct answer.`;
   }
 
+  // Type-consistency rule: distractors MUST be the same word type as the entry
+  const typeRule = (() => {
+    switch (req.entryType) {
+      case "verb":
+        return `IMPORTANT: All 3 distractors MUST be ${lang} VERBS (not nouns or adjectives).`;
+      case "noun":
+        return `IMPORTANT: All 3 distractors MUST be ${lang} NOUNS (not verbs or adjectives).`;
+      case "adjective":
+        return `IMPORTANT: All 3 distractors MUST be ${lang} ADJECTIVES (not nouns or verbs).`;
+      case "expression":
+        return `IMPORTANT: All 3 distractors MUST be short ${lang} expressions/phrases of similar length.`;
+      default:
+        return `IMPORTANT: All 3 distractors MUST be the same part of speech as the correct answer.`;
+    }
+  })();
+
+  // Prefix rule: if the correct answer starts with "at" / "to", distractors must too
+  const prefixRule = req.answerPrefix
+    ? `IMPORTANT: The correct answer starts with "${req.answerPrefix} ". Every distractor MUST also start with "${req.answerPrefix} " (lowercase, followed by a space).`
+    : "";
+
   const avoid = req.existingAnswers?.length
     ? `\nDo NOT include any of these: ${req.existingAnswers.join(", ")}`
     : "";
@@ -67,6 +88,8 @@ Word type: ${req.entryType}
 Question type: ${req.questionType}
 
 ${typeHint}
+${typeRule}
+${prefixRule}
 The distractors should be ${similarity} to the correct answer.${avoid}
 
 Return ONLY a JSON array of 3 strings, no explanation. Example: ["word1", "word2", "word3"]`;
