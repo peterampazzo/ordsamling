@@ -329,6 +329,13 @@ async function fetchSmartDistractors(
     return [];
   }
 
+  // Detect verbal infinitive prefix ("at" Danish / "to" English) so distractors keep the same form
+  const trimmed = question.answer.trim();
+  const lower = trimmed.toLowerCase();
+  let answerPrefix: string | undefined;
+  if (lower.startsWith("at ")) answerPrefix = "at";
+  else if (lower.startsWith("to ")) answerPrefix = "to";
+
   try {
     const res = await fetch("/api/quiz/distractors", {
       method: "POST",
@@ -342,12 +349,14 @@ async function fetchSmartDistractors(
         prompt: question.prompt,
         answerLang: question.direction.to,
         existingAnswers: question.options,
+        answerPrefix,
       }),
     });
     if (!res.ok) return [];
     const data = (await res.json()) as { distractors: string[] };
+    const correctAlts = new Set(splitAlternatives(question.answer).map(normalize));
     return (data.distractors || []).filter(
-      (d) => isValid(d) && normalize(d) !== normalize(question.answer),
+      (d) => isValid(d) && !correctAlts.has(normalize(d)) && normalize(d) !== normalize(question.answer),
     );
   } catch {
     return [];
