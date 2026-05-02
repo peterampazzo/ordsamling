@@ -434,13 +434,12 @@ const Quiz = () => {
     }
   }, [state, mode, showResult, currentIdx, current?.displayMode]);
 
-  // Fetch AI distractors for current question (advanced/intermediate + choice mode)
+  // Fetch AI distractors for current question (all difficulties + choice mode)
   useEffect(() => {
     const dm = current?.displayMode ?? mode;
     if (
       state !== "playing" ||
       (dm !== "choice") ||
-      difficulty === "beginner" ||
       !current ||
       showResult
     )
