@@ -40,7 +40,8 @@ const App = () => (
         <DemoActivator />
         <DemoBanner />
         <Routes>
-          <Route path="/" element={<Index />} />
+          <Route path="/" element={<Landing />} />
+          <Route path="/app" element={<Index />} />
           <Route path="/import" element={<BulkImport />} />
           <Route path="/quiz" element={<Quiz />} />
           <Route path="/quiz/history" element={<QuizHistory />} />
