@@ -316,7 +316,7 @@ function statusBadge(status: RowStatus) {
     case "error":
       return (
         <span className="inline-flex items-center gap-1 text-xs text-destructive">
-          <XCircle2 className="h-3.5 w-3.5" /> {t("common.error")}
+          <XCircle className="h-3.5 w-3.5" /> {t("common.error")}
         </span>
       );
     case "imported":
