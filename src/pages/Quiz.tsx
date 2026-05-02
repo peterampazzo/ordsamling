@@ -103,6 +103,29 @@ function normalize(s: string) {
   return s.trim().toLowerCase();
 }
 
+/** Split an answer like "imagine/invent" or "to imagine / to invent" into alternatives. */
+function splitAlternatives(s: string): string[] {
+  return s
+    .split("/")
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+}
+
+/** Check if a given answer matches the correct answer, accepting any slash-separated alternative. */
+function matchesAnswer(given: string, correct: string): boolean {
+  const g = normalize(given);
+  const alts = splitAlternatives(correct).map(normalize);
+  if (alts.includes(g)) return true;
+  // Also accept the full string as-is
+  return normalize(correct) === g;
+}
+
+/** Pick the primary form of a multi-alternative answer (first slash segment). */
+function primaryForm(s: string): string {
+  const alts = splitAlternatives(s);
+  return alts[0] ?? s;
+}
+
 /** Create a word completion mask: show first, last, and ~40% of chars */
 function makeBlank(word: string): string {
   if (word.length <= 2) return "_".repeat(word.length);
@@ -185,16 +208,17 @@ function buildNounFormQuestions(entries: LexisEntry[], dir: LangDirection): Quiz
 function buildFillBlankQuestions(entries: LexisEntry[], dir: LangDirection): QuizQuestion[] {
   const eligible = entries.filter((e) => isValid(e[dir.to]) && e[dir.to].trim().length >= 3);
   return eligible.map((entry) => {
-    const answer = entry[dir.to];
+    const fullAnswer = entry[dir.to];
+    const primary = primaryForm(fullAnswer);
     return {
       entry,
-      prompt: makeBlank(answer),
-      answer,
+      prompt: makeBlank(primary),
+      answer: primary, // accept only the primary form in completion mode
       options: [],
       questionType: "fill_blank" as QuestionType,
       hint: `Udfyld: ${entry[dir.from]}`,
       direction: dir,
-      masked: makeBlank(answer),
+      masked: makeBlank(primary),
     };
   });
 }
@@ -284,7 +308,8 @@ function buildQuestions(
             .filter((v): v is string => typeof v === "string");
 
     const unique = [...new Set(answerPool.map((a) => a.trim()))];
-    const wrong = shuffle(unique.filter((a) => normalize(a) !== normalize(q.answer))).slice(0, 3);
+    const correctAlts = new Set(splitAlternatives(q.answer).map(normalize));
+    const wrong = shuffle(unique.filter((a) => !correctAlts.has(normalize(a)) && normalize(a) !== normalize(q.answer))).slice(0, 3);
     q.options = shuffle([q.answer, ...wrong]).filter(isValid);
   }
 
@@ -304,6 +329,13 @@ async function fetchSmartDistractors(
     return [];
   }
 
+  // Detect verbal infinitive prefix ("at" Danish / "to" English) so distractors keep the same form
+  const trimmed = question.answer.trim();
+  const lower = trimmed.toLowerCase();
+  let answerPrefix: string | undefined;
+  if (lower.startsWith("at ")) answerPrefix = "at";
+  else if (lower.startsWith("to ")) answerPrefix = "to";
+
   try {
     const res = await fetch("/api/quiz/distractors", {
       method: "POST",
@@ -317,12 +349,14 @@ async function fetchSmartDistractors(
         prompt: question.prompt,
         answerLang: question.direction.to,
         existingAnswers: question.options,
+        answerPrefix,
       }),
     });
     if (!res.ok) return [];
     const data = (await res.json()) as { distractors: string[] };
+    const correctAlts = new Set(splitAlternatives(question.answer).map(normalize));
     return (data.distractors || []).filter(
-      (d) => isValid(d) && normalize(d) !== normalize(question.answer),
+      (d) => isValid(d) && !correctAlts.has(normalize(d)) && normalize(d) !== normalize(question.answer),
     );
   } catch {
     return [];
@@ -400,13 +434,12 @@ const Quiz = () => {
     }
   }, [state, mode, showResult, currentIdx, current?.displayMode]);
 
-  // Fetch AI distractors for current question (advanced/intermediate + choice mode)
+  // Fetch AI distractors for current question (all difficulties + choice mode)
   useEffect(() => {
     const dm = current?.displayMode ?? mode;
     if (
       state !== "playing" ||
       (dm !== "choice") ||
-      difficulty === "beginner" ||
       !current ||
       showResult
     )
@@ -421,11 +454,11 @@ const Quiz = () => {
         const next = [...prev];
         const q = { ...next[currentIdx] };
         // Replace random distractors with AI ones
-        const kept = q.options.filter((o) => normalize(o) === normalize(q.answer));
+        const kept = q.options.filter((o) => matchesAnswer(o, q.answer));
         const aiOptions = distractors.slice(0, 3);
         q.options = shuffle([...kept, ...aiOptions]).filter(isValid);
         // Ensure correct answer is always present
-        if (!q.options.some((o) => normalize(o) === normalize(q.answer))) {
+        if (!q.options.some((o) => matchesAnswer(o, q.answer))) {
           q.options[0] = q.answer;
           q.options = shuffle(q.options);
         }
@@ -460,7 +493,7 @@ const Quiz = () => {
       if (!current || showResult) return;
       const skipped = answer === "__skipped__";
       const timedOut = answer === "__timeout__";
-      const correct = !skipped && !timedOut && normalize(answer) === normalize(current.answer);
+      const correct = !skipped && !timedOut && matchesAnswer(answer, current.answer);
       setAnswered(answer);
       setShowResult(true);
       setTimerActive(false);
@@ -509,7 +542,7 @@ const Quiz = () => {
     }
   }, [currentIdx, total, finishQuiz, difficulty]);
 
-  const isCorrect = answered !== null && normalize(answered) === normalize(current?.answer ?? "");
+  const isCorrect = answered !== null && matchesAnswer(answered, current?.answer ?? "");
   const isTimedOut = answered === "__timeout__";
 
   // Determine effective input mode for current question
@@ -741,18 +774,23 @@ const Quiz = () => {
                 <>
                   <p className="text-xs uppercase tracking-wider text-muted-foreground">{questionTypeBadge(current.questionType)}</p>
                   <p className="text-sm text-muted-foreground">{current.hint}</p>
-                  <p className="text-2xl sm:text-3xl font-bold text-foreground font-mono tracking-wide">{current.prompt}</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-foreground font-mono tracking-[0.25em]">{current.prompt}</p>
                 </>
               ) : currentDisplayMode === "completion" && current.masked ? (
                 <>
                   <p className="text-xs uppercase tracking-wider text-muted-foreground">{t("quiz.fillWord")}</p>
                   <p className="text-sm text-muted-foreground">{current.prompt} ({current.direction.fromLabel})</p>
-                  <p className="text-2xl sm:text-3xl font-bold text-foreground font-mono tracking-widest">{current.masked}</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-foreground font-mono tracking-[0.25em]">{current.masked}</p>
                 </>
               ) : (
                 <>
                   <p className="text-xs uppercase tracking-wider text-muted-foreground">{current.direction.fromLabel}</p>
                   <p className="text-2xl sm:text-3xl font-bold text-foreground">{current.prompt}</p>
+                  {isValid(current.entry.notes) ? (
+                    <p className="text-xs text-muted-foreground italic">{t("quiz.context")}: {current.entry.notes}</p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">({entryTypeLabel(current.entry.type)})</p>
+                  )}
                 </>
               )}
               <span className={cn("inline-block text-[10px] font-medium uppercase px-2 py-0.5 rounded-full", "bg-muted text-muted-foreground")}>
@@ -765,7 +803,7 @@ const Quiz = () => {
               <div className="grid grid-cols-1 gap-2.5">
                 {current.options.filter(isValid).map((opt, i) => {
                   const isThis = answered === opt;
-                  const isRight = normalize(opt) === normalize(current.answer);
+                  const isRight = matchesAnswer(opt, current.answer);
                   let cls = "bg-card text-foreground border-border hover:border-primary/40";
                   if (showResult) {
                     if (isRight) cls = "bg-primary/10 text-primary border-primary ring-1 ring-primary/30";
@@ -813,6 +851,11 @@ const Quiz = () => {
                       <div>
                         <span className="flex items-center gap-1.5"><XCircle className="h-4 w-4" /> {t("common.incorrect")}</span>
                         <p className="mt-1 text-foreground">{t("quiz.correctAnswer")}: <strong>{current.answer}</strong></p>
+                        {splitAlternatives(current.answer).length > 1 && (
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {t("quiz.acceptedAlternatives")}: {splitAlternatives(current.answer).join(" · ")}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>

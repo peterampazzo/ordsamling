@@ -84,6 +84,8 @@ quiz:
   correctAnswer: "Rigtigt svar"
   timerExpired: "Tiden udløb!"
   fillWord: "Udfyld ordet"
+  context: "Kontekst"
+  acceptedAlternatives: "Også accepteret"
   writeFullWord: "Skriv det fulde ord"
   writeConjugation: "Skriv den korrekte bøjningsform"
   writeNounForm: "Skriv den korrekte form"
