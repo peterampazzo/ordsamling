@@ -54,19 +54,21 @@ async function readEntries(env: Env): Promise<LexisEntry[]> {
   }
 
   return raw
-    .map((value) => {
+    .map((value): LexisEntry | null => {
       if (!value || typeof value !== "object") return null;
       const candidate = value as Record<string, unknown>;
-      return {
+      const grammar = candidate.grammar as EntryGrammar | undefined;
+      const entry: LexisEntry = {
         id: typeof candidate.id === "string" ? candidate.id : "",
         danish: typeof candidate.danish === "string" ? candidate.danish : "",
         english: typeof candidate.english === "string" ? candidate.english : "",
         italian: typeof candidate.italian === "string" ? candidate.italian : "",
         notes: typeof candidate.notes === "string" ? candidate.notes : "",
         type: normalizeEntryType(candidate.type),
-        grammar: candidate.grammar as Record<string, string> | undefined,
         createdAt: typeof candidate.createdAt === "number" ? candidate.createdAt : 0,
+        ...(grammar ? { grammar } : {}),
       };
+      return entry;
     })
     .filter((value): value is LexisEntry => value !== null && value.id !== "")
     .sort((left, right) => right.createdAt - left.createdAt);
