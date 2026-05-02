@@ -308,7 +308,8 @@ function buildQuestions(
             .filter((v): v is string => typeof v === "string");
 
     const unique = [...new Set(answerPool.map((a) => a.trim()))];
-    const wrong = shuffle(unique.filter((a) => normalize(a) !== normalize(q.answer))).slice(0, 3);
+    const correctAlts = new Set(splitAlternatives(q.answer).map(normalize));
+    const wrong = shuffle(unique.filter((a) => !correctAlts.has(normalize(a)) && normalize(a) !== normalize(q.answer))).slice(0, 3);
     q.options = shuffle([q.answer, ...wrong]).filter(isValid);
   }
 
