@@ -542,7 +542,7 @@ const Quiz = () => {
     }
   }, [currentIdx, total, finishQuiz, difficulty]);
 
-  const isCorrect = answered !== null && normalize(answered) === normalize(current?.answer ?? "");
+  const isCorrect = answered !== null && matchesAnswer(answered, current?.answer ?? "");
   const isTimedOut = answered === "__timeout__";
 
   // Determine effective input mode for current question
