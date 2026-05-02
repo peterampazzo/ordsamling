@@ -454,11 +454,11 @@ const Quiz = () => {
         const next = [...prev];
         const q = { ...next[currentIdx] };
         // Replace random distractors with AI ones
-        const kept = q.options.filter((o) => normalize(o) === normalize(q.answer));
+        const kept = q.options.filter((o) => matchesAnswer(o, q.answer));
         const aiOptions = distractors.slice(0, 3);
         q.options = shuffle([...kept, ...aiOptions]).filter(isValid);
         // Ensure correct answer is always present
-        if (!q.options.some((o) => normalize(o) === normalize(q.answer))) {
+        if (!q.options.some((o) => matchesAnswer(o, q.answer))) {
           q.options[0] = q.answer;
           q.options = shuffle(q.options);
         }
