@@ -975,7 +975,11 @@ export default function BulkImport() {
                     )}
                     <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t("bulkImport.tableDanish")}</th>
                     <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t("bulkImport.tableEnglish")}</th>
-                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t("bulkImport.tableItalian")}</th>
+                    {extraLangs.map((code) => (
+                      <th key={code} className="text-left px-3 py-2 font-medium text-muted-foreground">
+                        {getLanguageLabel(code)}
+                      </th>
+                    ))}
                     <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t("bulkImport.tableType")}</th>
                     <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t("bulkImport.tableStatus")}</th>
                   </tr>
