@@ -347,7 +347,7 @@ const Index = () => {
           <>
             <nav
               aria-label="Jump to letter"
-              className="sticky top-[148px] z-20 -mx-3 sm:-mx-4 mb-3 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75 border-b border-border"
+              className="sticky top-[140px] z-20 -mx-3 sm:-mx-4 mb-3 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75 border-b border-border"
             >
               <div className="flex gap-px px-2 sm:px-3 py-1.5 overflow-x-auto no-scrollbar">
                 {ALPHABET.map((l) => {
