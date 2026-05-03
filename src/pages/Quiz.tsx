@@ -568,26 +568,21 @@ const Quiz = () => {
   /* ---- Setup screen ---- */
   if (state === "setup") {
     return (
-      <div className="min-h-screen bg-background">
-        <header className="sticky top-0 z-30 border-b border-border bg-card/90 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80">
-          <div className="max-w-3xl mx-auto px-3 sm:px-4 flex items-center justify-between py-3">
-            <div className="flex items-center gap-3">
-              <Button variant="ghost" size="icon" className="shrink-0" asChild>
-                <Link to="/app"><ArrowLeft className="h-5 w-5" /></Link>
-              </Button>
-              <Brain className="h-5 w-5 text-primary" />
-              <h1 className="text-base sm:text-lg font-semibold text-foreground">{t("quiz.title")}</h1>
-            </div>
+      <div className="min-h-screen bg-background flex flex-col">
+        <PageHeader
+          backTo="/app"
+          pageLabel={t("quiz.title")}
+          actions={
             <Button variant="outline" size="sm" className="gap-1.5" asChild>
               <Link to="/quiz/history">
                 <History className="h-4 w-4" />
                 <span className="hidden sm:inline">{t("quiz.history")}</span>
               </Link>
             </Button>
-          </div>
-        </header>
+          }
+        />
 
-        <main className="max-w-md mx-auto px-4 py-8 space-y-8">
+        <main className="flex-1 max-w-md mx-auto w-full px-4 py-6 sm:py-8 space-y-8">
           {allEntries.length < 4 ? (
             <div className="text-center py-12 text-muted-foreground space-y-2">
               <Brain className="h-10 w-10 mx-auto opacity-30" />
