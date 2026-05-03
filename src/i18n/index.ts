@@ -1,22 +1,34 @@
 import da from "./da.yaml";
-
-// Currently only Danish is active. To add a new language:
-// 1. Create src/i18n/<lang>.yaml copying da.yaml's structure
-// 2. Import it here and add it to the `strings` map
-// 3. Switch `currentLang` or make it dynamic
+import en from "./en.yaml";
 
 type StringTree = Record<string, unknown>;
-const strings: Record<string, StringTree> = { da };
+const strings: Record<string, StringTree> = { da, en };
 
-let currentLang = "da";
+const LANG_KEY = "ordsamling-lang";
+
+function detectInitialLang(): string {
+  if (typeof window === "undefined") return "da";
+  const stored = localStorage.getItem(LANG_KEY);
+  if (stored && strings[stored]) return stored;
+  return "da";
+}
+
+let currentLang = detectInitialLang();
 
 export function setLang(lang: string) {
-  if (strings[lang]) currentLang = lang;
+  if (!strings[lang]) return;
+  currentLang = lang;
+  try {
+    localStorage.setItem(LANG_KEY, lang);
+    window.dispatchEvent(new CustomEvent("ordsamling:lang-changed"));
+  } catch { /* ignore */ }
 }
 
 export function getLang() {
   return currentLang;
 }
+
+export const AVAILABLE_LANGS = ["da", "en"] as const;
 
 /**
  * Retrieve a UI string by dot-separated key path.

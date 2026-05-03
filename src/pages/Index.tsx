@@ -345,9 +345,9 @@ const Index = () => {
           <>
             <nav
               aria-label="Jump to letter"
-              className="sticky top-[148px] sm:top-[148px] z-20 -mx-3 sm:-mx-4 mb-3 bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70 border-b border-border"
+              className="sticky top-[148px] z-20 -mx-3 sm:-mx-4 mb-3 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75 border-b border-border"
             >
-              <div className="flex flex-wrap gap-1 px-3 sm:px-4 py-2 justify-center">
+              <div className="flex gap-px px-2 sm:px-3 py-1.5 overflow-x-auto no-scrollbar">
                 {ALPHABET.map((l) => {
                   const has = presentLetters.has(l);
                   return (
@@ -357,10 +357,10 @@ const Index = () => {
                       disabled={!has}
                       onClick={() => jumpTo(l)}
                       className={cn(
-                        "h-6 min-w-6 px-1 text-[11px] font-mono tabular-nums rounded transition-colors",
+                        "h-5 min-w-[18px] px-0.5 text-[10px] font-mono tabular-nums rounded transition-colors shrink-0",
                         has
                           ? "text-foreground hover:bg-primary hover:text-primary-foreground"
-                          : "text-muted-foreground/40 cursor-default",
+                          : "text-muted-foreground/30 cursor-default",
                       )}
                     >
                       {l}
@@ -375,9 +375,9 @@ const Index = () => {
                   key={letter}
                   ref={(el) => { sectionRefs.current[letter] = el; }}
                   aria-label={`Section ${letter}`}
-                  className="scroll-mt-[200px]"
+                  className="scroll-mt-[190px]"
                 >
-                  <h2 className="sticky top-[196px] z-10 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75 font-serif text-2xl text-foreground py-1 mb-2 border-b border-border">
+                  <h2 className="sticky top-[180px] z-10 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75 font-serif text-lg text-muted-foreground py-1 mb-1.5 border-b border-border tracking-wider">
                     {letter}
                   </h2>
                   <div className="space-y-3">
