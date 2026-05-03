@@ -29,6 +29,8 @@ const Landing = () => {
   const switchLang = (l: string) => {
     setLang(l);
     setLangState(l);
+  };
+
   // Legacy ?demo query → forward to dedicated route.
   if (new URLSearchParams(location.search).has("demo")) {
     return <Navigate to="/demo" replace />;
