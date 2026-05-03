@@ -482,7 +482,7 @@ const Quiz = () => {
   }, [currentIdx, state]);
 
   const startQuiz = useCallback(() => {
-    const q = buildQuestions(allEntries, questionCount, difficulty, mode);
+    const q = buildQuestions(allEntries, questionCount, difficulty, mode, activeDirections.length > 0 ? activeDirections : DIRECTIONS);
     if (q.length < 2) return;
     setQuestions(q);
     setCurrentIdx(0);
