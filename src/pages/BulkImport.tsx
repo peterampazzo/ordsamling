@@ -470,16 +470,28 @@ export default function BulkImport() {
     setProcessedDocument(null);
 
     try {
+      const name = file.name.toLowerCase();
       let text: string;
 
-      // Extract text from the file
-      if (file.name.toLowerCase().endsWith('.docx')) {
-        // For now, skip mammoth and just show an error
-        alert("Word document processing is temporarily unavailable. Please use text files (.txt) for now.");
+      if (name.endsWith(".docx")) {
+        try {
+          const mammoth = await import("mammoth/mammoth.browser");
+          const arrayBuffer = await file.arrayBuffer();
+          const result = await mammoth.extractRawText({ arrayBuffer });
+          text = result.value ?? "";
+        } catch (err) {
+          console.error("docx parse failed", err);
+          alert(t("bulkImport.documentReadError"));
+          return;
+        }
+      } else if (name.endsWith(".doc")) {
+        alert(t("bulkImport.documentUnsupported"));
         return;
-      } else {
-        // Plain text file
+      } else if (name.endsWith(".txt") || name.endsWith(".md") || file.type.startsWith("text/")) {
         text = await file.text();
+      } else {
+        alert(t("bulkImport.documentUnsupported"));
+        return;
       }
 
       if (!text.trim()) {
@@ -500,16 +512,26 @@ export default function BulkImport() {
         body: formData,
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to process document");
+      // Read body as text first so we can survive HTML error pages
+      const bodyText = await response.text();
+      const ct = response.headers.get("content-type") ?? "";
+      let payload: unknown = null;
+      if (ct.includes("application/json")) {
+        try { payload = JSON.parse(bodyText); } catch { /* fall through */ }
       }
 
-      const result: ProcessedDocument = await response.json();
+      if (!response.ok || !payload || typeof payload !== "object") {
+        const serverMsg = (payload && typeof payload === "object" && "error" in (payload as Record<string, unknown>))
+          ? String((payload as Record<string, unknown>).error)
+          : null;
+        throw new Error(serverMsg ?? t("bulkImport.serverError"));
+      }
+
+      const result = payload as ProcessedDocument;
       setProcessedDocument(result);
 
       // Feed processed entries directly into the preview (preserves translations/grammar)
-      if (result.entries.length > 0) {
+      if (result.entries && result.entries.length > 0) {
         const rows: ParsedRow[] = result.entries.map((entry, i) => ({
           rowIndex: i + 1,
           raw: [],
@@ -529,7 +551,7 @@ export default function BulkImport() {
       }
     } catch (error) {
       console.error("Document processing failed:", error);
-      alert(`Failed to process document: ${error instanceof Error ? error.message : "Unknown error"}`);
+      alert(`${error instanceof Error ? error.message : t("bulkImport.unknownError")}`);
     } finally {
       setIsProcessingDocument(false);
     }
