@@ -253,7 +253,8 @@ export function useLexicon() {
       return [];
     }
 
-    const words = [entry.danish, entry.english, entry.italian]
+    const translationValues = entry.translations ? Object.values(entry.translations) : [];
+    const words = [entry.danish, entry.english, ...translationValues]
       .flatMap((text) => text.toLowerCase().split(/\s+/))
       .filter((word) => word.length > 2);
 
@@ -261,9 +262,11 @@ export function useLexicon() {
       (candidate) =>
         WORD_LIKE_TYPES.has(candidate.type) &&
         candidate.id !== entry.id &&
-        [candidate.danish, candidate.english, candidate.italian].some((field) =>
-          words.includes(field.toLowerCase()),
-        ),
+        [
+          candidate.danish,
+          candidate.english,
+          ...(candidate.translations ? Object.values(candidate.translations) : []),
+        ].some((field) => words.includes(field.toLowerCase())),
     );
   }, [allEntries]);
 
