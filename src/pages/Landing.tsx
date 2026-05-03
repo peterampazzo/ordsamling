@@ -178,7 +178,7 @@ const Landing = () => {
                   </span>
                 )}
               </div>
-              <h3 className="font-serif text-xl text-foreground leading-snug">{title}</h3>
+              <SerifHeading level="md" as="h3">{title}</SerifHeading>
               <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
             </article>
           ))}
