@@ -1295,7 +1295,14 @@ export default function BulkImport() {
         )}
       </main>
       <PageFooter />
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <SettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        entries={allEntries}
+        syncState={syncState}
+        onConnect={connect}
+        onDisconnect={disconnect}
+      />
     </div>
   );
 }
