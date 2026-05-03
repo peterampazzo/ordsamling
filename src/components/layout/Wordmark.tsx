@@ -1,4 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
+import { BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Size = "sm" | "md" | "lg";
@@ -9,11 +10,19 @@ const SIZE_CLASSES: Record<Size, string> = {
   lg: "text-5xl sm:text-7xl leading-[1.05]",
 };
 
+const ICON_CLASSES: Record<Size, string> = {
+  sm: "h-4 w-4",
+  md: "h-5 w-5",
+  lg: "h-10 w-10 sm:h-14 sm:w-14",
+};
+
 interface WordmarkProps {
   size?: Size;
   to?: string;
   asLink?: boolean;
   className?: string;
+  /** Show the BookOpen brand icon before the wordmark. Default true. */
+  withIcon?: boolean;
 }
 
 /**
