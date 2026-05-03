@@ -137,31 +137,53 @@ function parseJsonObjects(items: unknown[]): { rows: ParsedRow[]; headers: strin
     const warnings: string[] = [];
     const fields: Partial<Record<KnownColumn, string>> = {};
     const grammarFields: Record<string, string> = {};
+    const translationFields: Record<string, string> = {};
 
     for (const key of Object.keys(rawObject)) {
+      // Native nested translations object
+      if (key === "translations" && rawObject[key] && typeof rawObject[key] === "object" && !Array.isArray(rawObject[key])) {
+        const t2 = rawObject[key] as Record<string, unknown>;
+        for (const code of Object.keys(t2)) {
+          if (/^[a-z]{2,3}$/i.test(code)) {
+            const v = normalizeJsonValue(t2[code]);
+            if (v) {
+              translationFields[code.toLowerCase()] = v;
+              headerSet.add(`translations.${code.toLowerCase()}`);
+            }
+          }
+        }
+        continue;
+      }
+
       const normalizedKey = normalizeHeader(key);
-      if (normalizedKey) {
-        fields[normalizedKey] = normalizeJsonValue(rawObject[key]);
+      if (!normalizedKey) continue;
+
+      if (typeof normalizedKey === "string" && normalizedKey.startsWith("translations.")) {
+        const code = normalizedKey.slice("translations.".length);
+        const v = normalizeJsonValue(rawObject[key]);
+        if (v) translationFields[code] = v;
         headerSet.add(normalizedKey);
         continue;
       }
 
-      if (key === "grammar" && rawObject[key] && typeof rawObject[key] === "object") {
-        const grammarRaw = rawObject[key] as Record<string, unknown>;
-        for (const grammarKey of grammarKeys) {
-          if (grammarKey in grammarRaw) {
-            grammarFields[grammarKey] = normalizeJsonValue(grammarRaw[grammarKey]);
-            headerSet.add(grammarKey);
-          }
+      fields[normalizedKey as KnownColumn] = normalizeJsonValue(rawObject[key]);
+      headerSet.add(normalizedKey);
+    }
+
+    if (rawObject.grammar && typeof rawObject.grammar === "object") {
+      const grammarRaw = rawObject.grammar as Record<string, unknown>;
+      for (const grammarKey of grammarKeys) {
+        if (grammarKey in grammarRaw) {
+          grammarFields[grammarKey] = normalizeJsonValue(grammarRaw[grammarKey]);
+          headerSet.add(grammarKey);
         }
       }
     }
 
     const danish = fields.danish ?? "";
     const english = fields.english ?? "";
-    const italian = fields.italian ?? "";
 
-    if (!danish && !english && !italian) {
+    if (!danish && !english) {
       errors.push(t("bulkImport.rowValidationError"));
     }
 
@@ -179,7 +201,7 @@ function parseJsonObjects(items: unknown[]): { rows: ParsedRow[]; headers: strin
       english,
       notes: fields.notes ?? "",
       type,
-      ...(italian ? { translations: { it: italian } } : {}),
+      ...(Object.keys(translationFields).length > 0 ? { translations: translationFields } : {}),
       ...(Object.keys(grammarFields).length > 0 ? { grammar: grammarFields } : {}),
     };
 
