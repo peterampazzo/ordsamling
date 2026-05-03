@@ -379,7 +379,7 @@ const Index = () => {
                   aria-label={`Section ${letter}`}
                   className="scroll-mt-[190px]"
                 >
-                  <h2 className="sticky top-[180px] z-10 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75 font-serif text-lg text-muted-foreground py-1 mb-1.5 border-b border-border tracking-wider">
+                  <h2 className="sticky top-[170px] z-10 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75 font-serif text-lg text-muted-foreground py-1 mb-1.5 border-b border-border tracking-wider">
                     {letter}
                   </h2>
                   <div className="space-y-3">
