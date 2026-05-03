@@ -375,9 +375,9 @@ const Index = () => {
                   key={letter}
                   ref={(el) => { sectionRefs.current[letter] = el; }}
                   aria-label={`Section ${letter}`}
-                  className="scroll-mt-[200px]"
+                  className="scroll-mt-[190px]"
                 >
-                  <h2 className="sticky top-[196px] z-10 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75 font-serif text-2xl text-foreground py-1 mb-2 border-b border-border">
+                  <h2 className="sticky top-[180px] z-10 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75 font-serif text-lg text-muted-foreground py-1 mb-1.5 border-b border-border tracking-wider">
                     {letter}
                   </h2>
                   <div className="space-y-3">
