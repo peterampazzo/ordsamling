@@ -481,10 +481,17 @@ export default function BulkImport() {
   const [documentError, setDocumentError] = useState<string | null>(null);
   const [documentProgress, setDocumentProgress] = useState<{ completed: number; total: number } | null>(null);
 
-  // Enabled extra languages (re-read on settings-changed event)
+  // Enabled extra languages + Gemini key presence (re-read on settings-changed event)
   const [extraLangs, setExtraLangs] = useState<string[]>(() => getExtraLanguages());
+  const [hasGeminiKey, setHasGeminiKey] = useState<boolean>(() => !!getGeminiApiKey());
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   useEffect(() => {
-    const refresh = () => setExtraLangs(getExtraLanguages());
+    const refresh = () => {
+      setExtraLangs(getExtraLanguages());
+      setHasGeminiKey(!!getGeminiApiKey());
+    };
     window.addEventListener("ordsamling:settings-changed", refresh);
     return () => window.removeEventListener("ordsamling:settings-changed", refresh);
   }, []);
