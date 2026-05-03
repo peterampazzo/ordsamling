@@ -118,194 +118,190 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-30 border-b border-border bg-card/90 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80">
-        <div className="max-w-3xl mx-auto px-3 sm:px-4">
-          <div className="flex items-center justify-between gap-3 py-2.5 border-b border-border/60">
-            <div className="flex items-center gap-2 min-w-0">
-              <BookOpen className="h-5 w-5 text-primary shrink-0" aria-hidden />
-              <h1 className="text-base sm:text-lg font-semibold text-foreground truncate">{t("index.title")}</h1>
-            </div>
-            <div className="flex items-center gap-1 shrink-0">
-              <span className="text-xs text-muted-foreground tabular-nums mr-1" title={t("common.wordCount", { count: allEntries.length })}>
-                {t("common.wordCount", { count: allEntries.length })}
-              </span>
-              <CloudSyncIndicator
-                status={syncState.status}
-                lastSyncAt={syncState.lastSyncAt}
-                onClick={() => setSettingsOpen(true)}
-              />
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8"
-                onClick={() => setSettingsOpen(true)}
-                aria-label={t("settings.title")}
-              >
-                <SettingsIcon className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 py-2.5">
-            <div className="relative flex-1 min-w-0">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" aria-hidden />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={t("common.search")}
-                className="h-9 pl-9 pr-8 text-sm"
-                aria-label={t("index.searchLabel")}
-              />
-              {search && (
-                <button
-                  type="button"
-                  onClick={() => setSearch("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label={t("common.clearSearch")}
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
+      <PageHeader
+        actions={
+          <>
+            <span className="text-xs text-muted-foreground tabular-nums mr-1" title={t("common.wordCount", { count: allEntries.length })}>
+              {t("common.wordCount", { count: allEntries.length })}
+            </span>
+            <CloudSyncIndicator
+              status={syncState.status}
+              lastSyncAt={syncState.lastSyncAt}
+              onClick={() => setSettingsOpen(true)}
+            />
             <Button
               type="button"
-              size="sm"
-              variant="outline"
-              className="shrink-0 h-9 w-9 p-0"
-              asChild
-              aria-label={t("index.quizLabel")}
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8"
+              onClick={() => setSettingsOpen(true)}
+              aria-label={t("settings.title")}
             >
-              <Link to="/quiz">
-                <Brain className="h-4 w-4" />
-              </Link>
+              <SettingsIcon className="h-4 w-4" />
             </Button>
-            {demo ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="shrink-0">
-                    <Button type="button" size="sm" variant="outline" className="shrink-0 h-9 w-9 p-0 opacity-50" disabled aria-label={t("index.importLabel")}>
-                      <Upload className="h-4 w-4" />
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>{t("demo.addDisabled")}</TooltipContent>
-              </Tooltip>
-            ) : (
-              <Button type="button" size="sm" variant="outline" className="shrink-0 h-9 w-9 p-0" asChild aria-label={t("index.importLabel")}>
-                <Link to="/import">
-                  <Upload className="h-4 w-4" />
-                </Link>
-              </Button>
-            )}
-            {demo ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="shrink-0">
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="shrink-0 gap-1.5 h-9 px-3 opacity-50"
-                      disabled
-                      aria-label={t("index.addWord")}
-                    >
-                      <Plus className="h-4 w-4" />
-                      <span className="hidden sm:inline">{t("common.add")}</span>
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>{t("demo.addDisabled")}</TooltipContent>
-              </Tooltip>
-            ) : (
+          </>
+        }
+        subRow={
+          <div className="space-y-2.5">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1 min-w-0">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" aria-hidden />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={t("common.search")}
+                  className="h-9 pl-9 pr-8 text-sm"
+                  aria-label={t("index.searchLabel")}
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    aria-label={t("common.clearSearch")}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
               <Button
                 type="button"
                 size="sm"
-                className="shrink-0 gap-1.5 h-9 px-3"
-                onClick={() => setAddFormOpen(true)}
-                disabled={isSaving}
-                aria-haspopup="dialog"
-                aria-expanded={addFormOpen}
-                aria-label={t("index.addWord")}
+                variant="outline"
+                className="shrink-0 h-9 w-9 p-0"
+                asChild
+                aria-label={t("index.quizLabel")}
               >
-                <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">{t("common.add")}</span>
+                <Link to="/quiz">
+                  <Brain className="h-4 w-4" />
+                </Link>
               </Button>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 pb-2.5">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider shrink-0 mr-0.5">
-                {t("common.sort")}
-              </span>
-              {SORT_OPTIONS.map(({ value, labelKey, descKey, icon: Icon }) => (
-                <button
-                  key={value}
+              {demo ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="shrink-0">
+                      <Button type="button" size="sm" variant="outline" className="shrink-0 h-9 w-9 p-0 opacity-50" disabled aria-label={t("index.importLabel")}>
+                        <Upload className="h-4 w-4" />
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>{t("demo.addDisabled")}</TooltipContent>
+                </Tooltip>
+              ) : (
+                <Button type="button" size="sm" variant="outline" className="shrink-0 h-9 w-9 p-0" asChild aria-label={t("index.importLabel")}>
+                  <Link to="/import">
+                    <Upload className="h-4 w-4" />
+                  </Link>
+                </Button>
+              )}
+              {demo ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="shrink-0">
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="shrink-0 gap-1.5 h-9 px-3 opacity-50"
+                        disabled
+                        aria-label={t("index.addWord")}
+                      >
+                        <Plus className="h-4 w-4" />
+                        <span className="hidden sm:inline">{t("common.add")}</span>
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>{t("demo.addDisabled")}</TooltipContent>
+                </Tooltip>
+              ) : (
+                <Button
                   type="button"
-                  onClick={() => setSort(value)}
-                  aria-pressed={sort === value}
-                  title={t(descKey)}
-                  className={`flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-full border transition-colors ${
-                    sort === value
-                      ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                      : "bg-secondary/80 text-secondary-foreground border-border hover:border-primary/40"
-                  }`}
+                  size="sm"
+                  className="shrink-0 gap-1.5 h-9 px-3"
+                  onClick={() => setAddFormOpen(true)}
+                  disabled={isSaving}
+                  aria-haspopup="dialog"
+                  aria-expanded={addFormOpen}
+                  aria-label={t("index.addWord")}
                 >
-                  <Icon className="h-3 w-3 shrink-0" aria-hidden />
-                  {t(labelKey)}
-                </button>
-              ))}
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">{t("common.add")}</span>
+                </Button>
+              )}
             </div>
 
-            <Popover>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  className={`flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-full border transition-colors ${
-                    typeFilters.size > 0
-                      ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                      : "bg-secondary/80 text-secondary-foreground border-border hover:border-primary/40"
-                  }`}
-                >
-                  <Filter className="h-3 w-3 shrink-0" aria-hidden />
-                  {t("common.filter")}
-                  {typeFilters.size > 0 && (
-                    <span className="ml-0.5 bg-primary-foreground/20 rounded-full px-1.5 text-[10px]">
-                      {typeFilters.size}
-                    </span>
-                  )}
-                </button>
-              </PopoverTrigger>
-              <PopoverContent align="start" className="w-48 p-2">
-                <div className="space-y-1">
-                  {ENTRY_TYPES.map((type) => (
-                    <label
-                      key={type}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent cursor-pointer text-sm"
-                    >
-                      <Checkbox
-                        checked={typeFilters.has(type)}
-                        onCheckedChange={() => toggleTypeFilter(type)}
-                      />
-                      <span className="capitalize">{entryTypeLabel(type)}</span>
-                    </label>
-                  ))}
-                  {typeFilters.size > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setTypeFilters(new Set())}
-                      className="w-full text-xs text-muted-foreground hover:text-foreground text-center py-1 mt-1 border-t border-border"
-                    >
-                      {t("common.clear")}
-                    </button>
-                  )}
-                </div>
-              </PopoverContent>
-            </Popover>
-          </div>
+            <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider shrink-0 mr-0.5">
+                  {t("common.sort")}
+                </span>
+                {SORT_OPTIONS.map(({ value, labelKey, descKey, icon: Icon }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setSort(value)}
+                    aria-pressed={sort === value}
+                    title={t(descKey)}
+                    className={`flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-full border transition-colors ${
+                      sort === value
+                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                        : "bg-secondary/80 text-secondary-foreground border-border hover:border-primary/40"
+                    }`}
+                  >
+                    <Icon className="h-3 w-3 shrink-0" aria-hidden />
+                    {t(labelKey)}
+                  </button>
+                ))}
+              </div>
 
-        </div>
-      </header>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className={`flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-full border transition-colors ${
+                      typeFilters.size > 0
+                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                        : "bg-secondary/80 text-secondary-foreground border-border hover:border-primary/40"
+                    }`}
+                  >
+                    <Filter className="h-3 w-3 shrink-0" aria-hidden />
+                    {t("common.filter")}
+                    {typeFilters.size > 0 && (
+                      <span className="ml-0.5 bg-primary-foreground/20 rounded-full px-1.5 text-[10px]">
+                        {typeFilters.size}
+                      </span>
+                    )}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-48 p-2">
+                  <div className="space-y-1">
+                    {ENTRY_TYPES.map((type) => (
+                      <label
+                        key={type}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent cursor-pointer text-sm"
+                      >
+                        <Checkbox
+                          checked={typeFilters.has(type)}
+                          onCheckedChange={() => toggleTypeFilter(type)}
+                        />
+                        <span className="capitalize">{entryTypeLabel(type)}</span>
+                      </label>
+                    ))}
+                    {typeFilters.size > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setTypeFilters(new Set())}
+                        className="w-full text-xs text-muted-foreground hover:text-foreground text-center py-1 mt-1 border-t border-border"
+                      >
+                        {t("common.clear")}
+                      </button>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+        }
+      />
 
       {addFormOpen && (
         <div
