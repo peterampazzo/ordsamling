@@ -201,7 +201,7 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
       <div>
         <span className="text-[10px] font-medium text-lang-en uppercase tracking-wider">{t("lexisCard.english")}</span>
-        <p className="text-muted-foreground leading-snug break-words">{entry.english || "—"}</p>
+        <p className="text-muted-foreground leading-snug break-words">{displayEnglish(entry) || "—"}</p>
       </div>
       {extraLangs.map((code) => (
         <div key={code}>
