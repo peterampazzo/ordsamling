@@ -11,6 +11,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageHeader, SerifHeading } from "@/components/layout";
 import { t, getLang, setLang, AVAILABLE_LANGS } from "@/i18n";
 import { cn } from "@/lib/utils";
 
