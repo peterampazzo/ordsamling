@@ -166,9 +166,9 @@ function parseJsonObjects(items: unknown[]): { rows: ParsedRow[]; headers: strin
     const entry: LexisEntryInput = {
       danish,
       english,
-      italian,
       notes: fields.notes ?? "",
       type,
+      ...(italian ? { translations: { it: italian } } : {}),
       ...(Object.keys(grammarFields).length > 0 ? { grammar: grammarFields } : {}),
     };
 
@@ -281,9 +281,9 @@ function parseRows(text: string): { rows: ParsedRow[]; headers: string[] } {
     const entry: LexisEntryInput = {
       danish,
       english,
-      italian,
       notes: fields.notes ?? "",
       type,
+      ...(italian ? { translations: { it: italian } } : {}),
       ...(Object.keys(grammarFields).length > 0 ? { grammar: grammarFields } : {}),
     };
 
@@ -516,7 +516,7 @@ export default function BulkImport() {
           const line = [
             entry.danish,
             entry.english,
-            entry.italian,
+            entry.translations?.it ?? "",
             entry.type,
             entry.notes,
           ].map(field => `"${field.replace(/"/g, '""')}"`).join(",");

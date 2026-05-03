@@ -23,7 +23,8 @@ import type { LexisEntry } from "@/hooks/useLexicon";
 import { ENTRY_TYPES, entryTypeLabel, entryTypePillClass, pruneGrammar, type EntryType } from "@/lib/lexicon";
 import { GrammarDisplay, GrammarFields } from "@/components/EntryGrammar";
 import { t } from "@/i18n";
-import { useVisibleLanguages } from "@/hooks/useVisibleLanguages";
+import { useExtraLanguages } from "@/hooks/useVisibleLanguages";
+import { getLanguageLabel } from "@/lib/settings";
 
 interface Props {
   entry: LexisEntry;
@@ -61,10 +62,7 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const touchStartX = useRef<number | null>(null);
-  const visibleLangs = useVisibleLanguages();
-  const showDanish = visibleLangs.includes("danish");
-  const showEnglish = visibleLangs.includes("english");
-  const showItalian = visibleLangs.includes("italian");
+  const extraLangs = useExtraLanguages();
 
   useEffect(() => {
     if (editing) setSwipeOpen(false);
@@ -113,10 +111,15 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
 
     try {
       const prunedGrammar = pruneGrammar(draft.grammar);
+      const cleaned: Record<string, string> = {};
+      for (const [c, v] of Object.entries(draft.translations ?? {})) {
+        const t = v?.trim();
+        if (t) cleaned[c] = t;
+      }
       await onUpdate(entry.id, {
         danish: draft.danish,
         english: draft.english,
-        italian: draft.italian,
+        translations: Object.keys(cleaned).length > 0 ? cleaned : undefined,
         notes: draft.notes,
         type: draft.type,
         grammar: prunedGrammar === undefined ? null : prunedGrammar,
@@ -155,32 +158,36 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
             </button>
           ))}
         </div>
-        {showDanish && (
-          <div className="space-y-1">
-            <span className="sr-only">{t("directions.danish")}</span>
-            <Input value={draft.danish} onChange={(e) => setDraft({ ...draft, danish: e.target.value })} autoFocus disabled={disabled || isSubmitting} className="text-base font-medium" placeholder={t("addEntry.danishPlaceholder")} />
-          </div>
-        )}
+        <div className="space-y-1">
+          <span className="sr-only">{t("directions.danish")}</span>
+          <Input value={draft.danish} onChange={(e) => setDraft({ ...draft, danish: e.target.value })} autoFocus disabled={disabled || isSubmitting} className="text-base font-medium" placeholder={t("addEntry.danishPlaceholder")} />
+        </div>
         <GrammarFields type={draft.type} value={draft.grammar ?? {}} onChange={(g) => setDraft({ ...draft, grammar: g })} disabled={disabled || isSubmitting} />
-        {(showEnglish || showItalian) && (
-          <div className="rounded-md border border-border bg-muted/25 p-2.5 space-y-2">
-            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t("lexisCard.translations")}</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {showEnglish && (
-                <div>
-                  <span className="text-[10px] font-medium text-lang-en uppercase tracking-wider">{t("lexisCard.english")}</span>
-                  <Input value={draft.english} onChange={(e) => setDraft({ ...draft, english: e.target.value })} disabled={disabled || isSubmitting} className="mt-0.5" />
-                </div>
-              )}
-              {showItalian && (
-                <div>
-                  <span className="text-[10px] font-medium text-lang-it uppercase tracking-wider">{t("lexisCard.italian")}</span>
-                  <Input value={draft.italian} onChange={(e) => setDraft({ ...draft, italian: e.target.value })} disabled={disabled || isSubmitting} className="mt-0.5" />
-                </div>
-              )}
+        <div className="rounded-md border border-border bg-muted/25 p-2.5 space-y-2">
+          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t("lexisCard.translations")}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <span className="text-[10px] font-medium text-lang-en uppercase tracking-wider">{t("lexisCard.english")}</span>
+              <Input value={draft.english} onChange={(e) => setDraft({ ...draft, english: e.target.value })} disabled={disabled || isSubmitting} className="mt-0.5" />
             </div>
+            {extraLangs.map((code) => (
+              <div key={code}>
+                <span className="text-[10px] font-medium text-lang-it uppercase tracking-wider">{getLanguageLabel(code)}</span>
+                <Input
+                  value={draft.translations?.[code] ?? ""}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      translations: { ...(draft.translations ?? {}), [code]: e.target.value },
+                    })
+                  }
+                  disabled={disabled || isSubmitting}
+                  className="mt-0.5"
+                />
+              </div>
+            ))}
           </div>
-        )}
+        </div>
         <Textarea value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} rows={2} disabled={disabled || isSubmitting} />
         <div className="flex gap-2 justify-end pt-0.5">
           <Button size="sm" variant="ghost" onClick={cancel} disabled={isSubmitting}><X className="h-4 w-4" /></Button>
@@ -190,22 +197,20 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
     );
   }
 
-  const translationBlock = (showEnglish || showItalian) ? (
+  const translationBlock = (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
-      {showEnglish && (
-        <div>
-          <span className="text-[10px] font-medium text-lang-en uppercase tracking-wider">{t("lexisCard.english")}</span>
-          <p className="text-muted-foreground leading-snug break-words">{entry.english || "—"}</p>
+      <div>
+        <span className="text-[10px] font-medium text-lang-en uppercase tracking-wider">{t("lexisCard.english")}</span>
+        <p className="text-muted-foreground leading-snug break-words">{entry.english || "—"}</p>
+      </div>
+      {extraLangs.map((code) => (
+        <div key={code}>
+          <span className="text-[10px] font-medium text-lang-it uppercase tracking-wider">{getLanguageLabel(code)}</span>
+          <p className="text-muted-foreground leading-snug break-words">{entry.translations?.[code] || "—"}</p>
         </div>
-      )}
-      {showItalian && (
-        <div>
-          <span className="text-[10px] font-medium text-lang-it uppercase tracking-wider">{t("lexisCard.italian")}</span>
-          <p className="text-muted-foreground leading-snug break-words">{entry.italian || "—"}</p>
-        </div>
-      )}
+      ))}
     </div>
-  ) : null;
+  );
 
   const actionStrip = (
     <div

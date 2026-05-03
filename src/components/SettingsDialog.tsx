@@ -19,10 +19,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Download, RotateCcw, Sparkles, Plus, X } from "lucide-react";
 import {
-  ALL_LANGUAGES,
-  type Language,
-  getVisibleLanguages,
-  setVisibleLanguages,
+  LANGUAGE_CATALOG,
+  CORE_LANGUAGES,
+  getExtraLanguages,
+  setExtraLanguages,
   getAiProvider,
   getAiKey,
   exportEntriesAsJson,
@@ -38,47 +38,40 @@ interface SettingsDialogProps {
   entries: LexisEntry[];
 }
 
-const CORE_LANGUAGES: Language[] = ["danish", "english"];
+const CORE_LABELS: Record<string, string> = { danish: "Dansk", english: "English" };
 
 export function SettingsDialog({ open, onOpenChange, entries }: SettingsDialogProps) {
   const navigate = useNavigate();
-  const [visible, setVisible] = useState<Language[]>(getVisibleLanguages());
+  const [extras, setExtras] = useState<string[]>(getExtraLanguages());
   const [provider] = useState<AiProvider>(getAiProvider());
   const [apiKey] = useState<string>(getAiKey());
   const [pendingAdd, setPendingAdd] = useState<string>("");
 
   useEffect(() => {
     if (open) {
-      setVisible(getVisibleLanguages());
+      setExtras(getExtraLanguages());
       setPendingAdd("");
     }
   }, [open]);
 
-  const extraLangs = useMemo(
-    () => visible.filter((l) => !CORE_LANGUAGES.includes(l)),
-    [visible],
-  );
   const availableToAdd = useMemo(
-    () => ALL_LANGUAGES.filter((l) => !visible.includes(l)),
-    [visible],
+    () => LANGUAGE_CATALOG.filter((l) => !extras.includes(l.code)),
+    [extras],
   );
 
-  const persist = (next: Language[]) => {
-    setVisible(next);
-    setVisibleLanguages(next);
+  const persist = (next: string[]) => {
+    setExtras(next);
+    setExtraLanguages(next);
   };
 
   const addLang = () => {
-    if (!pendingAdd) return;
-    const lang = pendingAdd as Language;
-    if (!ALL_LANGUAGES.includes(lang) || visible.includes(lang)) return;
-    persist([...visible, lang]);
+    if (!pendingAdd || extras.includes(pendingAdd)) return;
+    persist([...extras, pendingAdd]);
     setPendingAdd("");
   };
 
-  const removeLang = (lang: Language) => {
-    if (CORE_LANGUAGES.includes(lang)) return;
-    persist(visible.filter((l) => l !== lang));
+  const removeLang = (code: string) => {
+    persist(extras.filter((c) => c !== code));
   };
 
   const handleReset = () => {
@@ -98,7 +91,6 @@ export function SettingsDialog({ open, onOpenChange, entries }: SettingsDialogPr
           <DialogDescription className="sr-only">{t("settings.title")}</DialogDescription>
         </DialogHeader>
 
-        {/* Languages */}
         <section className="space-y-3">
           <div>
             <h3 className="text-sm font-semibold">{t("settings.visibilityTitle")}</h3>
@@ -111,31 +103,34 @@ export function SettingsDialog({ open, onOpenChange, entries }: SettingsDialogPr
                 key={lang}
                 className="flex items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2"
               >
-                <span className="text-sm">{t(`settings.langs.${lang}`)}</span>
+                <span className="text-sm">{CORE_LABELS[lang]}</span>
                 <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
                   {t("settings.coreLanguage")}
                 </span>
               </div>
             ))}
 
-            {extraLangs.map((lang) => (
-              <div
-                key={lang}
-                className="flex items-center justify-between rounded-md border border-border bg-background px-3 py-2"
-              >
-                <span className="text-sm">{t(`settings.langs.${lang}`)}</span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeLang(lang)}
-                  className="h-7 gap-1 text-muted-foreground hover:text-destructive"
+            {extras.map((code) => {
+              const lang = LANGUAGE_CATALOG.find((l) => l.code === code);
+              return (
+                <div
+                  key={code}
+                  className="flex items-center justify-between rounded-md border border-border bg-background px-3 py-2"
                 >
-                  <X className="h-3.5 w-3.5" />
-                  {t("settings.removeLanguage")}
-                </Button>
-              </div>
-            ))}
+                  <span className="text-sm">{lang?.label ?? code}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeLang(code)}
+                    className="h-7 gap-1 text-muted-foreground hover:text-destructive"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    {t("settings.removeLanguage")}
+                  </Button>
+                </div>
+              );
+            })}
           </div>
 
           {availableToAdd.length > 0 ? (
@@ -146,8 +141,8 @@ export function SettingsDialog({ open, onOpenChange, entries }: SettingsDialogPr
                 </SelectTrigger>
                 <SelectContent>
                   {availableToAdd.map((lang) => (
-                    <SelectItem key={lang} value={lang}>
-                      {t(`settings.langs.${lang}`)}
+                    <SelectItem key={lang.code} value={lang.code}>
+                      {lang.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -170,7 +165,6 @@ export function SettingsDialog({ open, onOpenChange, entries }: SettingsDialogPr
           )}
         </section>
 
-        {/* AI Provider — disabled preview */}
         <section className="space-y-3 border-t border-border pt-4 opacity-60">
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-muted-foreground" />
@@ -207,27 +201,14 @@ export function SettingsDialog({ open, onOpenChange, entries }: SettingsDialogPr
           </div>
         </section>
 
-        {/* Data tools */}
         <section className="space-y-2 border-t border-border pt-4">
           <h3 className="text-sm font-semibold">{t("settings.dataTitle")}</h3>
           <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => exportEntriesAsJson(entries)}
-              className="gap-1.5"
-            >
+            <Button type="button" variant="outline" size="sm" onClick={() => exportEntriesAsJson(entries)} className="gap-1.5">
               <Download className="h-3.5 w-3.5" />
               {t("settings.exportJson")}
             </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              onClick={handleReset}
-              className="gap-1.5"
-            >
+            <Button type="button" variant="destructive" size="sm" onClick={handleReset} className="gap-1.5">
               <RotateCcw className="h-3.5 w-3.5" />
               {t("settings.reset")}
             </Button>

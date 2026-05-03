@@ -4,6 +4,7 @@ import { toast } from "@/components/ui/sonner";
 import {
   normalizeEntryType,
   normalizeGrammar,
+  normalizeTranslations,
   WORD_LIKE_TYPES,
   type EntryType,
   type LexisEntry,
@@ -15,16 +16,22 @@ export type { EntryGrammar, EntryType, LexisEntry } from "@/lib/lexicon";
 
 const ENTRIES_QUERY_KEY = ["entries"];
 
-function normalizeEntry(entry: Partial<LexisEntry>): LexisEntry {
+function normalizeEntry(entry: Partial<LexisEntry> & { italian?: unknown }): LexisEntry {
+  // Migrate legacy `italian` field → translations.it
+  const translations = normalizeTranslations(entry.translations) ?? {};
+  if (typeof entry.italian === "string" && entry.italian.trim() && !translations.it) {
+    translations.it = entry.italian.trim();
+  }
+  const hasTrans = Object.keys(translations).length > 0;
   return {
     id: entry.id || crypto.randomUUID(),
     danish: entry.danish || "",
     english: entry.english || "",
-    italian: entry.italian || "",
     notes: entry.notes || "",
     type: normalizeEntryType(entry.type),
     grammar: normalizeGrammar(entry.grammar),
     createdAt: typeof entry.createdAt === "number" ? entry.createdAt : Date.now(),
+    ...(hasTrans ? { translations } : {}),
   };
 }
 
@@ -228,10 +235,14 @@ export function useLexicon() {
             .toLowerCase()
         : "";
 
+      const translationHaystack = entry.translations
+        ? Object.values(entry.translations).join(" ").toLowerCase()
+        : "";
+
       return (
         entry.danish.toLowerCase().includes(lowerQuery) ||
         entry.english.toLowerCase().includes(lowerQuery) ||
-        entry.italian.toLowerCase().includes(lowerQuery) ||
+        translationHaystack.includes(lowerQuery) ||
         grammarHaystack.includes(lowerQuery)
       );
     });
@@ -242,7 +253,8 @@ export function useLexicon() {
       return [];
     }
 
-    const words = [entry.danish, entry.english, entry.italian]
+    const translationValues = entry.translations ? Object.values(entry.translations) : [];
+    const words = [entry.danish, entry.english, ...translationValues]
       .flatMap((text) => text.toLowerCase().split(/\s+/))
       .filter((word) => word.length > 2);
 
@@ -250,9 +262,11 @@ export function useLexicon() {
       (candidate) =>
         WORD_LIKE_TYPES.has(candidate.type) &&
         candidate.id !== entry.id &&
-        [candidate.danish, candidate.english, candidate.italian].some((field) =>
-          words.includes(field.toLowerCase()),
-        ),
+        [
+          candidate.danish,
+          candidate.english,
+          ...(candidate.translations ? Object.values(candidate.translations) : []),
+        ].some((field) => words.includes(field.toLowerCase())),
     );
   }, [allEntries]);
 
@@ -271,10 +285,14 @@ export function useLexicon() {
             .toLowerCase()
         : "";
 
+      const translationHaystack = entry.translations
+        ? Object.values(entry.translations).join(" ").toLowerCase()
+        : "";
+
       return (
         entry.danish.toLowerCase().includes(lowerQuery) ||
         entry.english.toLowerCase().includes(lowerQuery) ||
-        entry.italian.toLowerCase().includes(lowerQuery) ||
+        translationHaystack.includes(lowerQuery) ||
         entry.notes.toLowerCase().includes(lowerQuery) ||
         grammarHaystack.includes(lowerQuery)
       );

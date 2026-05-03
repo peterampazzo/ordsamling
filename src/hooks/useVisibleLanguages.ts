@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { getVisibleLanguages, type Language } from "@/lib/settings";
+import { getExtraLanguages } from "@/lib/settings";
 
-/** React hook returning currently-visible languages, reactively updated. */
-export function useVisibleLanguages(): Language[] {
-  const [langs, setLangs] = useState<Language[]>(() => getVisibleLanguages());
+/** React hook returning currently-enabled extra language codes (ISO 639-1). */
+export function useExtraLanguages(): string[] {
+  const [codes, setCodes] = useState<string[]>(() => getExtraLanguages());
 
   useEffect(() => {
-    const update = () => setLangs(getVisibleLanguages());
+    const update = () => setCodes(getExtraLanguages());
     window.addEventListener("ordsamling:settings-changed", update);
     window.addEventListener("storage", update);
     return () => {
@@ -15,9 +15,5 @@ export function useVisibleLanguages(): Language[] {
     };
   }, []);
 
-  return langs;
-}
-
-export function useIsLanguageVisible(lang: Language): boolean {
-  return useVisibleLanguages().includes(lang);
+  return codes;
 }

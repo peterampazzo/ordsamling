@@ -1,56 +1,75 @@
 /**
  * Local-first user settings.
- * - Visible languages (danish/english/italian).
- * - External AI provider scaffolding (BYOK).
- * - Data export / hard reset utilities.
+ * - Core languages: Danish + English (always on).
+ * - Extra languages: any subset of LANGUAGE_CATALOG, identified by ISO 639-1 code.
+ *   Stored on each LexisEntry as `translations: { [code]: text }`.
+ * - External AI provider scaffolding (BYOK), still preview-only.
  *
  * Everything lives in localStorage; nothing is sent anywhere.
  */
 
 import type { LexisEntry } from "@/lib/lexicon";
 
-export type Language = "danish" | "english" | "italian";
+/** Core languages are baked into the entry shape and always active. */
+export const CORE_LANGUAGES = ["danish", "english"] as const;
+export type CoreLanguage = (typeof CORE_LANGUAGES)[number];
 
-export const ALL_LANGUAGES: Language[] = ["danish", "english", "italian"];
-export const LANGUAGE_LABELS: Record<Language, string> = {
-  danish: "Danish",
-  english: "English",
-  italian: "Italian",
-};
+/** Extra optional languages, identified by ISO 639-1 code. */
+export interface ExtraLanguage {
+  code: string;
+  /** Native or commonly-used label, shown in UI. */
+  label: string;
+}
 
-const VISIBLE_LANGS_KEY = "ordsamling-visible-languages";
+export const LANGUAGE_CATALOG: ExtraLanguage[] = [
+  { code: "it", label: "Italiano" },
+  { code: "fr", label: "Français" },
+  { code: "de", label: "Deutsch" },
+  { code: "es", label: "Español" },
+  { code: "pt", label: "Português" },
+  { code: "nl", label: "Nederlands" },
+  { code: "sv", label: "Svenska" },
+  { code: "no", label: "Norsk" },
+  { code: "fi", label: "Suomi" },
+  { code: "is", label: "Íslenska" },
+  { code: "pl", label: "Polski" },
+  { code: "ja", label: "日本語" },
+  { code: "zh", label: "中文" },
+];
+
+export function getLanguageLabel(code: string): string {
+  return LANGUAGE_CATALOG.find((l) => l.code === code)?.label ?? code.toUpperCase();
+}
+
+const EXTRA_LANGS_KEY = "ordsamling-extra-languages";
 const AI_PROVIDER_KEY = "ordsamling-ai-provider";
 const AI_KEY_KEY = "ordsamling-ai-key";
 
 export type AiProvider = "cloudflare" | "openai" | "";
 
-const DEFAULT_VISIBLE: Language[] = ["danish", "english"];
-
-export function getVisibleLanguages(): Language[] {
+/** Codes of currently-enabled extra languages, in user-defined order. */
+export function getExtraLanguages(): string[] {
   try {
-    const raw = localStorage.getItem(VISIBLE_LANGS_KEY);
-    if (!raw) return DEFAULT_VISIBLE;
+    const raw = localStorage.getItem(EXTRA_LANGS_KEY);
+    if (!raw) return [];
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return DEFAULT_VISIBLE;
-    const filtered = parsed.filter((v): v is Language =>
-      ALL_LANGUAGES.includes(v as Language),
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (c): c is string => typeof c === "string" && LANGUAGE_CATALOG.some((l) => l.code === c),
     );
-    return filtered.length > 0 ? filtered : DEFAULT_VISIBLE;
   } catch {
-    return DEFAULT_VISIBLE;
+    return [];
   }
 }
 
-export function setVisibleLanguages(langs: Language[]): void {
-  const safe = langs.filter((l) => ALL_LANGUAGES.includes(l));
-  // Always keep at least one language enabled
-  const final = safe.length > 0 ? safe : DEFAULT_VISIBLE;
-  localStorage.setItem(VISIBLE_LANGS_KEY, JSON.stringify(final));
+export function setExtraLanguages(codes: string[]): void {
+  const safe = codes.filter((c) => LANGUAGE_CATALOG.some((l) => l.code === c));
+  localStorage.setItem(EXTRA_LANGS_KEY, JSON.stringify(safe));
   window.dispatchEvent(new CustomEvent("ordsamling:settings-changed"));
 }
 
-export function isLanguageVisible(lang: Language): boolean {
-  return getVisibleLanguages().includes(lang);
+export function isExtraLanguageEnabled(code: string): boolean {
+  return getExtraLanguages().includes(code);
 }
 
 export function getAiProvider(): AiProvider {
