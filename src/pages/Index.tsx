@@ -31,7 +31,7 @@ const sortEntries = (entries: LexisEntry[], mode: SortMode) => {
     case "newest":
       return sorted.sort((a, b) => b.createdAt - a.createdAt);
     case "alpha":
-      return sorted.sort((a, b) => (a.danish || a.english).localeCompare(b.danish || b.english, "da"));
+      return sorted.sort((a, b) => sortKey(a).localeCompare(sortKey(b), "da"));
   }
 };
 
