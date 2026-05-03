@@ -29,7 +29,7 @@ import {
   resetAllLocalData,
   type AiProvider,
 } from "@/lib/settings";
-import { t } from "@/i18n";
+import { t, getLang, setLang, AVAILABLE_LANGS } from "@/i18n";
 import type { LexisEntry } from "@/lib/lexicon";
 
 interface SettingsDialogProps {
