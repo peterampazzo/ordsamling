@@ -299,10 +299,12 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
             </summary>
             <div className="border-t border-border bg-muted/15 px-3 py-2.5 space-y-3">
               <GrammarDisplay type={entry.type} grammar={entry.grammar} />
-              <div>
-                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1.5">{t("lexisCard.translations")}</p>
-                {translationBlock}
-              </div>
+              {translationBlock && (
+                <div>
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1.5">{t("lexisCard.translations")}</p>
+                  {translationBlock}
+                </div>
+              )}
               {(entry.notes || linkedWords.length > 0) && (
                 <div className="pt-2 border-t border-border/80 space-y-1.5">
                   {entry.notes && <p className="text-sm text-muted-foreground italic leading-snug">{entry.notes}</p>}
