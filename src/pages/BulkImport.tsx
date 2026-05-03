@@ -1293,6 +1293,7 @@ export default function BulkImport() {
         )}
       </main>
       <PageFooter />
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
   );
 }
