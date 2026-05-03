@@ -487,9 +487,13 @@ export default function BulkImport() {
         return;
       }
 
-      // Send the extracted text to the API
+      // Send the extracted text to the API along with enabled extra languages
       const formData = new FormData();
       formData.append("text", text);
+      const extraLangs = getExtraLanguages();
+      if (extraLangs.length > 0) {
+        formData.append("languages", extraLangs.join(","));
+      }
 
       const response = await fetch("/api/process-document", {
         method: "POST",
@@ -504,26 +508,24 @@ export default function BulkImport() {
       const result: ProcessedDocument = await response.json();
       setProcessedDocument(result);
 
-      // Convert processed entries to CSV format and parse immediately
+      // Feed processed entries directly into the preview (preserves translations/grammar)
       if (result.entries.length > 0) {
-        const csvLines = ["danish,english,italian,type,notes"];
-        for (const entry of result.entries) {
-          const line = [
-            entry.danish,
-            entry.english,
-            entry.translations?.it ?? "",
-            entry.type,
-            entry.notes,
-          ].map(field => `"${field.replace(/"/g, '""')}"`).join(",");
-          csvLines.push(line);
+        const rows: ParsedRow[] = result.entries.map((entry, i) => ({
+          rowIndex: i + 1,
+          raw: [],
+          entry,
+          errors: [],
+          warnings: [],
+        }));
+        const headers = ["danish", "english", "type", "notes"];
+        if (extraLangs.length > 0) {
+          headers.push(...extraLangs.map((c) => `translations.${c}`));
         }
-        const csvText = csvLines.join("\n");
-        const parsedResult = parseInput(csvText);
-        setRawText(csvText);
-        setParsed(parsedResult);
+        setRawText(JSON.stringify(result.entries, null, 2));
+        setParsed({ rows, headers });
         setImportStatus("parsed");
         setResults([]);
-        setSelectedRows(new Set(parsedResult.rows.filter((row) => row.entry !== null).map((row) => row.rowIndex)));
+        setSelectedRows(new Set(rows.map((row) => row.rowIndex)));
       }
     } catch (error) {
       console.error("Document processing failed:", error);
