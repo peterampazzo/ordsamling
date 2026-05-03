@@ -9,6 +9,7 @@
  */
 
 import type { LexisEntry } from "@/lib/lexicon";
+import { getAiConfig, setAiConfig, type GeminiModel } from './storageConfig';
 
 /** Core languages are baked into the entry shape and always active. */
 export const CORE_LANGUAGES = ["danish", "english"] as const;
@@ -120,4 +121,22 @@ export function resetAllLocalData(): void {
   }
   toRemove.forEach((k) => localStorage.removeItem(k));
   sessionStorage.removeItem("ordsamling-demo-route");
+}
+
+/* ---------- Gemini AI config helpers ---------- */
+
+export function getGeminiApiKey(): string {
+  return getAiConfig().geminiApiKey;
+}
+
+export function setGeminiApiKey(key: string): void {
+  setAiConfig({ ...getAiConfig(), geminiApiKey: key });
+}
+
+export function getGeminiModel(): GeminiModel {
+  return getAiConfig().geminiModel;
+}
+
+export function setGeminiModel(model: GeminiModel): void {
+  setAiConfig({ ...getAiConfig(), geminiModel: model });
 }

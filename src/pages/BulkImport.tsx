@@ -8,7 +8,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useLexicon } from "@/hooks/useLexicon";
 import { ENTRY_TYPES, entryTypeLabel, normalizeEntryType, type EntryType } from "@/lib/lexicon";
 import type { LexisEntryInput } from "@/lib/lexicon";
-import { getExtraLanguages, getLanguageLabel } from "@/lib/settings";
+import { getExtraLanguages, getLanguageLabel, getGeminiApiKey } from "@/lib/settings";
+import { processDocument, GeminiKeyMissingError, GeminiKeyInvalidError, GeminiRateLimitError } from "@/lib/gemini";
 import { t } from "@/i18n";
 
 // ---------------------------------------------------------------------------
@@ -95,7 +96,8 @@ function normalizeHeader(raw: string): KnownColumn | `translations.${string}` | 
   const dotMatch = original.toLowerCase().match(/^translations?\.([a-z]{2,3})$/);
   if (dotMatch) return `translations.${dotMatch[1]}`;
   // Bare ISO 2-3 letter code, but skip the ones we already use as known cols
-  if (/^[a-z]{2,3}$/.test(s) && !["da", "en"].includes(s)) {
+  // Also skip "id" which is a UUID field, not a language code
+  if (/^[a-z]{2,3}$/.test(s) && !["da", "en", "id"].includes(s)) {
     return `translations.${s}`;
   }
   return null;
@@ -474,28 +476,8 @@ export default function BulkImport() {
   // Document processing state
   const [isProcessingDocument, setIsProcessingDocument] = useState(false);
   const [processedDocument, setProcessedDocument] = useState<ProcessedDocument | null>(null);
-
-  // Check if user is authenticated by trying a simple API call
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-
-  // Check authentication status
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const response = await fetch("/api/entries", { method: "GET" });
-        setIsAuthenticated(response.ok);
-      } catch {
-        setIsAuthenticated(false);
-      }
-    };
-
-    if (!import.meta.env.DEV && !window.location.hostname.endsWith(".pages.dev")) {
-      checkAuth();
-    } else {
-      // In localStorage mode, consider authenticated for basic functionality
-      setIsAuthenticated(true);
-    }
-  }, []);
+  const [documentError, setDocumentError] = useState<string | null>(null);
+  const [documentProgress, setDocumentProgress] = useState<{ completed: number; total: number } | null>(null);
 
   // Enabled extra languages (re-read on settings-changed event)
   const [extraLangs, setExtraLangs] = useState<string[]>(() => getExtraLanguages());
@@ -506,13 +488,10 @@ export default function BulkImport() {
   }, []);
 
   const handleProcessDocument = useCallback(async (file: File) => {
-    if (!isAuthenticated) {
-      alert(t("bulkImport.authRequired"));
-      return;
-    }
-
     setIsProcessingDocument(true);
     setProcessedDocument(null);
+    setDocumentError(null);
+    setDocumentProgress(null);
 
     try {
       const name = file.name.toLowerCase();
@@ -544,35 +523,19 @@ export default function BulkImport() {
         return;
       }
 
-      // Send the extracted text to the API along with enabled extra languages
-      const formData = new FormData();
-      formData.append("text", text);
+      const geminiKey = getGeminiApiKey();
+      if (!geminiKey) {
+        alert("Add a Gemini API key in Settings to use document processing.");
+        return;
+      }
+
       const extraLangs = getExtraLanguages();
-      if (extraLangs.length > 0) {
-        formData.append("languages", extraLangs.join(","));
-      }
-
-      const response = await fetch("/api/process-document", {
-        method: "POST",
-        body: formData,
-      });
-
-      // Read body as text first so we can survive HTML error pages
-      const bodyText = await response.text();
-      const ct = response.headers.get("content-type") ?? "";
-      let payload: unknown = null;
-      if (ct.includes("application/json")) {
-        try { payload = JSON.parse(bodyText); } catch { /* fall through */ }
-      }
-
-      if (!response.ok || !payload || typeof payload !== "object") {
-        const serverMsg = (payload && typeof payload === "object" && "error" in (payload as Record<string, unknown>))
-          ? String((payload as Record<string, unknown>).error)
-          : null;
-        throw new Error(serverMsg ?? t("bulkImport.serverError"));
-      }
-
-      const result = payload as ProcessedDocument;
+      const result = await processDocument(
+        text,
+        extraLangs,
+        allEntries.map((e) => e.danish),
+        (progress) => setDocumentProgress(progress),
+      );
       setProcessedDocument(result);
 
       // Feed processed entries directly into the preview (preserves translations/grammar)
@@ -593,16 +556,31 @@ export default function BulkImport() {
         setImportStatus("parsed");
         setResults([]);
         setSelectedRows(new Set(rows.map((row) => row.rowIndex)));
+      } else if (result.newWords > 0 && result.processed === 0) {
+        setDocumentError(`${result.newWords} new words were found but could not be processed. Check your Gemini API key in Settings and try again.`);
       }
     } catch (error) {
       console.error("Document processing failed:", error);
-      alert(`${error instanceof Error ? error.message : t("bulkImport.unknownError")}`);
+      if (error instanceof GeminiRateLimitError) {
+        const msg = error.isDailyQuota
+          ? "Gemini free-tier daily quota exhausted. You can retry tomorrow (resets at midnight Pacific time), or add billing to your Google AI account to remove the limit."
+          : error.retryAfterSeconds
+          ? `Gemini rate limit hit. Retry in ${error.retryAfterSeconds} seconds.`
+          : "Gemini rate limit hit. Please wait a minute and try again.";
+        setDocumentError(msg);
+      } else if (error instanceof GeminiKeyMissingError || error instanceof GeminiKeyInvalidError) {
+        setDocumentError(error.message);
+      } else {
+        setDocumentError(error instanceof Error ? error.message : t("bulkImport.unknownError"));
+      }
     } finally {
       setIsProcessingDocument(false);
     }
-  }, [isAuthenticated]);
+  }, [allEntries]);
 
-  const handleParse = useCallback(() => {
+  const handleParse = useCallback(async () => {
+    // Yield to the browser so the button click registers before heavy parsing
+    await new Promise((resolve) => setTimeout(resolve, 0));
     const result = parseInput(rawText);
     setParsed(result);
     setImportStatus("parsed");
@@ -853,9 +831,8 @@ export default function BulkImport() {
           </div>
         )}
 
-        {/* Document upload - only for authenticated users */}
-        {isAuthenticated && (
-          <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+        {/* Document upload */}
+        <div className="rounded-lg border border-border bg-card p-4 space-y-3">
             <div className="flex items-center gap-2">
               <FileUp className="h-4 w-4 text-muted-foreground shrink-0" />
               <h2 className="text-sm font-semibold">{t("bulkImport.documentUpload")}</h2>
@@ -873,13 +850,38 @@ export default function BulkImport() {
                     handleProcessDocument(file);
                   }
                 }}
-                disabled={isProcessingDocument}
+                disabled={isProcessingDocument || !getGeminiApiKey()}
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
               />
               {isProcessingDocument && (
                 <Loader2 className="h-4 w-4 animate-spin self-center" />
               )}
             </div>
+            {isProcessingDocument && documentProgress && (
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>
+                    {documentProgress.completed === 0
+                      ? "Extracting words…"
+                      : documentProgress.completed === documentProgress.total
+                      ? "Done"
+                      : `Processing chunk ${documentProgress.completed} of ${documentProgress.total - 1}…`}
+                  </span>
+                  <span>{Math.round((documentProgress.completed / documentProgress.total) * 100)}%</span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all duration-300"
+                    style={{ width: `${(documentProgress.completed / documentProgress.total) * 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
+            {!getGeminiApiKey() && (
+              <p className="text-xs text-amber-700 dark:text-amber-300">
+                Add a Gemini API key in Settings to enable document processing.
+              </p>
+            )}
             {processedDocument && (
               <div className="text-sm space-y-1">
                 <p className="text-muted-foreground">
@@ -894,8 +896,21 @@ export default function BulkImport() {
                 )}
               </div>
             )}
+            {documentError && (
+              <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                <XCircle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden />
+                <span className="flex-1">{documentError}</span>
+                <button
+                  type="button"
+                  onClick={() => setDocumentError(null)}
+                  className="shrink-0 opacity-60 hover:opacity-100 transition-opacity"
+                  aria-label="Dismiss"
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
           </div>
-        )}
 
         {/* Input area */}
         {(importStatus === "idle" || importStatus === "parsed") && (

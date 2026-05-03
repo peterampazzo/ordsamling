@@ -15,26 +15,14 @@ variable "production_branch" {
   default     = "main"
 }
 
-variable "zone_name" {
-  description = "Cloudflare DNS zone where the custom domain is managed."
+variable "google_client_id" {
+  description = "Google OAuth2 client ID — set as a Cloudflare Pages secret."
   type        = string
-  default     = "peterampazzo.com"
+  sensitive   = true
 }
 
-variable "custom_hostname" {
-  description = "Custom hostname for the Pages app."
+variable "google_client_secret" {
+  description = "Google OAuth2 client secret — set as a Cloudflare Pages secret."
   type        = string
-  default     = "ordsamling.peterampazzo.com"
-}
-
-variable "access_allowed_emails" {
-  description = "Email addresses permitted to access the app via Cloudflare Access (magic-link OTP)."
-  type        = list(string)
-  default     = []
-}
-
-variable "access_session_duration" {
-  description = "How long a Cloudflare Access session lasts before re-authentication is required."
-  type        = string
-  default     = "24h"
+  sensitive   = true
 }
