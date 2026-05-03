@@ -131,7 +131,7 @@ const Index = () => {
                 asChild
                 aria-label="GitHub"
               >
-                <a href="https://github.com/lorenzobertolini/ordsamling" target="_blank" rel="noreferrer">
+                <a href="https://github.com/peterampazzo/ordsamling/" target="_blank" rel="noreferrer">
                   <Github className="h-4 w-4" />
                 </a>
               </Button>
