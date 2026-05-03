@@ -730,40 +730,197 @@ export default function BulkImport() {
     <div className="min-h-screen bg-background">
       <PageHeader backTo="/app" pageLabel={t("bulkImport.title")} />
 
-      <main className="max-w-3xl mx-auto px-3 sm:px-4 py-6 sm:py-8 space-y-6">
+      <main className="max-w-3xl mx-auto px-3 sm:px-4 py-6 sm:py-8 space-y-8">
 
-        {/* Instructions */}
-        <div className="rounded-lg border border-border bg-card p-4 space-y-3">
-          <div className="flex items-center gap-2">
+        {/* Document upload — hero */}
+        <section className="relative">
+          {hasGeminiKey ? (
+            <div
+              onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setDragActive(true); }}
+              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragActive(true); }}
+              onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDragActive(false); }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDragActive(false);
+                const file = e.dataTransfer.files?.[0];
+                if (file && !isProcessingDocument) handleProcessDocument(file);
+              }}
+              onClick={() => !isProcessingDocument && fileInputRef.current?.click()}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if ((e.key === "Enter" || e.key === " ") && !isProcessingDocument) {
+                  e.preventDefault();
+                  fileInputRef.current?.click();
+                }
+              }}
+              className={[
+                "group relative cursor-pointer rounded-2xl border-2 border-dashed bg-card px-6 py-10 sm:py-12 text-center transition-all",
+                dragActive
+                  ? "border-primary bg-primary/5 scale-[1.01]"
+                  : "border-border hover:border-primary/60 hover:bg-muted/40",
+                isProcessingDocument ? "cursor-wait opacity-90" : "",
+              ].join(" ")}
+              aria-label={t("bulkImport.documentUpload")}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".txt,.md,.docx,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleProcessDocument(file);
+                  e.target.value = "";
+                }}
+                disabled={isProcessingDocument}
+                className="sr-only"
+              />
+              <div className="flex flex-col items-center gap-3">
+                <div className={[
+                  "flex h-14 w-14 items-center justify-center rounded-full transition-colors",
+                  dragActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary",
+                ].join(" ")}>
+                  {isProcessingDocument ? (
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  ) : (
+                    <FileUp className="h-6 w-6" />
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <p className="font-serif text-lg sm:text-xl tracking-tight">
+                    {isProcessingDocument ? t("bulkImport.uploadProcessing") : t("bulkImport.uploadIntro")}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {t("bulkImport.uploadHint")}
+                  </p>
+                </div>
+                {!isProcessingDocument && (
+                  <Button type="button" size="sm" variant="outline" tabIndex={-1} className="mt-1 pointer-events-none">
+                    {t("bulkImport.uploadChooseFile")}
+                  </Button>
+                )}
+              </div>
+
+              {isProcessingDocument && documentProgress && (
+                <div className="mt-6 space-y-1.5 text-left max-w-sm mx-auto">
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>
+                      {documentProgress.completed === 0
+                        ? "Extracting words…"
+                        : documentProgress.completed === documentProgress.total
+                        ? "Done"
+                        : `Processing chunk ${documentProgress.completed} of ${documentProgress.total - 1}…`}
+                    </span>
+                    <span>{Math.round((documentProgress.completed / documentProgress.total) * 100)}%</span>
+                  </div>
+                  <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all duration-300"
+                      style={{ width: `${(documentProgress.completed / documentProgress.total) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="relative overflow-hidden rounded-2xl border border-border bg-card">
+              {/* Blurred preview of the dropzone */}
+              <div aria-hidden className="pointer-events-none select-none px-6 py-10 sm:py-12 text-center blur-[6px] opacity-40">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+                    <FileUp className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <p className="font-serif text-lg sm:text-xl tracking-tight">{t("bulkImport.uploadIntro")}</p>
+                  <p className="text-xs text-muted-foreground">{t("bulkImport.uploadHint")}</p>
+                </div>
+              </div>
+              {/* Lock overlay */}
+              <div className="absolute inset-0 flex items-center justify-center bg-card/60 backdrop-blur-sm">
+                <div className="max-w-sm w-full px-6 text-center space-y-3">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <Lock className="h-5 w-5" />
+                  </div>
+                  <h3 className="font-serif text-lg tracking-tight flex items-center justify-center gap-1.5">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    {t("bulkImport.keyMissingTitle")}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    {t("bulkImport.keyMissingBody")}
+                  </p>
+                  <Button type="button" size="sm" onClick={() => setSettingsOpen(true)}>
+                    {t("bulkImport.keyMissingCta")}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {processedDocument && (
+            <div className="mt-3 text-sm space-y-1">
+              <p className="text-muted-foreground">
+                {t("bulkImport.documentProcessed", {
+                  extracted: processedDocument.totalExtracted,
+                  new: processedDocument.newWords,
+                  processed: processedDocument.processed,
+                })}
+              </p>
+              {processedDocument.message && (
+                <p className="text-amber-700 dark:text-amber-300">{processedDocument.message}</p>
+              )}
+            </div>
+          )}
+          {documentError && (
+            <div className="mt-3 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <XCircle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden />
+              <span className="flex-1">{documentError}</span>
+              <button
+                type="button"
+                onClick={() => setDocumentError(null)}
+                className="shrink-0 opacity-60 hover:opacity-100 transition-opacity"
+                aria-label="Dismiss"
+              >
+                <XCircle className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+        </section>
+
+        {/* Format reference (collapsible) */}
+        <details className="group rounded-lg border border-border bg-card">
+          <summary className="flex items-center gap-2 px-4 py-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
             <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-            <h2 className="text-sm font-semibold">{t("bulkImport.formatTitle")}</h2>
+            <span className="text-sm font-semibold">{t("bulkImport.formatHelpToggle")}</span>
+            <span className="ml-auto text-xs text-muted-foreground transition-transform group-open:rotate-180">▾</span>
+          </summary>
+          <div className="px-4 pb-4 pt-1 space-y-3 border-t border-border">
+            <p className="text-sm text-muted-foreground">
+              {t("bulkImport.formatDescription")}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {(["danish", "english", "type", "notes"] as const).map((col) => (
+                <code key={col} className="text-[11px] bg-muted px-1.5 py-0.5 rounded font-mono">
+                  {col}
+                </code>
+              ))}
+              {extraLangs.map((code) => (
+                <code key={code} className="text-[11px] bg-muted px-1.5 py-0.5 rounded font-mono">
+                  translations.{code}
+                </code>
+              ))}
+              <span className="text-[11px] text-muted-foreground self-center">{t("bulkImport.grammarFields")}</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t("bulkImport.validTypes")}{": "}
+              {ENTRY_TYPES.map((et) => (
+                <code key={et} className="font-mono">
+                  {et}
+                </code>
+              )).reduce<React.ReactNode[]>((acc, el, i) => (i === 0 ? [el] : [...acc, ", ", el]), [])}
+              . {t("bulkImport.unknownTypeDefault")} <code className="font-mono">word</code>.
+            </p>
           </div>
-          <p className="text-sm text-muted-foreground">
-            {t("bulkImport.formatDescription")}
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {(["danish", "english", "type", "notes"] as const).map((col) => (
-              <code key={col} className="text-[11px] bg-muted px-1.5 py-0.5 rounded font-mono">
-                {col}
-              </code>
-            ))}
-            {extraLangs.map((code) => (
-              <code key={code} className="text-[11px] bg-muted px-1.5 py-0.5 rounded font-mono">
-                translations.{code}
-              </code>
-            ))}
-            <span className="text-[11px] text-muted-foreground self-center">{t("bulkImport.grammarFields")}</span>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {t("bulkImport.validTypes")}{": "}
-            {ENTRY_TYPES.map((et) => (
-              <code key={et} className="font-mono">
-                {et}
-              </code>
-            )).reduce<React.ReactNode[]>((acc, el, i) => (i === 0 ? [el] : [...acc, ", ", el]), [])}
-            . {t("bulkImport.unknownTypeDefault")} <code className="font-mono">word</code>.
-          </p>
-        </div>
+        </details>
 
         {/* Settings */}
         {parsed && parsed.rows.length > 0 && (
@@ -822,87 +979,6 @@ export default function BulkImport() {
             )}
           </div>
         )}
-
-        {/* Document upload */}
-        <div className="rounded-lg border border-border bg-card p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <FileUp className="h-4 w-4 text-muted-foreground shrink-0" />
-              <h2 className="text-sm font-semibold">{t("bulkImport.documentUpload")}</h2>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {t("bulkImport.documentUploadDescription")}
-            </p>
-            <div className="flex gap-2">
-              <input
-                type="file"
-                accept=".txt,.md,.docx,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    handleProcessDocument(file);
-                  }
-                }}
-                disabled={isProcessingDocument || !getGeminiApiKey()}
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-              />
-              {isProcessingDocument && (
-                <Loader2 className="h-4 w-4 animate-spin self-center" />
-              )}
-            </div>
-            {isProcessingDocument && documentProgress && (
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>
-                    {documentProgress.completed === 0
-                      ? "Extracting words…"
-                      : documentProgress.completed === documentProgress.total
-                      ? "Done"
-                      : `Processing chunk ${documentProgress.completed} of ${documentProgress.total - 1}…`}
-                  </span>
-                  <span>{Math.round((documentProgress.completed / documentProgress.total) * 100)}%</span>
-                </div>
-                <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-primary transition-all duration-300"
-                    style={{ width: `${(documentProgress.completed / documentProgress.total) * 100}%` }}
-                  />
-                </div>
-              </div>
-            )}
-            {!getGeminiApiKey() && (
-              <p className="text-xs text-amber-700 dark:text-amber-300">
-                Add a Gemini API key in Settings to enable document processing.
-              </p>
-            )}
-            {processedDocument && (
-              <div className="text-sm space-y-1">
-                <p className="text-muted-foreground">
-                  {t("bulkImport.documentProcessed", {
-                    extracted: processedDocument.totalExtracted,
-                    new: processedDocument.newWords,
-                    processed: processedDocument.processed
-                  })}
-                </p>
-                {processedDocument.message && (
-                  <p className="text-amber-700 dark:text-amber-300">{processedDocument.message}</p>
-                )}
-              </div>
-            )}
-            {documentError && (
-              <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                <XCircle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden />
-                <span className="flex-1">{documentError}</span>
-                <button
-                  type="button"
-                  onClick={() => setDocumentError(null)}
-                  className="shrink-0 opacity-60 hover:opacity-100 transition-opacity"
-                  aria-label="Dismiss"
-                >
-                  <XCircle className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            )}
-          </div>
 
         {/* Input area */}
         {(importStatus === "idle" || importStatus === "parsed") && (
