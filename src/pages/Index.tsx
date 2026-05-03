@@ -14,7 +14,13 @@ import { LexisCard } from "@/components/LexisCard";
 import { SettingsDialog } from "@/components/SettingsDialog";
 import { isDemoMode } from "@/lib/demo";
 import type { LexisEntry } from "@/hooks/useLexicon";
-import { ENTRY_TYPES, entryTypeLabel, type EntryType } from "@/lib/lexicon";
+import { ENTRY_TYPES, entryTypeLabel, stripInfinitiveMarker, type EntryType } from "@/lib/lexicon";
+
+const sortKey = (e: LexisEntry): string => {
+  const da = e.type === "verb" ? stripInfinitiveMarker(e.danish, "da") : e.danish;
+  const en = e.type === "verb" ? stripInfinitiveMarker(e.english, "en") : e.english;
+  return da || en || "";
+};
 import { t } from "@/i18n";
 
 type SortMode = "newest" | "alpha";
