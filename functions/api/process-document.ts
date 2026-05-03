@@ -106,11 +106,36 @@ function normalizeEntryType(value: unknown): EntryType {
   return "word";
 }
 
+/** Best-effort JSON extraction from possibly-noisy LLM output. */
+function safeJsonParse<T = unknown>(raw: string): T | null {
+  if (!raw) return null;
+  let s = raw.trim();
+  // Strip markdown code fences
+  s = s.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/g, "").trim();
+  try { return JSON.parse(s) as T; } catch { /* fallthrough */ }
+  // Find the first balanced JSON value
+  const firstBrace = s.search(/[\[{]/);
+  const lastBrace = Math.max(s.lastIndexOf("]"), s.lastIndexOf("}"));
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    try { return JSON.parse(s.slice(firstBrace, lastBrace + 1)) as T; } catch { /* fallthrough */ }
+  }
+  return null;
+}
+
+function fallbackExtractWords(text: string): string[] {
+  return text.toLowerCase()
+    .replace(/[^\wæøå\s]/g, " ")
+    .split(/\s+/)
+    .filter(w => w.length > 2 && /^[a-zæøå]+$/i.test(w))
+    .filter((w, i, arr) => arr.indexOf(w) === i);
+}
+
 async function extractWordsFromText(text: string, env: Env): Promise<string[]> {
+  const truncated = text.slice(0, 6000);
   const prompt = `Extract all unique Danish words from the following text. Return only a JSON array of strings, no other text. Focus on actual Danish words, ignore numbers, punctuation, and non-Danish words. Make them lowercase.
 
 Text:
-${text}
+${truncated}
 
 Response format: ["word1", "word2", ...]`;
 
@@ -119,18 +144,16 @@ Response format: ["word1", "word2", ...]`;
       messages: [{ role: "user", content: prompt }],
       temperature: 0.1,
     });
-    const content = response.response as string;
-    const words = JSON.parse(content.trim());
-    return Array.isArray(words) ? words.filter(w => typeof w === "string" && w.length > 0) : [];
+    const words = safeJsonParse<unknown>((response.response as string) ?? "");
+    if (Array.isArray(words)) {
+      const cleaned = words.filter((w): w is string => typeof w === "string" && w.trim().length > 0)
+        .map((w) => w.trim().toLowerCase());
+      if (cleaned.length > 0) return Array.from(new Set(cleaned));
+    }
   } catch (error) {
     console.error("AI extraction failed:", error);
-    const words = text.toLowerCase()
-      .replace(/[^\w\s]/g, ' ')
-      .split(/\s+/)
-      .filter(w => w.length > 2 && /^[a-zæøå]+$/i.test(w))
-      .filter((w, i, arr) => arr.indexOf(w) === i);
-    return words;
   }
+  return fallbackExtractWords(text);
 }
 
 async function processWord(word: string, languages: string[], env: Env): Promise<LexisEntryInput | null> {
@@ -155,8 +178,8 @@ Response format: {"english": "...", "type": "...", "notes": "..."${exampleTransl
       temperature: 0.1,
     });
 
-    const content = response.response as string;
-    const data = JSON.parse(content.trim()) as Record<string, unknown>;
+    const data = safeJsonParse<Record<string, unknown>>((response.response as string) ?? "");
+    if (!data) return null;
 
     const translations: Record<string, string> = {};
     const rawTranslations = data.translations;
@@ -181,12 +204,35 @@ Response format: {"english": "...", "type": "...", "notes": "..."${exampleTransl
   }
 }
 
-export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
-  if (!hasValidAccessToken(request, env)) {
-    return json({ error: "Unauthorized." }, { status: 401 });
-  }
+/** Run async tasks with bounded concurrency, swallowing individual failures. */
+async function runBatched<T, R>(
+  items: T[],
+  worker: (item: T) => Promise<R | null>,
+  concurrency: number,
+): Promise<R[]> {
+  const results: R[] = [];
+  let cursor = 0;
+  const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (cursor < items.length) {
+      const i = cursor++;
+      try {
+        const r = await worker(items[i]);
+        if (r != null) results.push(r);
+      } catch (e) {
+        console.error("batch task failed:", e);
+      }
+    }
+  });
+  await Promise.all(runners);
+  return results;
+}
 
+export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   try {
+    if (!hasValidAccessToken(request, env)) {
+      return json({ error: "Unauthorized." }, { status: 401 });
+    }
+
     const contentType = request.headers.get("content-type") || "";
     if (!contentType.includes("multipart/form-data")) {
       return json({ error: "Expected multipart/form-data." }, { status: 400 });
@@ -207,28 +253,27 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const newWords = extractedWords.filter(word => !existingWords.has(word.toLowerCase()));
 
     if (newWords.length === 0) {
-      return json({ entries: [], message: "No new words found in the document." });
+      return json({ entries: [], totalExtracted: extractedWords.length, newWords: 0, processed: 0, languages, message: "No new words found in the document." });
     }
 
-    const maxWords = 50;
-    const wordsToProcess = newWords.slice(0, maxWords);
-    const processedEntries: LexisEntryInput[] = [];
-
-    for (const word of wordsToProcess) {
-      const entry = await processWord(word, languages, env);
-      if (entry) processedEntries.push(entry);
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
+    const wordsToProcess = newWords.slice(0, MAX_WORDS);
+    const processedEntries = await runBatched(
+      wordsToProcess,
+      (w) => processWord(w, languages, env),
+      PARALLEL,
+    );
 
     return json({
       entries: processedEntries,
       totalExtracted: extractedWords.length,
       newWords: newWords.length,
       processed: processedEntries.length,
+      truncated: newWords.length > MAX_WORDS,
       languages,
     });
   } catch (error) {
     console.error("Document processing error:", error);
-    return json({ error: "Failed to process document." }, { status: 500 });
+    return json({ error: error instanceof Error ? error.message : "Failed to process document." }, { status: 500 });
   }
 };
+
