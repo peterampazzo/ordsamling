@@ -5,6 +5,7 @@ import {
   normalizeEntryType,
   normalizeGrammar,
   normalizeTranslations,
+  stripInfinitiveMarker,
   WORD_LIKE_TYPES,
   type EntryType,
   type LexisEntry,
