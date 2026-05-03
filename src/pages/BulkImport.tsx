@@ -996,7 +996,7 @@ export default function BulkImport() {
                           {row.entry?.english || "—"}
                         </td>
                         <td className="px-3 py-2 text-muted-foreground max-w-[120px] truncate">
-                          {row.entry?.italian || "—"}
+                          {row.entry?.translations?.it || "—"}
                         </td>
                         <td className="px-3 py-2">
                           {row.entry ? (
