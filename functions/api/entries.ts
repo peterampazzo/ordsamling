@@ -129,6 +129,11 @@ function normalizeEntry(value: unknown): LexisEntry | null {
   return entry;
 }
 
+function stripInfinitive(value: string, lang: "da" | "en"): string {
+  const marker = lang === "da" ? /^at\s+/i : /^to\s+/i;
+  return value.replace(marker, "");
+}
+
 function validateEntryInput(value: unknown): LexisEntryInput | null {
   if (!value || typeof value !== "object") {
     return null;
@@ -137,9 +142,16 @@ function validateEntryInput(value: unknown): LexisEntryInput | null {
   const candidate = value as Record<string, unknown>;
   const type = normalizeEntryType(candidate.type);
 
+  let danish = typeof candidate.danish === "string" ? candidate.danish.trim() : "";
+  let english = typeof candidate.english === "string" ? candidate.english.trim() : "";
+  if (type === "verb") {
+    danish = stripInfinitive(danish, "da");
+    english = stripInfinitive(english, "en");
+  }
+
   const input: LexisEntryInput = {
-    danish: typeof candidate.danish === "string" ? candidate.danish.trim() : "",
-    english: typeof candidate.english === "string" ? candidate.english.trim() : "",
+    danish,
+    english,
     italian: typeof candidate.italian === "string" ? candidate.italian.trim() : "",
     notes: typeof candidate.notes === "string" ? candidate.notes.trim() : "",
     type,

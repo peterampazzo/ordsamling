@@ -5,6 +5,7 @@ import {
   normalizeEntryType,
   normalizeGrammar,
   normalizeTranslations,
+  stripInfinitiveMarker,
   WORD_LIKE_TYPES,
   type EntryType,
   type LexisEntry,
@@ -23,12 +24,16 @@ function normalizeEntry(entry: Partial<LexisEntry> & { italian?: unknown }): Lex
     translations.it = entry.italian.trim();
   }
   const hasTrans = Object.keys(translations).length > 0;
+  const type = normalizeEntryType(entry.type);
+  // Strip leading "at "/"to " from verb roots so old data is consistent with display helpers.
+  const danish = type === "verb" ? stripInfinitiveMarker(entry.danish || "", "da") : (entry.danish || "");
+  const english = type === "verb" ? stripInfinitiveMarker(entry.english || "", "en") : (entry.english || "");
   return {
     id: entry.id || crypto.randomUUID(),
-    danish: entry.danish || "",
-    english: entry.english || "",
+    danish,
+    english,
     notes: entry.notes || "",
-    type: normalizeEntryType(entry.type),
+    type,
     grammar: normalizeGrammar(entry.grammar),
     createdAt: typeof entry.createdAt === "number" ? entry.createdAt : Date.now(),
     ...(hasTrans ? { translations } : {}),
@@ -89,6 +94,24 @@ async function fetchEntries(): Promise<LexisEntry[]> {
   const response = await requestJson<{ entries: LexisEntry[] }>("/api/entries");
   const entries = response.entries.map((entry) => normalizeEntry(entry));
   saveLocalEntries(entries);
+
+  // One-time KV migration: persist verbs whose stored danish/english still contains "at "/"to ".
+  for (const raw of response.entries) {
+    if (raw.type !== "verb") continue;
+    const daRaw = typeof raw.danish === "string" ? raw.danish : "";
+    const enRaw = typeof raw.english === "string" ? raw.english : "";
+    const daClean = stripInfinitiveMarker(daRaw, "da");
+    const enClean = stripInfinitiveMarker(enRaw, "en");
+    if (daClean !== daRaw || enClean !== enRaw) {
+      // Fire-and-forget; failures are non-fatal (display already uses cleaned values).
+      fetch(`/api/entries/${raw.id}`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ danish: daClean, english: enClean }),
+      }).catch(() => {});
+    }
+  }
+
   return entries;
 }
 

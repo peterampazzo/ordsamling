@@ -14,7 +14,13 @@ import { LexisCard } from "@/components/LexisCard";
 import { SettingsDialog } from "@/components/SettingsDialog";
 import { isDemoMode } from "@/lib/demo";
 import type { LexisEntry } from "@/hooks/useLexicon";
-import { ENTRY_TYPES, entryTypeLabel, type EntryType } from "@/lib/lexicon";
+import { ENTRY_TYPES, entryTypeLabel, stripInfinitiveMarker, type EntryType } from "@/lib/lexicon";
+
+const sortKey = (e: LexisEntry): string => {
+  const da = e.type === "verb" ? stripInfinitiveMarker(e.danish, "da") : e.danish;
+  const en = e.type === "verb" ? stripInfinitiveMarker(e.english, "en") : e.english;
+  return da || en || "";
+};
 import { t } from "@/i18n";
 
 type SortMode = "newest" | "alpha";
@@ -25,7 +31,7 @@ const sortEntries = (entries: LexisEntry[], mode: SortMode) => {
     case "newest":
       return sorted.sort((a, b) => b.createdAt - a.createdAt);
     case "alpha":
-      return sorted.sort((a, b) => (a.danish || a.english).localeCompare(b.danish || b.english, "da"));
+      return sorted.sort((a, b) => sortKey(a).localeCompare(sortKey(b), "da"));
   }
 };
 
@@ -77,7 +83,7 @@ const Index = () => {
     if (sort !== "alpha") return null;
     const map = new Map<string, LexisEntry[]>();
     for (const e of sorted) {
-      const word = (e.danish || e.english || "").trim();
+      const word = sortKey(e).trim();
       const ch = word.charAt(0).toLocaleUpperCase("da");
       const letter = /[A-ZÆØÅ]/.test(ch) ? ch : "#";
       if (!map.has(letter)) map.set(letter, []);
