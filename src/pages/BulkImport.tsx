@@ -59,7 +59,7 @@ function splitLine(line: string, delimiter: "tab" | "comma"): string[] {
 // ---------------------------------------------------------------------------
 
 const KNOWN_COLUMNS = [
-  "danish", "english", "italian", "type", "notes",
+  "danish", "english", "type", "notes",
   "article", "singularDefinite", "pluralIndefinite", "pluralDefinite",
   "present", "past", "perfect",
   "neuter", "definite", "plural", "comparative", "superlative",
@@ -67,12 +67,13 @@ const KNOWN_COLUMNS = [
 
 type KnownColumn = (typeof KNOWN_COLUMNS)[number];
 
-function normalizeHeader(raw: string): KnownColumn | null {
-  const s = raw.toLowerCase().replace(/[\s_-]/g, "");
+/** Returns either a known column key, a `translations.<code>` key, or null. */
+function normalizeHeader(raw: string): KnownColumn | `translations.${string}` | null {
+  const original = raw.trim();
+  const s = original.toLowerCase().replace(/[\s_-]/g, "");
   const map: Record<string, KnownColumn> = {
     danish: "danish", dansk: "danish", da: "danish",
     english: "english", engelsk: "english", en: "english",
-    italian: "italian", italiano: "italian", it: "italian",
     type: "type", type_: "type", ordklasse: "type",
     notes: "notes", noter: "notes", note: "notes", comment: "notes", comments: "notes",
     article: "article", artikel: "article",
@@ -88,7 +89,16 @@ function normalizeHeader(raw: string): KnownColumn | null {
     comparative: "comparative", komparativ: "comparative",
     superlative: "superlative", superlativ: "superlative",
   };
-  return map[s] ?? null;
+  if (map[s]) return map[s];
+
+  // translations.<code> or translation.<code>
+  const dotMatch = original.toLowerCase().match(/^translations?\.([a-z]{2,3})$/);
+  if (dotMatch) return `translations.${dotMatch[1]}`;
+  // Bare ISO 2-3 letter code, but skip the ones we already use as known cols
+  if (/^[a-z]{2,3}$/.test(s) && !["da", "en"].includes(s)) {
+    return `translations.${s}`;
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
