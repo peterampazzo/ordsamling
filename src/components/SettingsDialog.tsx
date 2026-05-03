@@ -99,6 +99,27 @@ export function SettingsDialog({ open, onOpenChange, entries }: SettingsDialogPr
           <DialogDescription className="sr-only">{t("settings.title")}</DialogDescription>
         </DialogHeader>
 
+        <section className="space-y-2">
+          <h3 className="text-sm font-semibold">{t("settings.uiLangTitle")}</h3>
+          <p className="text-xs text-muted-foreground">{t("settings.uiLangDesc")}</p>
+          <div role="group" aria-label="UI language" className="inline-flex items-center rounded-full border border-border bg-background p-0.5 text-xs font-mono uppercase tracking-wider">
+            {AVAILABLE_LANGS.map((l) => (
+              <button
+                key={l}
+                type="button"
+                onClick={() => switchUiLang(l)}
+                aria-pressed={uiLang === l}
+                className={
+                  "px-3 py-1 rounded-full transition-colors " +
+                  (uiLang === l ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")
+                }
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+        </section>
+
         <section className="space-y-3">
           <div>
             <h3 className="text-sm font-semibold">{t("settings.visibilityTitle")}</h3>
