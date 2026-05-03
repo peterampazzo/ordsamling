@@ -117,8 +117,8 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
         if (t) cleaned[c] = t;
       }
       await onUpdate(entry.id, {
-        danish: draft.danish,
-        english: draft.english,
+        danish: draft.type === "verb" ? stripInfinitiveMarker(draft.danish, "da") : draft.danish,
+        english: draft.type === "verb" ? stripInfinitiveMarker(draft.english, "en") : draft.english,
         translations: Object.keys(cleaned).length > 0 ? cleaned : undefined,
         notes: draft.notes,
         type: draft.type,
