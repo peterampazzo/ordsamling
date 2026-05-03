@@ -185,6 +185,7 @@ const QuizHistory = () => {
           )}
         </main>
       </div>
+      <PageFooter />
     </div>
   );
 };
