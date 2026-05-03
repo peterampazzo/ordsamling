@@ -12,6 +12,7 @@ import {
   TrendingDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageHeader, PageFooter } from "@/components/layout";
 import { cn } from "@/lib/utils";
 import { fetchHistory, loadHistory, clearHistory, wordStats, type QuizSessionRecord } from "@/lib/quizHistory";
 import { t } from "@/i18n";
