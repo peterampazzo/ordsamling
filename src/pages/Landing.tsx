@@ -182,7 +182,7 @@ const Landing = () => {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted-foreground">
           <p className="font-serif text-sm text-foreground">Ordsamling</p>
           <div className="flex items-center gap-4">
-            <span>Built with care · Local-first</span>
+            <span>From an idea to reality, built with the help of AI.</span>
             <a
               href={GITHUB_URL}
               target="_blank"
