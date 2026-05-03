@@ -94,6 +94,24 @@ async function fetchEntries(): Promise<LexisEntry[]> {
   const response = await requestJson<{ entries: LexisEntry[] }>("/api/entries");
   const entries = response.entries.map((entry) => normalizeEntry(entry));
   saveLocalEntries(entries);
+
+  // One-time KV migration: persist verbs whose stored danish/english still contains "at "/"to ".
+  for (const raw of response.entries) {
+    if (raw.type !== "verb") continue;
+    const daRaw = typeof raw.danish === "string" ? raw.danish : "";
+    const enRaw = typeof raw.english === "string" ? raw.english : "";
+    const daClean = stripInfinitiveMarker(daRaw, "da");
+    const enClean = stripInfinitiveMarker(enRaw, "en");
+    if (daClean !== daRaw || enClean !== enRaw) {
+      // Fire-and-forget; failures are non-fatal (display already uses cleaned values).
+      fetch(`/api/entries/${raw.id}`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ danish: daClean, english: enClean }),
+      }).catch(() => {});
+    }
+  }
+
   return entries;
 }
 
