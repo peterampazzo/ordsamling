@@ -235,10 +235,14 @@ export function useLexicon() {
             .toLowerCase()
         : "";
 
+      const translationHaystack = entry.translations
+        ? Object.values(entry.translations).join(" ").toLowerCase()
+        : "";
+
       return (
         entry.danish.toLowerCase().includes(lowerQuery) ||
         entry.english.toLowerCase().includes(lowerQuery) ||
-        entry.italian.toLowerCase().includes(lowerQuery) ||
+        translationHaystack.includes(lowerQuery) ||
         grammarHaystack.includes(lowerQuery)
       );
     });
