@@ -48,14 +48,10 @@ const Landing = () => {
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
-      <header className="sticky top-0 z-30 border-b border-border bg-card/85 backdrop-blur-md supports-[backdrop-filter]:bg-card/70">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-          <Link to="/" className="flex items-baseline gap-2">
-            <span className="font-serif text-xl sm:text-2xl text-foreground tracking-tight">
-              Ordsamling.
-            </span>
-          </Link>
-          <div className="flex items-center gap-1.5 sm:gap-2">
+      <PageHeader
+        width="wide"
+        actions={
+          <>
             <div
               role="group"
               aria-label="Language"
@@ -89,9 +85,9 @@ const Landing = () => {
                 {t("landing.openApp")} <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
-          </div>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       {/* Mobile lang switch */}
       <div className="sm:hidden flex justify-center pt-3">
