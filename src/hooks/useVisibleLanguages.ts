@@ -17,3 +17,8 @@ export function useExtraLanguages(): string[] {
 
   return codes;
 }
+
+/** Quiz currently supports Danish ↔ English only. Extra languages aren't quizzed yet. */
+export function useVisibleLanguages(): string[] {
+  return ["danish", "english"];
+}
