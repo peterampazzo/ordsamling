@@ -24,12 +24,16 @@ function normalizeEntry(entry: Partial<LexisEntry> & { italian?: unknown }): Lex
     translations.it = entry.italian.trim();
   }
   const hasTrans = Object.keys(translations).length > 0;
+  const type = normalizeEntryType(entry.type);
+  // Strip leading "at "/"to " from verb roots so old data is consistent with display helpers.
+  const danish = type === "verb" ? stripInfinitiveMarker(entry.danish || "", "da") : (entry.danish || "");
+  const english = type === "verb" ? stripInfinitiveMarker(entry.english || "", "en") : (entry.english || "");
   return {
     id: entry.id || crypto.randomUUID(),
-    danish: entry.danish || "",
-    english: entry.english || "",
+    danish,
+    english,
     notes: entry.notes || "",
-    type: normalizeEntryType(entry.type),
+    type,
     grammar: normalizeGrammar(entry.grammar),
     createdAt: typeof entry.createdAt === "number" ? entry.createdAt : Date.now(),
     ...(hasTrans ? { translations } : {}),
