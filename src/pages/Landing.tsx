@@ -11,6 +11,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageHeader, SerifHeading } from "@/components/layout";
 import { t, getLang, setLang, AVAILABLE_LANGS } from "@/i18n";
 import { cn } from "@/lib/utils";
 
@@ -47,14 +48,10 @@ const Landing = () => {
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
-      <header className="sticky top-0 z-30 border-b border-border bg-card/85 backdrop-blur-md supports-[backdrop-filter]:bg-card/70">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-          <Link to="/" className="flex items-baseline gap-2">
-            <span className="font-serif text-xl sm:text-2xl text-foreground tracking-tight">
-              Ordsamling.
-            </span>
-          </Link>
-          <div className="flex items-center gap-1.5 sm:gap-2">
+      <PageHeader
+        width="wide"
+        actions={
+          <>
             <div
               role="group"
               aria-label="Language"
@@ -88,9 +85,9 @@ const Landing = () => {
                 {t("landing.openApp")} <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
-          </div>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       {/* Mobile lang switch */}
       <div className="sm:hidden flex justify-center pt-3">
@@ -125,9 +122,9 @@ const Landing = () => {
           <p className="text-xs sm:text-sm uppercase tracking-[0.32em] text-muted-foreground mb-6">
             {t("landing.eyebrow")}
           </p>
-          <h1 className="font-serif text-5xl sm:text-7xl leading-[1.05] text-foreground mb-6 tracking-tight">
+          <SerifHeading level="display" as="h1" className="mb-6">
             Ordsamling.
-          </h1>
+          </SerifHeading>
           <p className="font-serif italic text-lg sm:text-2xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
             {t("landing.tagline")}
           </p>
@@ -157,9 +154,9 @@ const Landing = () => {
           <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground mb-3">
             {t("landing.featuresEyebrow")}
           </p>
-          <h2 className="font-serif text-2xl sm:text-3xl text-foreground">
+          <SerifHeading level="lg">
             {t("landing.featuresTitle")}
-          </h2>
+          </SerifHeading>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-border rounded-lg overflow-hidden border border-border">
@@ -181,7 +178,7 @@ const Landing = () => {
                   </span>
                 )}
               </div>
-              <h3 className="font-serif text-xl text-foreground leading-snug">{title}</h3>
+              <SerifHeading level="md" as="h3">{title}</SerifHeading>
               <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
             </article>
           ))}
@@ -194,9 +191,9 @@ const Landing = () => {
           <span className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-primary/10 text-primary mb-5">
             <Lock className="h-5 w-5" />
           </span>
-          <h2 className="font-serif text-2xl sm:text-3xl text-foreground mb-3">
+          <SerifHeading level="lg" className="mb-3">
             {t("landing.privacyTitle")}
-          </h2>
+          </SerifHeading>
           <p className="text-muted-foreground max-w-xl mx-auto leading-relaxed">
             {t("landing.privacyBody")}
           </p>
@@ -206,9 +203,9 @@ const Landing = () => {
       {/* Final CTA */}
       <section className="max-w-3xl mx-auto px-4 sm:px-6 py-20 sm:py-28 text-center">
         <Sparkles className="h-5 w-5 text-muted-foreground/60 mx-auto mb-6" />
-        <h2 className="font-serif text-3xl sm:text-4xl text-foreground mb-5 leading-tight">
+        <SerifHeading level="xl" className="mb-5">
           {t("landing.ctaTitle")}
-        </h2>
+        </SerifHeading>
         <p className="font-serif italic text-lg sm:text-xl text-muted-foreground max-w-xl mx-auto mb-8 leading-relaxed">
           {t("landing.ctaBody")}
         </p>

@@ -1,31 +1,18 @@
 import { Link } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { PageHeader, SerifHeading } from "@/components/layout";
 
 const GITHUB_URL = "https://github.com/peterampazzo/ordsamling/";
 
 const Privacy = () => {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Header */}
-      <header className="sticky top-0 z-30 border-b border-border bg-card/85 backdrop-blur-md supports-[backdrop-filter]:bg-card/70">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
-          <Button variant="ghost" size="sm" asChild className="gap-1.5">
-            <Link to="/">
-              <ArrowLeft className="h-4 w-4" />
-              Back
-            </Link>
-          </Button>
-          <span className="font-serif text-lg text-foreground tracking-tight">Ordsamling.</span>
-        </div>
-      </header>
+      <PageHeader backTo="/" pageLabel="Privacy" />
 
-      {/* Content */}
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
+      <main className="max-w-3xl mx-auto px-3 sm:px-4 py-12 sm:py-16">
         <div className="mb-10">
-          <h1 className="font-serif text-3xl sm:text-4xl text-foreground tracking-tight mb-2">
+          <SerifHeading level="xl" className="mb-2">
             Privacy Policy
-          </h1>
+          </SerifHeading>
           <p className="text-sm text-muted-foreground">
             Ordsamling &nbsp;·&nbsp; Last updated: May 3, 2026
           </p>
@@ -34,9 +21,9 @@ const Privacy = () => {
         <div className="space-y-8 text-sm leading-relaxed text-foreground/90">
 
           <section aria-labelledby="hosting">
-            <h2 id="hosting" className="font-serif text-xl text-foreground mb-3">
+            <SerifHeading level="md" id="hosting" className="mb-3">
               Hosting &amp; open source
-            </h2>
+            </SerifHeading>
             <p>
               Ordsamling is a fully client-side app hosted on{" "}
               <a
@@ -62,9 +49,9 @@ const Privacy = () => {
           </section>
 
           <section aria-labelledby="data">
-            <h2 id="data" className="font-serif text-xl text-foreground mb-3">
+            <SerifHeading level="md" id="data" className="mb-3">
               Your data
-            </h2>
+            </SerifHeading>
             <p>
               Your vocabulary and quiz history are stored exclusively in your browser's
               localStorage. This data never leaves your device unless you choose to enable cloud
@@ -74,9 +61,9 @@ const Privacy = () => {
           </section>
 
           <section aria-labelledby="google">
-            <h2 id="google" className="font-serif text-xl text-foreground mb-3">
+            <SerifHeading level="md" id="google" className="mb-3">
               Google account access
-            </h2>
+            </SerifHeading>
             <p>
               The Google Sheets integration is currently private and invite-only — it is not
               available to the general public. When you connect Google Drive, the app requests
@@ -88,9 +75,9 @@ const Privacy = () => {
           </section>
 
           <section aria-labelledby="ai">
-            <h2 id="ai" className="font-serif text-xl text-foreground mb-3">
+            <SerifHeading level="md" id="ai" className="mb-3">
               AI features (Bring Your Own Key)
-            </h2>
+            </SerifHeading>
             <p>
               AI features use a Gemini API key that you supply yourself — there is no shared or
               developer-managed key. The key is stored exclusively in your browser's localStorage
@@ -103,9 +90,8 @@ const Privacy = () => {
         </div>
       </main>
 
-      {/* Footer */}
       <footer className="border-t border-border mt-16">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 flex items-center justify-between text-xs text-muted-foreground">
+        <div className="max-w-3xl mx-auto px-3 sm:px-4 py-6 flex items-center justify-between text-xs text-muted-foreground">
           <span className="font-serif text-sm text-foreground">Ordsamling</span>
           <Link to="/" className="hover:text-foreground transition-colors">
             ← Back to home

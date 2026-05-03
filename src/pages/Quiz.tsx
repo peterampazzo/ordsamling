@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { PageHeader, PageFooter } from "@/components/layout";
 import { cn } from "@/lib/utils";
 import { useLexicon } from "@/hooks/useLexicon";
 import { fetchDistractors, GeminiKeyMissingError } from "@/lib/gemini";import { toast } from "@/components/ui/sonner";
@@ -567,26 +568,21 @@ const Quiz = () => {
   /* ---- Setup screen ---- */
   if (state === "setup") {
     return (
-      <div className="min-h-screen bg-background">
-        <header className="sticky top-0 z-30 border-b border-border bg-card/90 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80">
-          <div className="max-w-3xl mx-auto px-3 sm:px-4 flex items-center justify-between py-3">
-            <div className="flex items-center gap-3">
-              <Button variant="ghost" size="icon" className="shrink-0" asChild>
-                <Link to="/app"><ArrowLeft className="h-5 w-5" /></Link>
-              </Button>
-              <Brain className="h-5 w-5 text-primary" />
-              <h1 className="text-base sm:text-lg font-semibold text-foreground">{t("quiz.title")}</h1>
-            </div>
+      <div className="min-h-screen bg-background flex flex-col">
+        <PageHeader
+          backTo="/app"
+          pageLabel={t("quiz.title")}
+          actions={
             <Button variant="outline" size="sm" className="gap-1.5" asChild>
               <Link to="/quiz/history">
                 <History className="h-4 w-4" />
                 <span className="hidden sm:inline">{t("quiz.history")}</span>
               </Link>
             </Button>
-          </div>
-        </header>
+          }
+        />
 
-        <main className="max-w-md mx-auto px-4 py-8 space-y-8">
+        <main className="flex-1 max-w-md mx-auto w-full px-4 py-6 sm:py-8 space-y-8">
           {allEntries.length < 4 ? (
             <div className="text-center py-12 text-muted-foreground space-y-2">
               <Brain className="h-10 w-10 mx-auto opacity-30" />
@@ -683,14 +679,9 @@ const Quiz = () => {
 
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <header className="sticky top-0 z-30 border-b border-border bg-card/90 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80">
-          <div className="max-w-3xl mx-auto px-3 sm:px-4 flex items-center gap-3 py-3">
-            <Brain className="h-5 w-5 text-primary" />
-            <h1 className="text-base sm:text-lg font-semibold text-foreground">{t("quiz.result")}</h1>
-          </div>
-        </header>
+        <PageHeader pageLabel={t("quiz.result")} backTo="/quiz" />
 
-        <main className="flex-1 px-4 py-8">
+        <main className="flex-1 px-4 py-6 sm:py-8">
           <div className="max-w-md mx-auto space-y-8">
             <div className="text-center space-y-3">
               <div className={cn("text-6xl font-bold", pct >= 80 ? "text-primary" : pct >= 50 ? "text-accent-foreground" : "text-destructive")}>{pct}%</div>
@@ -731,49 +722,47 @@ const Quiz = () => {
   /* ---- Playing screen ---- */
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <header className="sticky top-0 z-30 border-b border-border bg-card/90 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80">
-        <div className="max-w-3xl mx-auto px-3 sm:px-4 py-3 space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Brain className="h-5 w-5 text-primary" />
-              {aiActive && (
-                <span className="text-[9px] uppercase tracking-wider bg-primary/15 text-primary px-1.5 py-0.5 rounded font-bold">
-                  {t("settings.aiActive")}
-                </span>
-              )}
-              <span className="text-sm font-medium text-foreground">{currentIdx + 1} / {total}</span>
+      <PageHeader
+        actions={
+          <>
+            {aiActive && (
+              <span className="text-[9px] uppercase tracking-wider bg-primary/15 text-primary px-1.5 py-0.5 rounded font-bold">
+                {t("settings.aiActive")}
+              </span>
+            )}
+            <span className="text-sm font-medium text-foreground tabular-nums">{currentIdx + 1} / {total}</span>
+            <div className={cn(
+              "flex items-center gap-1 text-sm font-mono tabular-nums transition-colors ml-2",
+              timeLeft <= 5 && !showResult ? "text-destructive animate-pulse" : "text-muted-foreground",
+            )}>
+              <Timer className="h-4 w-4" />
+              <span>{timeLeft}s</span>
+            </div>
+            <span className="text-sm text-muted-foreground tabular-nums ml-2">{t("quiz.correctCount", { count: score })}</span>
+          </>
+        }
+        subRow={
+          <div className="space-y-2">
+            <div className="flex items-center">
               <span className={cn(
-                "text-[10px] uppercase px-1.5 py-0.5 rounded font-medium",
-                "bg-muted text-muted-foreground",
+                "text-[10px] uppercase px-1.5 py-0.5 rounded font-medium bg-muted text-muted-foreground",
               )}>
                 {current?.direction.fromLabel} → {current?.direction.toLabel}
               </span>
             </div>
-            <div className="flex items-center gap-3">
-              {/* Timer */}
-              <div className={cn(
-                "flex items-center gap-1 text-sm font-mono tabular-nums transition-colors",
-                timeLeft <= 5 && !showResult ? "text-destructive animate-pulse" : "text-muted-foreground",
-              )}>
-                <Timer className="h-4 w-4" />
-                <span>{timeLeft}s</span>
-              </div>
-              <span className="text-sm text-muted-foreground tabular-nums">{t("quiz.correctCount", { count: score })}</span>
+            <Progress value={progress} className="h-1.5" />
+            <div className="h-1 rounded-full bg-muted overflow-hidden">
+              <div
+                className={cn(
+                  "h-full rounded-full transition-all duration-1000 ease-linear",
+                  timerPct > 33 ? "bg-primary" : timerPct > 15 ? "bg-[hsl(var(--warning))]" : "bg-destructive",
+                )}
+                style={{ width: `${timerPct}%` }}
+              />
             </div>
           </div>
-          <Progress value={progress} className="h-1.5" />
-          {/* Timer bar */}
-          <div className="h-1 rounded-full bg-muted overflow-hidden">
-            <div
-              className={cn(
-                "h-full rounded-full transition-all duration-1000 ease-linear",
-                timerPct > 33 ? "bg-primary" : timerPct > 15 ? "bg-[hsl(var(--warning))]" : "bg-destructive",
-              )}
-              style={{ width: `${timerPct}%` }}
-            />
-          </div>
-        </div>
-      </header>
+        }
+      />
 
       <main className="flex-1 flex items-center justify-center px-4 py-8">
         {current && (

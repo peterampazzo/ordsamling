@@ -1,7 +1,8 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Upload, ArrowLeft, CheckCircle2, XCircle, AlertCircle, Loader2, FileText, RefreshCw, Settings, FileUp } from "lucide-react";
+import { Upload, CheckCircle2, XCircle, AlertCircle, Loader2, FileText, RefreshCw, Settings, FileUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageHeader, PageFooter } from "@/components/layout";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -719,26 +720,9 @@ export default function BulkImport() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-30 border-b border-border bg-card/90 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80">
-        <div className="max-w-3xl mx-auto px-3 sm:px-4">
-          <div className="flex items-center gap-3 py-3">
-            <button
-              type="button"
-              onClick={() => navigate("/app")}
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              aria-label={t("common.back")}
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </button>
-            <div className="flex items-center gap-2 min-w-0">
-              <Upload className="h-5 w-5 text-primary shrink-0" aria-hidden />
-              <h1 className="text-base sm:text-lg font-semibold text-foreground truncate">{t("bulkImport.title")}</h1>
-            </div>
-          </div>
-        </div>
-      </header>
+      <PageHeader backTo="/app" pageLabel={t("bulkImport.title")} />
 
-      <main className="max-w-3xl mx-auto px-3 sm:px-4 py-6 space-y-6">
+      <main className="max-w-3xl mx-auto px-3 sm:px-4 py-6 sm:py-8 space-y-6">
 
         {/* Instructions */}
         <div className="rounded-lg border border-border bg-card p-4 space-y-3">
@@ -1216,6 +1200,7 @@ export default function BulkImport() {
           </div>
         )}
       </main>
+      <PageFooter />
     </div>
   );
 }

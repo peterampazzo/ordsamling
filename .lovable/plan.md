@@ -1,49 +1,56 @@
 ## Goal
 
-Make the AI document processor aware of the user's enabled extra languages so it generates translations for exactly the languages the user has turned on (e.g. `fr`, `de`), instead of hardcoding Italian.
+Reduce duplicated layout code across pages and unify the brand. Today the sticky header markup, container widths, footer, and `Ordsamling.` wordmark are copy-pasted (and drift) across 6 pages. Extract them into shared primitives so every page composes the same building blocks.
 
-## How it works today
+## New shared components (`src/components/layout/`)
 
-- `process-document.ts` always asks the AI for `english` + `italian` and writes a top-level `italian` field on each entry.
-- The new data model has no `italian` field — translations live under `translations: { [code]: text }`.
-- Enabled extra languages are stored client-side in `localStorage` (`getExtraLanguages()` in `src/lib/settings.ts`). The Worker has no way to know them unless the client sends them.
+### `PageShell.tsx`
+Wraps a page: `min-h-screen bg-background text-foreground` + flex column. Props: `children`, optional `footer` slot.
 
-## Changes
+### `PageHeader.tsx`
+The sticky header. Locks the visual contract:
+`sticky top-0 z-30 border-b border-border bg-card/90 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80`.
+Props:
+- `backTo?: string` — renders a back chevron link.
+- `actions?: ReactNode` — right-side slot (sync indicator, settings, GitHub button, etc.).
+- `subRow?: ReactNode` — optional second row (Index search/filters, Quiz progress bar).
+- `width?: "app" | "wide"` — `max-w-3xl` (default) or `max-w-6xl` (Landing).
+Always renders the `<Wordmark />` on the left.
 
-### 1. Client sends enabled languages
+### `Wordmark.tsx`
+The `Ordsamling.` serif brand element. One source of truth for size/weight/link target. Variants: `sm` (in-app headers), `md` (Landing header), `lg` (Landing hero footer line). Links to `/app` from inside the app, `/` from Landing/Privacy (auto-detected via `useLocation`).
 
-In `src/pages/BulkImport.tsx`, when calling `/api/process-document`:
-- Read `getExtraLanguages()` from settings.
-- Append them to the FormData as `languages` (comma-separated ISO codes, e.g. `fr,de`).
+### `PageContainer.tsx`
+Standard `<main>` wrapper: `max-w-3xl mx-auto px-3 sm:px-4 py-6 sm:py-8`. Variant `wide` for Landing sections.
 
-### 2. Worker uses them in the prompt
+### `PageFooter.tsx`
+The minimal GitHub + Privacy footer Index already has. Used on Index, Quiz, BulkImport, QuizHistory.
 
-In `functions/api/process-document.ts`:
-- Parse the `languages` form field; validate each as a 2–3 letter lowercase code; cap to a reasonable max (e.g. 5) to limit prompt size.
-- Update `processWord()` prompt to ask for `english` plus one field per requested code, returning a JSON shape like:
-  ```json
-  { "english": "...", "type": "...", "notes": "...", "translations": { "fr": "...", "de": "..." } }
-  ```
-- Map the response into `LexisEntryInput` with `translations: { ... }` (only include non-empty strings). Drop the old top-level `italian` field entirely.
-- Remove `italian` from the `LexisEntry` interface and `readEntries()` normalization in this file (matches the rest of the codebase).
+### `SerifHeading.tsx` (small win)
+`<h1>`/`<h2>`/`<h3>` with consistent serif sizing tokens (`display`, `xl`, `lg`). Replaces the ~10 hand-tuned `font-serif text-... tracking-tight` strings in Landing/Privacy.
 
-### 3. Bulk import preview supports extra translations
+## Refactor pages to use them
 
-So results returned from `/api/process-document` actually round-trip:
-- In `BulkImport.tsx`, accept `translations` on incoming entries from the document processor and pass them through to `addEntry`.
+- `Index.tsx` — replace inline header/footer with `<PageHeader subRow={...} actions={...} />` + `<PageFooter />`. Drops ~30 lines.
+- `Quiz.tsx` — three duplicated headers collapse into `<PageHeader backTo="/app" />`, with the progress bar passed via `subRow`.
+- `BulkImport.tsx` — same pattern, `<PageHeader backTo="/app" />`.
+- `QuizHistory.tsx` — `<PageHeader backTo="/quiz" />`; standardize to `max-w-3xl` (currently `max-w-2xl`).
+- `Privacy.tsx` — `<PageHeader backTo="/" />` and `<SerifHeading>` for sections.
+- `Landing.tsx` — `<PageHeader width="wide" actions={...} />` using the same `Wordmark`. Section headings use `<SerifHeading>`.
 
-### 4. Outdated examples / docs (related cleanup)
+## Cleanup
 
-- Replace `EXAMPLE_INPUT` and `EXAMPLE_JSON` in `BulkImport.tsx`: drop Italian, show Danish + English with an optional `translations: { fr: "..." }` example.
-- Update `.github/AI_IMPORT_FORMAT.md` to remove `italian`, document the `translations` object, and refresh the JSON / CSV examples.
+- Remove the now-dead `--lang-it` CSS var (`src/index.css`) and `lang.it` color (`tailwind.config.ts`) — Italian is forbidden per memory.
+- Delete the `BookOpen` icon from Index header (replaced by wordmark); keep its use in the empty state.
+- Add new layout primitives to `src/components/layout/index.ts` barrel for clean imports.
 
 ## Out of scope
 
-- Changing how CSV columns map to extra languages (separate question — can follow up if you want generic `xx` columns to map into `translations`).
-- Any UI for picking which subset of enabled languages to use for a given import (we just use all currently-enabled extras).
+- No copy/i18n changes. No palette changes. No behavior changes — purely structural refactor + brand consistency.
+- Quiz inner question screens keep their `max-w-md` reading column; only the outer shell unifies.
 
-## Files touched
+## Files
 
-- `functions/api/process-document.ts`
-- `src/pages/BulkImport.tsx`
-- `.github/AI_IMPORT_FORMAT.md`
+- new: `src/components/layout/{PageShell,PageHeader,PageContainer,PageFooter,Wordmark,SerifHeading,index}.tsx`
+- edit: `src/pages/{Index,Quiz,BulkImport,QuizHistory,Privacy,Landing}.tsx`
+- edit: `src/index.css`, `tailwind.config.ts`
