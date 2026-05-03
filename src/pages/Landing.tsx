@@ -84,8 +84,7 @@ const Landing = () => {
             Ordsamling.
           </h1>
           <p className="font-serif italic text-lg sm:text-2xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            A minimalist language notebook designed to rescue your Danish and
-            English vocabulary from being forgotten.
+            Your personal Danish vocabulary notebook.
           </p>
 
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
