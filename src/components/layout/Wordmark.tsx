@@ -34,6 +34,7 @@ export const Wordmark = ({
   to,
   asLink = true,
   className,
+  withIcon = true,
 }: WordmarkProps) => {
   const location = useLocation();
   const inApp =
@@ -42,22 +43,30 @@ export const Wordmark = ({
     location.pathname.startsWith("/import");
   const target = to ?? (inApp ? "/app" : "/");
 
-  const text = (
-    <span
-      className={cn(
-        "font-serif text-foreground tracking-tight",
-        SIZE_CLASSES[size],
-        className,
+  const content = (
+    <span className={cn("inline-flex items-center gap-1.5 sm:gap-2")}>
+      {withIcon && (
+        <BookOpen
+          className={cn("text-primary shrink-0", ICON_CLASSES[size])}
+          aria-hidden
+        />
       )}
-    >
-      Ordsamling.
+      <span
+        className={cn(
+          "font-serif text-foreground tracking-tight leading-none",
+          SIZE_CLASSES[size],
+          className,
+        )}
+      >
+        Ordsamling.
+      </span>
     </span>
   );
 
-  if (!asLink) return text;
+  if (!asLink) return content;
   return (
-    <Link to={target} className="inline-flex items-baseline" aria-label="Ordsamling">
-      {text}
+    <Link to={target} className="inline-flex items-center" aria-label="Ordsamling">
+      {content}
     </Link>
   );
 };
