@@ -7,7 +7,8 @@ import type { LexisEntry, EntryType } from "@/hooks/useLexicon";
 import { ENTRY_TYPES, entryTypeLabel, pruneGrammar, type EntryGrammar } from "@/lib/lexicon";
 import { GrammarFields } from "@/components/EntryGrammar";
 import { t } from "@/i18n";
-import { useVisibleLanguages } from "@/hooks/useVisibleLanguages";
+import { useExtraLanguages } from "@/hooks/useVisibleLanguages";
+import { getLanguageLabel } from "@/lib/settings";
 
 interface Props {
   onAdd: (entry: Omit<LexisEntry, "id" | "createdAt">) => Promise<void>;
@@ -20,41 +21,45 @@ interface Props {
 export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = false }: Props) {
   const [danish, setDanish] = useState("");
   const [english, setEnglish] = useState("");
-  const [italian, setItalian] = useState("");
+  const [translations, setTranslations] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState("");
   const [type, setType] = useState<EntryType>("word");
   const [grammar, setGrammar] = useState<EntryGrammar>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const visibleLangs = useVisibleLanguages();
-  const showDanish = visibleLangs.includes("danish");
-  const showEnglish = visibleLangs.includes("english");
-  const showItalian = visibleLangs.includes("italian");
+  const extraLangs = useExtraLanguages();
 
   const reset = () => {
     setDanish("");
     setEnglish("");
-    setItalian("");
+    setTranslations({});
     setNotes("");
     setType("word");
     setGrammar({});
   };
 
-  const activeQuery = danish || english || italian;
+  const activeQuery =
+    danish || english || Object.values(translations).find(Boolean) || "";
   const matches = useMemo(() => findMatches(activeQuery), [findMatches, activeQuery]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!danish.trim() && !english.trim() && !italian.trim()) return;
+    const anyTranslation = Object.values(translations).some((v) => v.trim());
+    if (!danish.trim() && !english.trim() && !anyTranslation) return;
     setIsSubmitting(true);
 
     try {
       const g = pruneGrammar(grammar);
+      const cleanedTranslations: Record<string, string> = {};
+      for (const [code, val] of Object.entries(translations)) {
+        const v = val.trim();
+        if (v) cleanedTranslations[code] = v;
+      }
       await onAdd({
         danish: danish.trim(),
         english: english.trim(),
-        italian: italian.trim(),
         notes: notes.trim(),
         type,
+        ...(Object.keys(cleanedTranslations).length > 0 ? { translations: cleanedTranslations } : {}),
         ...(g ? { grammar: g } : {}),
       });
       reset();
@@ -63,6 +68,8 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
       setIsSubmitting(false);
     }
   };
+
+  const showExtras = extraLangs.length > 0;
 
   return (
     <form
@@ -105,53 +112,49 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
         ))}
       </div>
 
-      {showDanish && (
-        <div className="space-y-1 min-w-0">
-          <span className="sr-only">{t("directions.danish")}</span>
-          <Input
-            value={danish}
-            onChange={(e) => setDanish(e.target.value)}
-            placeholder={t("addEntry.danishPlaceholder")}
-            autoFocus
-            disabled={disabled || isSubmitting}
-            className="text-base font-medium min-w-0"
-          />
-        </div>
-      )}
+      <div className="space-y-1 min-w-0">
+        <span className="sr-only">{t("directions.danish")}</span>
+        <Input
+          value={danish}
+          onChange={(e) => setDanish(e.target.value)}
+          placeholder={t("addEntry.danishPlaceholder")}
+          autoFocus
+          disabled={disabled || isSubmitting}
+          className="text-base font-medium min-w-0"
+        />
+      </div>
 
       <GrammarFields type={type} value={grammar} onChange={setGrammar} disabled={disabled || isSubmitting} />
 
-      {(showEnglish || showItalian) && (
-        <div className="rounded-md border border-border bg-muted/25 p-2.5 space-y-2 min-w-0">
-          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t("addEntry.translations")}</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 min-w-0">
-            {showEnglish && (
-              <div className="min-w-0">
-                <span className="text-[10px] font-medium text-lang-en uppercase tracking-wider">{t("lexisCard.english")}</span>
-                <Input
-                  value={english}
-                  onChange={(e) => setEnglish(e.target.value)}
-                  placeholder={t("addEntry.englishPlaceholder")}
-                  disabled={disabled || isSubmitting}
-                  className="mt-0.5 min-w-0"
-                />
-              </div>
-            )}
-            {showItalian && (
-              <div className="min-w-0">
-                <span className="text-[10px] font-medium text-lang-it uppercase tracking-wider">{t("lexisCard.italian")}</span>
-                <Input
-                  value={italian}
-                  onChange={(e) => setItalian(e.target.value)}
-                  placeholder={t("addEntry.italianPlaceholder")}
-                  disabled={disabled || isSubmitting}
-                  className="mt-0.5 min-w-0"
-                />
-              </div>
-            )}
+      <div className="rounded-md border border-border bg-muted/25 p-2.5 space-y-2 min-w-0">
+        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t("addEntry.translations")}</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 min-w-0">
+          <div className="min-w-0">
+            <span className="text-[10px] font-medium text-lang-en uppercase tracking-wider">{t("lexisCard.english")}</span>
+            <Input
+              value={english}
+              onChange={(e) => setEnglish(e.target.value)}
+              placeholder={t("addEntry.englishPlaceholder")}
+              disabled={disabled || isSubmitting}
+              className="mt-0.5 min-w-0"
+            />
           </div>
+          {showExtras && extraLangs.map((code) => (
+            <div key={code} className="min-w-0">
+              <span className="text-[10px] font-medium text-lang-it uppercase tracking-wider">{getLanguageLabel(code)}</span>
+              <Input
+                value={translations[code] ?? ""}
+                onChange={(e) =>
+                  setTranslations((prev) => ({ ...prev, [code]: e.target.value }))
+                }
+                placeholder={getLanguageLabel(code)}
+                disabled={disabled || isSubmitting}
+                className="mt-0.5 min-w-0"
+              />
+            </div>
+          ))}
         </div>
-      )}
+      </div>
 
       {matches.length > 0 && (
         <div className="rounded-md border border-primary/20 bg-accent/50 p-2.5 space-y-2 min-w-0">
@@ -170,7 +173,9 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
               <span className="truncate min-w-0">
                 <span className="text-lang-da">{m.danish}</span>
                 {m.english && <span className="text-muted-foreground"> · {m.english}</span>}
-                {m.italian && <span className="text-muted-foreground"> · {m.italian}</span>}
+                {m.translations && Object.values(m.translations).filter(Boolean).slice(0, 1).map((v, i) => (
+                  <span key={i} className="text-muted-foreground"> · {v}</span>
+                ))}
               </span>
               <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
             </button>
