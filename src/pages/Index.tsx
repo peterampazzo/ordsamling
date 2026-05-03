@@ -1,6 +1,8 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Search, BookOpen, ArrowDownAZ, Clock, Plus, Upload, Brain, X, Filter, Settings as SettingsIcon, Github } from "lucide-react";
+import { Search, BookOpen, ArrowDownAZ, Clock, Plus, Upload, Brain, X, Filter, Settings as SettingsIcon } from "lucide-react";
+import { Github } from "lucide-react";
+import { CloudSyncIndicator } from "@/components/CloudSyncIndicator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -12,7 +14,9 @@ import { useLexicon } from "@/hooks/useLexicon";
 import { AddEntryForm } from "@/components/AddEntryForm";
 import { LexisCard } from "@/components/LexisCard";
 import { SettingsDialog } from "@/components/SettingsDialog";
+import { useGoogleSheets } from "@/hooks/useGoogleSheets";
 import { isDemoMode } from "@/lib/demo";
+import { registerPushQuizSession } from "@/lib/quizHistory";
 import type { LexisEntry } from "@/hooks/useLexicon";
 import { ENTRY_TYPES, entryTypeLabel, stripInfinitiveMarker, type EntryType } from "@/lib/lexicon";
 
@@ -54,12 +58,18 @@ const Index = () => {
     isLoading,
     isSaving,
   } = useLexicon();
+  const { syncState, connect, disconnect, pushQuizSession } = useGoogleSheets();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [addFormOpen, setAddFormOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sort, setSort] = useState<SortMode>("alpha");
   const [typeFilters, setTypeFilters] = useState<Set<EntryType>>(new Set());
   const demo = isDemoMode();
+
+  // Task 9.3 — register pushQuizSession so quizHistory module can push to Sheets
+  useEffect(() => {
+    registerPushQuizSession(pushQuizSession);
+  }, [pushQuizSession]);
 
   const toggleTypeFilter = (type: EntryType) => {
     setTypeFilters((prev) => {
@@ -119,6 +129,11 @@ const Index = () => {
               <span className="text-xs text-muted-foreground tabular-nums mr-1" title={t("common.wordCount", { count: allEntries.length })}>
                 {t("common.wordCount", { count: allEntries.length })}
               </span>
+              <CloudSyncIndicator
+                status={syncState.status}
+                lastSyncAt={syncState.lastSyncAt}
+                onClick={() => setSettingsOpen(true)}
+              />
               <Button
                 type="button"
                 size="icon"
@@ -128,18 +143,6 @@ const Index = () => {
                 aria-label={t("settings.title")}
               >
                 <SettingsIcon className="h-4 w-4" />
-              </Button>
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8"
-                asChild
-                aria-label="GitHub"
-              >
-                <a href="https://github.com/peterampazzo/ordsamling/" target="_blank" rel="noreferrer">
-                  <Github className="h-4 w-4" />
-                </a>
               </Button>
             </div>
           </div>
@@ -418,7 +421,35 @@ const Index = () => {
           </div>
         )}
       </main>
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} entries={allEntries} />
+      <SettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        entries={allEntries}
+        syncState={syncState}
+        onConnect={connect}
+        onDisconnect={disconnect}
+      />
+
+      <footer className="border-t border-border mt-8">
+        <div className="max-w-3xl mx-auto px-3 sm:px-4 py-4 flex items-center justify-end gap-4">
+          <a
+            href="https://github.com/peterampazzo/ordsamling/"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="GitHub"
+          >
+            <Github className="h-3.5 w-3.5" />
+            GitHub
+          </a>
+          <Link
+            to="/privacy"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Privacy Policy
+          </Link>
+        </div>
+      </footer>
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/components/ui/sonner";
 import {
@@ -11,11 +11,12 @@ import {
   type LexisEntry,
   type LexisEntryInput,
 } from "@/lib/lexicon";
-import { getEntriesStorageKey, isDemoMode } from "@/lib/demo";
+import { getEntriesStorageKey } from "@/lib/demo";
+import { useGoogleSheets } from "@/hooks/useGoogleSheets";
 
 export type { EntryGrammar, EntryType, LexisEntry } from "@/lib/lexicon";
 
-const ENTRIES_QUERY_KEY = ["entries"];
+export const ENTRIES_QUERY_KEY = ["entries"];
 
 function normalizeEntry(entry: Partial<LexisEntry> & { italian?: unknown }): LexisEntry {
   // Migrate legacy `italian` field → translations.it
@@ -59,65 +60,17 @@ function saveLocalEntries(entries: LexisEntry[]) {
   localStorage.setItem(getEntriesStorageKey(), JSON.stringify(entries));
 }
 
-async function requestJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
-  const response = await fetch(input, init);
-
-  if (!response.ok) {
-    let message = "Request failed.";
-
-    try {
-      const body = (await response.json()) as { error?: string };
-      if (body.error) {
-        message = body.error;
-      }
-    } catch {
-      // Ignore JSON parsing failures and fall back to the default message.
-    }
-
-    throw new Error(message);
-  }
-
-  return (await response.json()) as T;
-}
-
-export function isLocalStorageMode() {
-  // Demo always runs purely from local storage and never hits the API
-  if (isDemoMode()) return true;
-  return import.meta.env.DEV || window.location.hostname.endsWith(".pages.dev");
-}
-
+// Task 8.5 — always use localStorage, no KV API branch
 async function fetchEntries(): Promise<LexisEntry[]> {
-  if (isLocalStorageMode()) {
-    return loadLocalEntries();
-  }
-
-  const response = await requestJson<{ entries: LexisEntry[] }>("/api/entries");
-  const entries = response.entries.map((entry) => normalizeEntry(entry));
-  saveLocalEntries(entries);
-
-  // One-time KV migration: persist verbs whose stored danish/english still contains "at "/"to ".
-  for (const raw of response.entries) {
-    if (raw.type !== "verb") continue;
-    const daRaw = typeof raw.danish === "string" ? raw.danish : "";
-    const enRaw = typeof raw.english === "string" ? raw.english : "";
-    const daClean = stripInfinitiveMarker(daRaw, "da");
-    const enClean = stripInfinitiveMarker(enRaw, "en");
-    if (daClean !== daRaw || enClean !== enRaw) {
-      // Fire-and-forget; failures are non-fatal (display already uses cleaned values).
-      fetch(`/api/entries/${raw.id}`, {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ danish: daClean, english: enClean }),
-      }).catch(() => {});
-    }
-  }
-
-  return entries;
+  return loadLocalEntries();
 }
 
 export function useLexicon() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+
+  // Task 8.1 — call useGoogleSheets internally to get pushEntry and syncNow
+  const { pushEntry, syncNow } = useGoogleSheets();
 
   const entriesQuery = useQuery({
     queryKey: ENTRIES_QUERY_KEY,
@@ -127,37 +80,44 @@ export function useLexicon() {
 
   const allEntries = useMemo(() => entriesQuery.data || [], [entriesQuery.data]);
 
+  // Task 8.6 — trigger syncNow on mount (no-op if not in cloud sync mode)
+  useEffect(() => {
+    void syncNow();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Task 8.6 — listen for entries-synced event and invalidate React Query cache
+  useEffect(() => {
+    function handleEntriesSynced() {
+      queryClient.invalidateQueries({ queryKey: ENTRIES_QUERY_KEY });
+    }
+    window.addEventListener("ordsamling:entries-synced", handleEntriesSynced);
+    return () => window.removeEventListener("ordsamling:entries-synced", handleEntriesSynced);
+  }, [queryClient]);
+
+  // Task 8.5 — always use localStorage path (no isLocalStorageMode branch)
   const addMutation = useMutation({
     mutationFn: async (entry: LexisEntryInput) => {
-      if (isLocalStorageMode()) {
-        const createdEntry = normalizeEntry({
-          ...entry,
-          id: crypto.randomUUID(),
-          createdAt: Date.now(),
-        });
-        const nextEntries = [createdEntry, ...loadLocalEntries()];
-        saveLocalEntries(nextEntries);
-        return createdEntry;
-      }
-
-      const response = await requestJson<{ entry: LexisEntry }>("/api/entries", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify(entry),
+      const createdEntry = normalizeEntry({
+        ...entry,
+        id: crypto.randomUUID(),
+        createdAt: Date.now(),
       });
-
-      return normalizeEntry(response.entry);
+      const nextEntries = [createdEntry, ...loadLocalEntries()];
+      saveLocalEntries(nextEntries);
+      return createdEntry;
     },
-    onSuccess: () => {
+    onSuccess: (createdEntry) => {
       queryClient.invalidateQueries({ queryKey: ENTRIES_QUERY_KEY });
+      // Task 8.2 — push to Sheets after add
+      pushEntry(createdEntry, "add");
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Could not save entry.");
     },
   });
 
+  // Task 8.5 — always use localStorage path (no isLocalStorageMode branch)
   const updateMutation = useMutation({
     mutationFn: async ({
       id,
@@ -166,62 +126,45 @@ export function useLexicon() {
       id: string;
       updates: Partial<LexisEntryInput> & { grammar?: LexisEntry["grammar"] | null };
     }) => {
-      if (isLocalStorageMode()) {
-        const nextEntries = loadLocalEntries().map((entry) => {
-          if (entry.id !== id) return entry;
-          const merged: LexisEntry = { ...entry, ...updates };
-          if (updates.grammar === null) {
-            delete merged.grammar;
-          } else if (updates.grammar !== undefined) {
-            merged.grammar = updates.grammar;
-          }
-          return normalizeEntry(merged);
-        });
-        saveLocalEntries(nextEntries);
-        return nextEntries.find((entry) => entry.id === id) || null;
-      }
-
-      const body: Record<string, unknown> = { ...updates };
-      if ("grammar" in updates) {
-        body.grammar = updates.grammar === undefined || updates.grammar === null ? null : updates.grammar;
-      }
-
-      const response = await requestJson<{ entry: LexisEntry }>(`/api/entries/${id}`, {
-        method: "PUT",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify(body),
+      const nextEntries = loadLocalEntries().map((entry) => {
+        if (entry.id !== id) return entry;
+        const merged: LexisEntry = { ...entry, ...updates };
+        if (updates.grammar === null) {
+          delete merged.grammar;
+        } else if (updates.grammar !== undefined) {
+          merged.grammar = updates.grammar;
+        }
+        return normalizeEntry(merged);
       });
-
-      return normalizeEntry(response.entry);
+      saveLocalEntries(nextEntries);
+      return nextEntries.find((entry) => entry.id === id) || null;
     },
-    onSuccess: () => {
+    onSuccess: (updatedEntry) => {
       queryClient.invalidateQueries({ queryKey: ENTRIES_QUERY_KEY });
+      // Task 8.3 — push to Sheets after update
+      if (updatedEntry !== null) {
+        pushEntry(updatedEntry, "update");
+      }
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Could not update entry.");
     },
   });
 
+  // Task 8.5 — always use localStorage path (no isLocalStorageMode branch)
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      if (isLocalStorageMode()) {
-        const nextEntries = loadLocalEntries().filter((entry) => entry.id !== id);
-        saveLocalEntries(nextEntries);
-        return;
-      }
-
-      const response = await fetch(`/api/entries/${id}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        throw new Error("Could not delete entry.");
-      }
+      const nextEntries = loadLocalEntries().filter((entry) => entry.id !== id);
+      saveLocalEntries(nextEntries);
+      return id;
     },
-    onSuccess: () => {
+    onSuccess: (id) => {
       queryClient.invalidateQueries({ queryKey: ENTRIES_QUERY_KEY });
+      // Task 8.4 — push to Sheets after delete (minimal entry with just the id)
+      pushEntry(
+        { id, danish: "", english: "", notes: "", type: "word" as const, createdAt: 0 },
+        "delete",
+      );
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Could not delete entry.");

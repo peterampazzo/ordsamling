@@ -27,6 +27,7 @@ dist-ssr
 
 # Cloudflare
 .wrangler
+.dev.vars
 
 # Local state files – never commit these
 terraform.tfstate

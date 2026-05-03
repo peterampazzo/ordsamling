@@ -225,6 +225,12 @@ const Landing = () => {
           <p className="font-serif text-sm text-foreground">Ordsamling</p>
           <div className="flex items-center gap-4">
             <span>{t("landing.footerCredit")}</span>
+            <Link
+              to="/privacy"
+              className="hover:text-foreground transition-colors"
+            >
+              Privacy Policy
+            </Link>
             <a
               href={GITHUB_URL}
               target="_blank"

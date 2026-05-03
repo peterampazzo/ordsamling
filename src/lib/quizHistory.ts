@@ -1,5 +1,4 @@
 const STORAGE_KEY = "lexikon-quiz-history";
-const HISTORY_API = "/api/quiz/history";
 
 export interface QuizAnswerRecord {
   prompt: string;
@@ -23,9 +22,19 @@ export interface QuizSessionRecord {
   answers: QuizAnswerRecord[];
 }
 
-function isLocalStorageMode() {
-  return import.meta.env.DEV || window.location.hostname.endsWith(".pages.dev");
+// ---------------------------------------------------------------------------
+// Task 9.1 — Module-level sync callback set by the app when cloud sync is active
+// ---------------------------------------------------------------------------
+
+let _pushQuizSession: ((session: QuizSessionRecord) => void) | null = null;
+
+export function registerPushQuizSession(fn: (session: QuizSessionRecord) => void): void {
+  _pushQuizSession = fn;
 }
+
+// ---------------------------------------------------------------------------
+// Local storage helpers
+// ---------------------------------------------------------------------------
 
 function getLocalHistory(): QuizSessionRecord[] {
   try {
@@ -40,82 +49,30 @@ function saveLocalHistory(history: QuizSessionRecord[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
 }
 
-async function requestJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
-  const response = await fetch(input, init);
-
-  if (!response.ok) {
-    let message = "Request failed.";
-
-    try {
-      const body = (await response.json()) as { error?: string };
-      if (body.error) {
-        message = body.error;
-      }
-    } catch {
-      // Ignore JSON parse errors and use generic message
-    }
-
-    throw new Error(message);
-  }
-
-  return (await response.json()) as T;
-}
+// ---------------------------------------------------------------------------
+// Task 9.2 — Always use localStorage (no isLocalStorageMode branch)
+// ---------------------------------------------------------------------------
 
 export function loadHistory(): QuizSessionRecord[] {
   return getLocalHistory();
 }
 
 export async function fetchHistory(): Promise<QuizSessionRecord[]> {
-  if (isLocalStorageMode()) {
-    return getLocalHistory();
-  }
-
-  try {
-    const data = await requestJson<{ history: QuizSessionRecord[] }>(HISTORY_API);
-    const history = Array.isArray(data.history) ? data.history : [];
-    saveLocalHistory(history);
-    return history;
-  } catch {
-    return getLocalHistory();
-  }
+  return getLocalHistory();
 }
 
-export async function saveSession(session: QuizSessionRecord) {
-  if (isLocalStorageMode()) {
-    const history = getLocalHistory();
-    history.unshift(session);
-    if (history.length > 50) history.length = 50;
-    saveLocalHistory(history);
-    return;
-  }
-
-  try {
-    const data = await requestJson<{ history: QuizSessionRecord[] }>(HISTORY_API, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(session),
-    });
-    const history = Array.isArray(data.history) ? data.history : [session];
-    saveLocalHistory(history);
-  } catch {
-    const history = getLocalHistory();
-    history.unshift(session);
-    if (history.length > 50) history.length = 50;
-    saveLocalHistory(history);
+export async function saveSession(session: QuizSessionRecord): Promise<void> {
+  const history = getLocalHistory();
+  history.unshift(session);
+  if (history.length > 50) history.length = 50;
+  saveLocalHistory(history);
+  // Task 9.1 — push to Sheets if registered
+  if (_pushQuizSession) {
+    _pushQuizSession(session);
   }
 }
 
 export async function clearHistory() {
-  if (isLocalStorageMode()) {
-    localStorage.removeItem(STORAGE_KEY);
-    return;
-  }
-
-  try {
-    await fetch(HISTORY_API, { method: "DELETE" });
-  } catch {
-    // ignore network errors, still clear local cache
-  }
   localStorage.removeItem(STORAGE_KEY);
 }
 

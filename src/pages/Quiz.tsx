@@ -19,7 +19,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-import { useLexicon, isLocalStorageMode } from "@/hooks/useLexicon";
+import { useLexicon } from "@/hooks/useLexicon";
+import { fetchDistractors, GeminiKeyMissingError } from "@/lib/gemini";import { toast } from "@/components/ui/sonner";
 import type { LexisEntry } from "@/hooks/useLexicon";
 import { entryTypeLabel, type EntryGrammar } from "@/lib/lexicon";
 import { saveSession, type QuizAnswerRecord } from "@/lib/quizHistory";
@@ -321,15 +322,13 @@ function buildQuestions(
 /*  AI Distractors                                                     */
 /* ------------------------------------------------------------------ */
 
+let _aiKeyToastShown = false;
+
 async function fetchSmartDistractors(
   question: QuizQuestion,
   difficulty: Difficulty,
   scoreRatio: number,
 ): Promise<{ distractors: string[]; aiActive: boolean }> {
-  if (isLocalStorageMode()) {
-    return { distractors: [], aiActive: false };
-  }
-
   const trimmed = question.answer.trim();
   const lower = trimmed.toLowerCase();
   let answerPrefix: string | undefined;
@@ -337,31 +336,29 @@ async function fetchSmartDistractors(
   else if (lower.startsWith("to ")) answerPrefix = "to";
 
   try {
-    const res = await fetch("/api/quiz/distractors", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        correctAnswer: question.answer,
-        questionType: question.questionType,
-        entryType: question.entry.type,
-        difficulty,
-        scoreRatio,
-        prompt: question.prompt,
-        answerLang: question.direction.to,
-        existingAnswers: question.options,
-        answerPrefix,
-      }),
+    const distractors = await fetchDistractors({
+      correctAnswer: question.answer,
+      questionType: question.questionType,
+      entryType: question.entry.type,
+      difficulty,
+      scoreRatio,
+      prompt: question.prompt,
+      answerLang: question.direction.to,
+      existingAnswers: question.options,
+      answerPrefix,
     });
-    // Silent fallback on auth errors — never surface to user
-    if (res.status === 401 || res.status === 403) return { distractors: [], aiActive: false };
-    if (!res.ok) return { distractors: [], aiActive: false };
-    const data = (await res.json()) as { distractors: string[] };
     const correctAlts = new Set(splitAlternatives(question.answer).map(normalize));
-    const filtered = (data.distractors || []).filter(
+    const filtered = distractors.filter(
       (d) => isValid(d) && !correctAlts.has(normalize(d)) && normalize(d) !== normalize(question.answer),
     );
     return { distractors: filtered, aiActive: filtered.length > 0 };
-  } catch {
+  } catch (err) {
+    if (err instanceof GeminiKeyMissingError) {
+      if (!_aiKeyToastShown) {
+        _aiKeyToastShown = true;
+        toast("Add a Gemini API key in Settings to enable AI distractors");
+      }
+    }
     return { distractors: [], aiActive: false };
   }
 }

@@ -2,10 +2,6 @@ name = "ordsamling"
 compatibility_date = "2026-04-04"
 pages_build_output_dir = "dist"
 
-[[kv_namespaces]]
-binding = "LEXICON"
-id = "cc3580554ee4412aafaa6a1898d715ca"
-preview_id = "d5391bd73a044d8c93e0298d38bf4ac6"
-
-[ai]
-binding = "AI"
+# Secret environment variables (set in Cloudflare Pages dashboard, never committed):
+#   GOOGLE_CLIENT_ID     — OAuth 2.0 client ID (also set as VITE_GOOGLE_CLIENT_ID at build time)
+#   GOOGLE_CLIENT_SECRET — OAuth 2.0 client secret (server-side only, never sent to browser)
