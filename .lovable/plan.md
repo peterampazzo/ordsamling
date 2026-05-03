@@ -1,63 +1,49 @@
-# Landing page copy — easy language pass
+## Goal
 
-Goal: keep the warm, personal voice but use shorter, simpler sentences. No clever wordplay, no jargon. Same structure, same keys — only the strings change in `src/i18n/en.yaml` and `src/i18n/da.yaml`.
+Make the AI document processor aware of the user's enabled extra languages so it generates translations for exactly the languages the user has turned on (e.g. `fr`, `de`), instead of hardcoding Italian.
 
-## English (`src/i18n/en.yaml`)
+## How it works today
 
-| Key | New value |
-|---|---|
-| `eyebrow` | Your little Danish dictionary |
-| `tagline` | No more excuses for forgetting a Danish word. Save it here, find it later, practice when you want. |
-| `startCollecting` | Start your dictionary |
-| `tryDemo` | Take a peek |
-| `noAccount` | No sign-up. Nothing to install. |
-| `featuresEyebrow` | What's inside |
-| `featuresTitle` | Small, simple, and made for you. |
-| `feature1Title` | Save a word |
-| `feature1Body` | Heard a new word at the bakery or in class? Add it in seconds, before you forget. |
-| `feature2Title` | Danish made clear |
-| `feature2Body` | en/et, verb forms, adjective endings — all kept next to each word. |
-| `feature3Title` | Practice when you want |
-| `feature3Body` | Quiz yourself on your own words. No streaks, no pressure. |
-| `feature4Title` | Helps you with the hard ones |
-| `feature4Body` | Words you often miss show up first, so practice goes where it helps. |
-| `privacyTitle` | All yours. |
-| `privacyBody` | Your words stay on your device. No tracking. You can save a copy anytime. |
-| `ctaTitle` | Start your dictionary today. |
-| `ctaBody` | One word today. Many more tomorrow. |
-| `footerCredit` | Made with care, and a little help from AI. |
+- `process-document.ts` always asks the AI for `english` + `italian` and writes a top-level `italian` field on each entry.
+- The new data model has no `italian` field — translations live under `translations: { [code]: text }`.
+- Enabled extra languages are stored client-side in `localStorage` (`getExtraLanguages()` in `src/lib/settings.ts`). The Worker has no way to know them unless the client sends them.
 
-(Unchanged: `openApp`, `github`, `feature3Badge`, `openOrdsamling`, `footerGithub`.)
+## Changes
 
-## Dansk (`src/i18n/da.yaml`)
+### 1. Client sends enabled languages
 
-| Nøgle | Ny tekst |
-|---|---|
-| `eyebrow` | Din lille danske ordbog |
-| `tagline` | Ingen flere undskyldninger for at glemme et dansk ord. Gem det her, find det igen, øv når du vil. |
-| `startCollecting` | Start din ordbog |
-| `tryDemo` | Kig indenfor |
-| `noAccount` | Ingen tilmelding. Intet at installere. |
-| `featuresEyebrow` | Hvad der er indeni |
-| `featuresTitle` | Lille, enkel og lavet til dig. |
-| `feature1Title` | Gem et ord |
-| `feature1Body` | Hørte du et nyt ord hos bageren eller i skolen? Tilføj det på et øjeblik, før du glemmer det. |
-| `feature2Title` | Dansk gjort tydeligt |
-| `feature2Body` | en/et, verbumsformer, adjektivbøjninger — alt sammen ved siden af hvert ord. |
-| `feature3Title` | Øv når du vil |
-| `feature3Body` | Quiz dig selv i dine egne ord. Ingen streaks, ingen pres. |
-| `feature4Title` | Hjælper med de svære |
-| `feature4Body` | Ord du tit glemmer, kommer øverst, så øvelsen lander der, hvor den hjælper. |
-| `privacyTitle` | Helt dine. |
-| `privacyBody` | Dine ord bliver på din enhed. Ingen sporing. Du kan altid gemme en kopi. |
-| `ctaTitle` | Start din ordbog i dag. |
-| `ctaBody` | Ét ord i dag. Mange flere i morgen. |
-| `footerCredit` | Lavet med omhu — og en lille hånd fra AI. |
+In `src/pages/BulkImport.tsx`, when calling `/api/process-document`:
+- Read `getExtraLanguages()` from settings.
+- Append them to the FormData as `languages` (comma-separated ISO codes, e.g. `fr,de`).
 
-(Uændret: `openApp`, `github`, `feature3Badge`, `openOrdsamling`, `footerGithub`.)
+### 2. Worker uses them in the prompt
 
-## Notes
+In `functions/api/process-document.ts`:
+- Parse the `languages` form field; validate each as a 2–3 letter lowercase code; cap to a reasonable max (e.g. 5) to limit prompt size.
+- Update `processWord()` prompt to ask for `english` plus one field per requested code, returning a JSON shape like:
+  ```json
+  { "english": "...", "type": "...", "notes": "...", "translations": { "fr": "...", "de": "..." } }
+  ```
+- Map the response into `LexisEntryInput` with `translations: { ... }` (only include non-empty strings). Drop the old top-level `italian` field entirely.
+- Remove `italian` from the `LexisEntry` interface and `readEntries()` normalization in this file (matches the rest of the codebase).
 
-- Only string edits in two YAML files. No component or layout changes.
-- Sentence length kept short (≤12 words where possible), no idioms, no metaphors that need decoding.
-- Approve and I'll apply both files in one pass.
+### 3. Bulk import preview supports extra translations
+
+So results returned from `/api/process-document` actually round-trip:
+- In `BulkImport.tsx`, accept `translations` on incoming entries from the document processor and pass them through to `addEntry`.
+
+### 4. Outdated examples / docs (related cleanup)
+
+- Replace `EXAMPLE_INPUT` and `EXAMPLE_JSON` in `BulkImport.tsx`: drop Italian, show Danish + English with an optional `translations: { fr: "..." }` example.
+- Update `.github/AI_IMPORT_FORMAT.md` to remove `italian`, document the `translations` object, and refresh the JSON / CSV examples.
+
+## Out of scope
+
+- Changing how CSV columns map to extra languages (separate question — can follow up if you want generic `xx` columns to map into `translations`).
+- Any UI for picking which subset of enabled languages to use for a given import (we just use all currently-enabled extras).
+
+## Files touched
+
+- `functions/api/process-document.ts`
+- `src/pages/BulkImport.tsx`
+- `.github/AI_IMPORT_FORMAT.md`
