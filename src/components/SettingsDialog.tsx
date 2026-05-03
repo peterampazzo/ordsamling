@@ -46,6 +46,14 @@ export function SettingsDialog({ open, onOpenChange, entries }: SettingsDialogPr
   const [provider] = useState<AiProvider>(getAiProvider());
   const [apiKey] = useState<string>(getAiKey());
   const [pendingAdd, setPendingAdd] = useState<string>("");
+  const [uiLang, setUiLang] = useState<string>(getLang());
+
+  const switchUiLang = (l: string) => {
+    setLang(l);
+    setUiLang(l);
+    // Force re-render of all consumers since t() reads a module-level value.
+    setTimeout(() => window.location.reload(), 30);
+  };
 
   useEffect(() => {
     if (open) {
