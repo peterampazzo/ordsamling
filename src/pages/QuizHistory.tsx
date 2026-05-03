@@ -1,7 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Link } from "react-router-dom";
 import {
-  ArrowLeft,
   History,
   CheckCircle2,
   XCircle,
