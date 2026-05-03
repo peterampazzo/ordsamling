@@ -1034,7 +1034,7 @@ export default function BulkImport() {
                 {t("bulkImport.analyze")}
               </Button>
             </div>
-          </div>
+          </section>
         )}
 
         {/* Preview table */}
