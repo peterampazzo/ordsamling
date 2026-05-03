@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 const GITHUB_URL = "https://github.com/peterampazzo/ordsamling/";
 
 const Landing = () => {
+  const location = useLocation();
   const [lang, setLangState] = useState(getLang());
 
   useEffect(() => {
