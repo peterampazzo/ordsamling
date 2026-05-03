@@ -182,6 +182,16 @@ bulkImport:
   serverError: "The server returned an unexpected response. Try again with a smaller file, or paste the text below."
   authRequired: "You must be signed in to use document processing."
   translationCol: "Translation ({lang})"
+  uploadIntro: "Drop a document here, or click to browse"
+  uploadHint: "Accepts .txt, .md, or .docx — up to a few pages"
+  uploadProcessing: "Reading your document…"
+  uploadChooseFile: "Choose file"
+  keyMissingTitle: "Unlock document upload"
+  keyMissingBody: "Document upload uses Gemini AI to extract new words and translate them. Add your free API key in Settings to turn it on."
+  keyMissingCta: "Open Settings"
+  formatHelpToggle: "Accepted formats & fields"
+  pasteSectionTitle: "Or paste data manually"
+  pasteSectionDescription: "Paste CSV, TSV, JSON or JSONL — the first row should contain column names."
 
 notFound:
   title: "404"

@@ -1,56 +1,45 @@
 ## Goal
 
-Reduce duplicated layout code across pages and unify the brand. Today the sticky header markup, container widths, footer, and `Ordsamling.` wordmark are copy-pasted (and drift) across 6 pages. Extract them into shared primitives so every page composes the same building blocks.
+Make `/import` feel calmer and more on-brand without touching the parsing/AI/import logic. Also gate the document upload so it's clearly disabled (and explained) when the Gemini API key isn't set.
 
-## New shared components (`src/components/layout/`)
+## Changes — `src/pages/BulkImport.tsx` (UI only)
 
-### `PageShell.tsx`
-Wraps a page: `min-h-screen bg-background text-foreground` + flex column. Props: `children`, optional `footer` slot.
+Reorder the page into a clearer top-to-bottom flow:
 
-### `PageHeader.tsx`
-The sticky header. Locks the visual contract:
-`sticky top-0 z-30 border-b border-border bg-card/90 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80`.
-Props:
-- `backTo?: string` — renders a back chevron link.
-- `actions?: ReactNode` — right-side slot (sync indicator, settings, GitHub button, etc.).
-- `subRow?: ReactNode` — optional second row (Index search/filters, Quiz progress bar).
-- `width?: "app" | "wide"` — `max-w-3xl` (default) or `max-w-6xl` (Landing).
-Always renders the `<Wordmark />` on the left.
+1. **Document upload (hero card)** — promoted to the top, becomes the primary CTA.
+   - Replace the raw `<input type="file">` with a custom **dropzone**: dashed border, `FileUp` icon, headline + hint, "Choose file" button. Hidden file input wired to the dropzone (drag-and-drop + click).
+   - When `getGeminiApiKey()` returns null: render a **locked state** instead — a muted card with a `Lock` icon, the headline `bulkImport.keyMissingTitle`, body `bulkImport.keyMissingBody`, and a `bulkImport.keyMissingCta` button that scrolls/links to settings (uses `window.dispatchEvent(new Event('ordsamling:open-settings'))` if wired, otherwise a `<Link to="/app">` with toast — fallback: just disable + show explainer). The dropzone visuals stay but with `opacity-50 pointer-events-none` overlay so users still see what's behind the gate.
+   - Progress bar styling unchanged (already nice).
 
-### `Wordmark.tsx`
-The `Ordsamling.` serif brand element. One source of truth for size/weight/link target. Variants: `sm` (in-app headers), `md` (Landing header), `lg` (Landing hero footer line). Links to `/app` from inside the app, `/` from Landing/Privacy (auto-detected via `useLocation`).
+2. **Manual paste (secondary card)** — moved below upload, framed as alternative.
+   - Section title `bulkImport.pasteSectionTitle` with description `bulkImport.pasteSectionDescription`.
+   - Textarea kept, but wrapped in the same card pattern as upload for visual consistency.
+   - "Analyze" button stays.
 
-### `PageContainer.tsx`
-Standard `<main>` wrapper: `max-w-3xl mx-auto px-3 sm:px-4 py-6 sm:py-8`. Variant `wide` for Landing sections.
+3. **Format reference (collapsible)** — wrap the existing "Format" instructions block in a `<details>` collapsed by default with summary `bulkImport.formatHelpToggle`. Keeps the info accessible without dominating the page.
 
-### `PageFooter.tsx`
-The minimal GitHub + Privacy footer Index already has. Used on Index, Quiz, BulkImport, QuizHistory.
+4. **Settings, preview table, results** — unchanged behavior. Light visual polish:
+   - Section headings standardized: small icon + `text-sm font-semibold` (already mostly there).
+   - Use consistent card pattern: `rounded-lg border border-border bg-card p-4 sm:p-5 space-y-3`.
+   - Add a little breathing room: `space-y-8` between top-level sections instead of `space-y-6`.
 
-### `SerifHeading.tsx` (small win)
-`<h1>`/`<h2>`/`<h3>` with consistent serif sizing tokens (`display`, `xl`, `lg`). Replaces the ~10 hand-tuned `font-serif text-... tracking-tight` strings in Landing/Privacy.
+## Changes — i18n
 
-## Refactor pages to use them
+Add to `src/i18n/en.yaml` and mirror in `src/i18n/da.yaml` under `bulkImport:`:
+- `uploadIntro`, `uploadHint`, `uploadProcessing`
+- `keyMissingTitle`, `keyMissingBody`, `keyMissingCta`
+- `formatHelpToggle`
+- `pasteSectionTitle`, `pasteSectionDescription`
 
-- `Index.tsx` — replace inline header/footer with `<PageHeader subRow={...} actions={...} />` + `<PageFooter />`. Drops ~30 lines.
-- `Quiz.tsx` — three duplicated headers collapse into `<PageHeader backTo="/app" />`, with the progress bar passed via `subRow`.
-- `BulkImport.tsx` — same pattern, `<PageHeader backTo="/app" />`.
-- `QuizHistory.tsx` — `<PageHeader backTo="/quiz" />`; standardize to `max-w-3xl` (currently `max-w-2xl`).
-- `Privacy.tsx` — `<PageHeader backTo="/" />` and `<SerifHeading>` for sections.
-- `Landing.tsx` — `<PageHeader width="wide" actions={...} />` using the same `Wordmark`. Section headings use `<SerifHeading>`.
-
-## Cleanup
-
-- Remove the now-dead `--lang-it` CSS var (`src/index.css`) and `lang.it` color (`tailwind.config.ts`) — Italian is forbidden per memory.
-- Delete the `BookOpen` icon from Index header (replaced by wordmark); keep its use in the empty state.
-- Add new layout primitives to `src/components/layout/index.ts` barrel for clean imports.
+Replace the two remaining hardcoded English strings ("Add a Gemini API key in Settings…", "Add a Gemini API key in Settings to use document processing.") with the new i18n keys.
 
 ## Out of scope
 
-- No copy/i18n changes. No palette changes. No behavior changes — purely structural refactor + brand consistency.
-- Quiz inner question screens keep their `max-w-md` reading column; only the outer shell unifies.
+- No changes to `parseInput`, `parseRows`, `parseJsonObjects`, `handleProcessDocument`, `handleParse`, `handleImport`, retry logic, or any data flow.
+- No changes to `functions/api/process-document.ts` or `src/lib/gemini.ts`.
+- No new dependencies.
 
 ## Files
 
-- new: `src/components/layout/{PageShell,PageHeader,PageContainer,PageFooter,Wordmark,SerifHeading,index}.tsx`
-- edit: `src/pages/{Index,Quiz,BulkImport,QuizHistory,Privacy,Landing}.tsx`
-- edit: `src/index.css`, `tailwind.config.ts`
+- edit: `src/pages/BulkImport.tsx`
+- edit: `src/i18n/en.yaml`, `src/i18n/da.yaml`
