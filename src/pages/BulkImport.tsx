@@ -266,7 +266,8 @@ function parseRows(text: string): { rows: ParsedRow[]; headers: string[] } {
   const headerRaw = splitLine(lines[0], delimiter);
   const headers = headerRaw.map((h) => h.replace(/^(["'])(.*)\1$/g, "$2").trim());
 
-  const columnMap: (KnownColumn | null)[] = headers.map(normalizeHeader);
+  type ColKey = KnownColumn | `translations.${string}`;
+  const columnMap: (ColKey | null)[] = headers.map(normalizeHeader);
 
   const rows: ParsedRow[] = [];
 
@@ -276,18 +277,22 @@ function parseRows(text: string): { rows: ParsedRow[]; headers: string[] } {
     const warnings: string[] = [];
 
     const fields: Partial<Record<KnownColumn, string>> = {};
+    const translationFields: Record<string, string> = {};
     for (let c = 0; c < columnMap.length; c++) {
       const col = columnMap[c];
-      if (col) {
-        fields[col] = (raw[c] ?? "").trim();
+      if (!col) continue;
+      const value = (raw[c] ?? "").trim();
+      if (typeof col === "string" && col.startsWith("translations.")) {
+        if (value) translationFields[col.slice("translations.".length)] = value;
+      } else {
+        fields[col as KnownColumn] = value;
       }
     }
 
     const danish = fields.danish ?? "";
     const english = fields.english ?? "";
-    const italian = fields.italian ?? "";
 
-    if (!danish && !english && !italian) {
+    if (!danish && !english) {
       errors.push(t("bulkImport.rowValidationError"));
     }
 
@@ -316,7 +321,7 @@ function parseRows(text: string): { rows: ParsedRow[]; headers: string[] } {
       english,
       notes: fields.notes ?? "",
       type,
-      ...(italian ? { translations: { it: italian } } : {}),
+      ...(Object.keys(translationFields).length > 0 ? { translations: translationFields } : {}),
       ...(Object.keys(grammarFields).length > 0 ? { grammar: grammarFields } : {}),
     };
 
