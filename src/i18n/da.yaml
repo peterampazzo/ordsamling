@@ -204,8 +204,13 @@ demo:
 
 settings:
   title: "Indstillinger"
-  visibilityTitle: "Synlige sprog"
-  visibilityDesc: "Vælg hvilke sprog der vises i kort, formularer og quizzer."
+  visibilityTitle: "Sprog"
+  visibilityDesc: "Dansk og engelsk er altid aktive. Tilføj ekstra sprog efter behov."
+  coreLanguage: "Altid aktiv"
+  addLanguage: "Tilføj sprog"
+  removeLanguage: "Fjern"
+  noMoreLanguages: "Ingen flere sprog tilgængelige"
+  aiDisabledHint: "Ekstern AI er ikke tilgængelig endnu — kommer snart."
   aiTitle: "Ekstern AI-udbyder"
   aiPreview: "Forhåndsvisning"
   aiDesc: "Brug din egen API-nøgle til AI-genererede distraktorer. Kun gemt lokalt i din browser."
