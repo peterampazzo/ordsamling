@@ -71,6 +71,35 @@ const Index = () => {
 
   const sorted = useMemo(() => sortEntries(filtered, sort), [filtered, sort]);
 
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const groups = useMemo(() => {
+    if (sort !== "alpha") return null;
+    const map = new Map<string, LexisEntry[]>();
+    for (const e of sorted) {
+      const word = (e.danish || e.english || "").trim();
+      const ch = word.charAt(0).toLocaleUpperCase("da");
+      const letter = /[A-ZÆØÅ]/.test(ch) ? ch : "#";
+      if (!map.has(letter)) map.set(letter, []);
+      map.get(letter)!.push(e);
+    }
+    return Array.from(map.entries());
+  }, [sorted, sort]);
+
+  const ALPHABET = useMemo(
+    () => ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z","Æ","Ø","Å"],
+    [],
+  );
+  const presentLetters = useMemo(
+    () => new Set(groups?.map(([l]) => l) ?? []),
+    [groups],
+  );
+
+  const jumpTo = (letter: string) => {
+    const el = sectionRefs.current[letter];
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-30 border-b border-border bg-card/90 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80">
