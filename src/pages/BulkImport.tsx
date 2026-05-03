@@ -1200,6 +1200,7 @@ export default function BulkImport() {
           </div>
         )}
       </main>
+      <PageFooter />
     </div>
   );
 }
