@@ -341,6 +341,63 @@ const Index = () => {
               <p>{t("common.noResults", { query: search || (typeFilters.size > 0 ? [...typeFilters].map(entryTypeLabel).join(", ") : "") })}</p>
             )}
           </div>
+        ) : sort === "alpha" && groups ? (
+          <>
+            <nav
+              aria-label="Jump to letter"
+              className="sticky top-[148px] sm:top-[148px] z-20 -mx-3 sm:-mx-4 mb-3 bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70 border-b border-border"
+            >
+              <div className="flex flex-wrap gap-1 px-3 sm:px-4 py-2 justify-center">
+                {ALPHABET.map((l) => {
+                  const has = presentLetters.has(l);
+                  return (
+                    <button
+                      key={l}
+                      type="button"
+                      disabled={!has}
+                      onClick={() => jumpTo(l)}
+                      className={cn(
+                        "h-6 min-w-6 px-1 text-[11px] font-mono tabular-nums rounded transition-colors",
+                        has
+                          ? "text-foreground hover:bg-primary hover:text-primary-foreground"
+                          : "text-muted-foreground/40 cursor-default",
+                      )}
+                    >
+                      {l}
+                    </button>
+                  );
+                })}
+              </div>
+            </nav>
+            <div className="space-y-6">
+              {groups.map(([letter, items]) => (
+                <section
+                  key={letter}
+                  ref={(el) => { sectionRefs.current[letter] = el; }}
+                  aria-label={`Section ${letter}`}
+                  className="scroll-mt-[200px]"
+                >
+                  <h2 className="sticky top-[196px] z-10 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75 font-serif text-2xl text-foreground py-1 mb-2 border-b border-border">
+                    {letter}
+                  </h2>
+                  <div className="space-y-3">
+                    {items.map((entry) => (
+                      <LexisCard
+                        key={entry.id}
+                        entry={entry}
+                        onUpdate={updateEntry}
+                        onDelete={deleteEntry}
+                        linkedWords={findLinkedWords(entry)}
+                        startEditing={editingId === entry.id}
+                        onEditingDone={() => setEditingId(null)}
+                        disabled={isSaving}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </>
         ) : (
           <div className="space-y-3">
             {sorted.map((entry) => (
