@@ -104,7 +104,8 @@ export interface LexisEntry {
   id: string;
   danish: string;
   english: string;
-  italian: string;
+  /** Optional translations for extra languages, keyed by ISO 639-1 code (e.g. "it", "fr"). */
+  translations?: Record<string, string>;
   notes: string;
   type: EntryType;
   grammar?: EntryGrammar;
@@ -112,6 +113,25 @@ export interface LexisEntry {
 }
 
 export type LexisEntryInput = Omit<LexisEntry, "id" | "createdAt">;
+
+/** Read a translation safely (returns empty string when missing). */
+export function getTranslation(entry: Pick<LexisEntry, "translations">, code: string): string {
+  return entry.translations?.[code] ?? "";
+}
+
+/** Normalize a translations map: trim, drop empty/non-string. */
+export function normalizeTranslations(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as Record<string, unknown>;
+  const out: Record<string, string> = {};
+  for (const k of Object.keys(raw)) {
+    const v = raw[k];
+    if (typeof v !== "string") continue;
+    const t = v.trim().slice(0, 240);
+    if (t && /^[a-z]{2,3}$/i.test(k)) out[k.toLowerCase()] = t;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
 
 const MAX_GRAMMAR_FIELD_LEN = 240;
 
