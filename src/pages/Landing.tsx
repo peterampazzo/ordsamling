@@ -154,9 +154,9 @@ const Landing = () => {
           <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground mb-3">
             {t("landing.featuresEyebrow")}
           </p>
-          <h2 className="font-serif text-2xl sm:text-3xl text-foreground">
+          <SerifHeading level="lg">
             {t("landing.featuresTitle")}
-          </h2>
+          </SerifHeading>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-border rounded-lg overflow-hidden border border-border">
