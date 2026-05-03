@@ -999,14 +999,17 @@ export default function BulkImport() {
                 {t("bulkImport.supportsJsonText")}
               </p>
             </div>
-            <div className="rounded-lg border border-border bg-card p-3 text-sm">
-              <div className="mb-2 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-                {t("bulkImport.sampleJsonExamplesTitle")}
-              </div>
-              <pre className="overflow-x-auto rounded bg-background/90 p-3 text-[11px] font-mono text-muted-foreground">
+            <details className="group rounded-lg border border-border bg-card text-sm">
+              <summary className="flex items-center gap-2 px-3 py-2 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                <span className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+                  {t("bulkImport.sampleJsonExamplesTitle")}
+                </span>
+                <span className="ml-auto text-xs text-muted-foreground transition-transform group-open:rotate-180">▾</span>
+              </summary>
+              <pre className="overflow-x-auto rounded-b-lg bg-background/90 p-3 text-[11px] font-mono text-muted-foreground border-t border-border">
                 <code>{EXAMPLE_JSON}</code>
               </pre>
-            </div>
+            </details>
             <div className="flex gap-2 justify-end">
               {rawText.trim() && (
                 <Button type="button" variant="ghost" size="sm" onClick={handleReset}>
