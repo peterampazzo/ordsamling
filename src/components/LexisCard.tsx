@@ -187,7 +187,24 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
               <span className="text-[10px] font-medium text-lang-en uppercase tracking-wider">{t("lexisCard.english")}</span>
-              <Input value={draft.english} onChange={(e) => setDraft({ ...draft, english: e.target.value })} disabled={disabled || isSubmitting} className="mt-0.5" />
+              <div className="relative mt-0.5">
+                {draft.type === "verb" && (
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground italic">
+                    to
+                  </span>
+                )}
+                <Input
+                  value={draft.type === "verb" ? stripInfinitiveMarker(draft.english, "en") : draft.english}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      english: draft.type === "verb" ? stripInfinitiveMarker(e.target.value, "en") : e.target.value,
+                    })
+                  }
+                  disabled={disabled || isSubmitting}
+                  className={draft.type === "verb" ? "pl-9" : ""}
+                />
+              </div>
             </div>
             {extraLangs.map((code) => (
               <div key={code}>
