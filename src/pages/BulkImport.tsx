@@ -735,9 +735,14 @@ export default function BulkImport() {
             {t("bulkImport.formatDescription")}
           </p>
           <div className="flex flex-wrap gap-1.5">
-            {(["danish", "english", "italian", "type", "notes"] as const).map((col) => (
+            {(["danish", "english", "type", "notes"] as const).map((col) => (
               <code key={col} className="text-[11px] bg-muted px-1.5 py-0.5 rounded font-mono">
                 {col}
+              </code>
+            ))}
+            {extraLangs.map((code) => (
+              <code key={code} className="text-[11px] bg-muted px-1.5 py-0.5 rounded font-mono">
+                translations.{code}
               </code>
             ))}
             <span className="text-[11px] text-muted-foreground self-center">{t("bulkImport.grammarFields")}</span>
