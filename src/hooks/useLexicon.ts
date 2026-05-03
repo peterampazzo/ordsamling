@@ -4,6 +4,7 @@ import { toast } from "@/components/ui/sonner";
 import {
   normalizeEntryType,
   normalizeGrammar,
+  normalizeTranslations,
   WORD_LIKE_TYPES,
   type EntryType,
   type LexisEntry,
@@ -15,16 +16,22 @@ export type { EntryGrammar, EntryType, LexisEntry } from "@/lib/lexicon";
 
 const ENTRIES_QUERY_KEY = ["entries"];
 
-function normalizeEntry(entry: Partial<LexisEntry>): LexisEntry {
+function normalizeEntry(entry: Partial<LexisEntry> & { italian?: unknown }): LexisEntry {
+  // Migrate legacy `italian` field → translations.it
+  const translations = normalizeTranslations(entry.translations) ?? {};
+  if (typeof entry.italian === "string" && entry.italian.trim() && !translations.it) {
+    translations.it = entry.italian.trim();
+  }
+  const hasTrans = Object.keys(translations).length > 0;
   return {
     id: entry.id || crypto.randomUUID(),
     danish: entry.danish || "",
     english: entry.english || "",
-    italian: entry.italian || "",
     notes: entry.notes || "",
     type: normalizeEntryType(entry.type),
     grammar: normalizeGrammar(entry.grammar),
     createdAt: typeof entry.createdAt === "number" ? entry.createdAt : Date.now(),
+    ...(hasTrans ? { translations } : {}),
   };
 }
 
