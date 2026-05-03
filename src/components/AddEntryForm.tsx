@@ -138,13 +138,20 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 min-w-0">
           <div className="min-w-0">
             <span className="text-[10px] font-medium text-lang-en uppercase tracking-wider">{t("lexisCard.english")}</span>
-            <Input
-              value={english}
-              onChange={(e) => setEnglish(e.target.value)}
-              placeholder={t("addEntry.englishPlaceholder")}
-              disabled={disabled || isSubmitting}
-              className="mt-0.5 min-w-0"
-            />
+            <div className="relative mt-0.5">
+              {type === "verb" && (
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground italic">
+                  to
+                </span>
+              )}
+              <Input
+                value={english}
+                onChange={(e) => setEnglish(stripInfinitiveMarker(e.target.value, "en"))}
+                placeholder={type === "verb" ? "eat, go, learn…" : t("addEntry.englishPlaceholder")}
+                disabled={disabled || isSubmitting}
+                className={`min-w-0 ${type === "verb" ? "pl-9" : ""}`}
+              />
+            </div>
           </div>
           {showExtras && extraLangs.map((code) => (
             <div key={code} className="min-w-0">
