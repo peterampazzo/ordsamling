@@ -20,7 +20,7 @@ import {
 import { Pencil, Trash2, Check, X, Link, ChevronDown, MoreVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LexisEntry } from "@/hooks/useLexicon";
-import { ENTRY_TYPES, entryTypeLabel, entryTypePillClass, pruneGrammar, type EntryType } from "@/lib/lexicon";
+import { ENTRY_TYPES, entryTypeLabel, entryTypePillClass, pruneGrammar, displayDanish, displayEnglish, stripInfinitiveMarker, type EntryType } from "@/lib/lexicon";
 import { GrammarDisplay, GrammarFields } from "@/components/EntryGrammar";
 import { t } from "@/i18n";
 import { useExtraLanguages } from "@/hooks/useVisibleLanguages";
