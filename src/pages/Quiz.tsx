@@ -23,6 +23,7 @@ import { useLexicon, isLocalStorageMode } from "@/hooks/useLexicon";
 import type { LexisEntry } from "@/hooks/useLexicon";
 import { entryTypeLabel, type EntryGrammar } from "@/lib/lexicon";
 import { saveSession, type QuizAnswerRecord } from "@/lib/quizHistory";
+import { useVisibleLanguages } from "@/hooks/useVisibleLanguages";
 import { t } from "@/i18n";
 
 /* ------------------------------------------------------------------ */
@@ -371,6 +372,11 @@ async function fetchSmartDistractors(
 
 const Quiz = () => {
   const { allEntries } = useLexicon();
+  const visibleLangs = useVisibleLanguages();
+  const activeDirections = useMemo(
+    () => DIRECTIONS.filter((d) => visibleLangs.includes(d.from) && visibleLangs.includes(d.to)),
+    [visibleLangs],
+  );
 
   const [mode, setMode] = useState<QuizMode>("mixed");
   const [difficulty, setDifficulty] = useState<Difficulty>("beginner");
