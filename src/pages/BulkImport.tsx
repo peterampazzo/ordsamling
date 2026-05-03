@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useLexicon } from "@/hooks/useLexicon";
 import { ENTRY_TYPES, entryTypeLabel, normalizeEntryType, type EntryType } from "@/lib/lexicon";
 import type { LexisEntryInput } from "@/lib/lexicon";
-import { getExtraLanguages } from "@/lib/settings";
+import { getExtraLanguages, getLanguageLabel } from "@/lib/settings";
 import { t } from "@/i18n";
 
 // ---------------------------------------------------------------------------
@@ -59,7 +59,7 @@ function splitLine(line: string, delimiter: "tab" | "comma"): string[] {
 // ---------------------------------------------------------------------------
 
 const KNOWN_COLUMNS = [
-  "danish", "english", "italian", "type", "notes",
+  "danish", "english", "type", "notes",
   "article", "singularDefinite", "pluralIndefinite", "pluralDefinite",
   "present", "past", "perfect",
   "neuter", "definite", "plural", "comparative", "superlative",
@@ -67,12 +67,13 @@ const KNOWN_COLUMNS = [
 
 type KnownColumn = (typeof KNOWN_COLUMNS)[number];
 
-function normalizeHeader(raw: string): KnownColumn | null {
-  const s = raw.toLowerCase().replace(/[\s_-]/g, "");
+/** Returns either a known column key, a `translations.<code>` key, or null. */
+function normalizeHeader(raw: string): KnownColumn | `translations.${string}` | null {
+  const original = raw.trim();
+  const s = original.toLowerCase().replace(/[\s_-]/g, "");
   const map: Record<string, KnownColumn> = {
     danish: "danish", dansk: "danish", da: "danish",
     english: "english", engelsk: "english", en: "english",
-    italian: "italian", italiano: "italian", it: "italian",
     type: "type", type_: "type", ordklasse: "type",
     notes: "notes", noter: "notes", note: "notes", comment: "notes", comments: "notes",
     article: "article", artikel: "article",
@@ -88,7 +89,16 @@ function normalizeHeader(raw: string): KnownColumn | null {
     comparative: "comparative", komparativ: "comparative",
     superlative: "superlative", superlativ: "superlative",
   };
-  return map[s] ?? null;
+  if (map[s]) return map[s];
+
+  // translations.<code> or translation.<code>
+  const dotMatch = original.toLowerCase().match(/^translations?\.([a-z]{2,3})$/);
+  if (dotMatch) return `translations.${dotMatch[1]}`;
+  // Bare ISO 2-3 letter code, but skip the ones we already use as known cols
+  if (/^[a-z]{2,3}$/.test(s) && !["da", "en"].includes(s)) {
+    return `translations.${s}`;
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -127,31 +137,53 @@ function parseJsonObjects(items: unknown[]): { rows: ParsedRow[]; headers: strin
     const warnings: string[] = [];
     const fields: Partial<Record<KnownColumn, string>> = {};
     const grammarFields: Record<string, string> = {};
+    const translationFields: Record<string, string> = {};
 
     for (const key of Object.keys(rawObject)) {
+      // Native nested translations object
+      if (key === "translations" && rawObject[key] && typeof rawObject[key] === "object" && !Array.isArray(rawObject[key])) {
+        const t2 = rawObject[key] as Record<string, unknown>;
+        for (const code of Object.keys(t2)) {
+          if (/^[a-z]{2,3}$/i.test(code)) {
+            const v = normalizeJsonValue(t2[code]);
+            if (v) {
+              translationFields[code.toLowerCase()] = v;
+              headerSet.add(`translations.${code.toLowerCase()}`);
+            }
+          }
+        }
+        continue;
+      }
+
       const normalizedKey = normalizeHeader(key);
-      if (normalizedKey) {
-        fields[normalizedKey] = normalizeJsonValue(rawObject[key]);
+      if (!normalizedKey) continue;
+
+      if (typeof normalizedKey === "string" && normalizedKey.startsWith("translations.")) {
+        const code = normalizedKey.slice("translations.".length);
+        const v = normalizeJsonValue(rawObject[key]);
+        if (v) translationFields[code] = v;
         headerSet.add(normalizedKey);
         continue;
       }
 
-      if (key === "grammar" && rawObject[key] && typeof rawObject[key] === "object") {
-        const grammarRaw = rawObject[key] as Record<string, unknown>;
-        for (const grammarKey of grammarKeys) {
-          if (grammarKey in grammarRaw) {
-            grammarFields[grammarKey] = normalizeJsonValue(grammarRaw[grammarKey]);
-            headerSet.add(grammarKey);
-          }
+      fields[normalizedKey as KnownColumn] = normalizeJsonValue(rawObject[key]);
+      headerSet.add(normalizedKey);
+    }
+
+    if (rawObject.grammar && typeof rawObject.grammar === "object") {
+      const grammarRaw = rawObject.grammar as Record<string, unknown>;
+      for (const grammarKey of grammarKeys) {
+        if (grammarKey in grammarRaw) {
+          grammarFields[grammarKey] = normalizeJsonValue(grammarRaw[grammarKey]);
+          headerSet.add(grammarKey);
         }
       }
     }
 
     const danish = fields.danish ?? "";
     const english = fields.english ?? "";
-    const italian = fields.italian ?? "";
 
-    if (!danish && !english && !italian) {
+    if (!danish && !english) {
       errors.push(t("bulkImport.rowValidationError"));
     }
 
@@ -169,7 +201,7 @@ function parseJsonObjects(items: unknown[]): { rows: ParsedRow[]; headers: strin
       english,
       notes: fields.notes ?? "",
       type,
-      ...(italian ? { translations: { it: italian } } : {}),
+      ...(Object.keys(translationFields).length > 0 ? { translations: translationFields } : {}),
       ...(Object.keys(grammarFields).length > 0 ? { grammar: grammarFields } : {}),
     };
 
@@ -234,7 +266,8 @@ function parseRows(text: string): { rows: ParsedRow[]; headers: string[] } {
   const headerRaw = splitLine(lines[0], delimiter);
   const headers = headerRaw.map((h) => h.replace(/^(["'])(.*)\1$/g, "$2").trim());
 
-  const columnMap: (KnownColumn | null)[] = headers.map(normalizeHeader);
+  type ColKey = KnownColumn | `translations.${string}`;
+  const columnMap: (ColKey | null)[] = headers.map(normalizeHeader);
 
   const rows: ParsedRow[] = [];
 
@@ -244,18 +277,22 @@ function parseRows(text: string): { rows: ParsedRow[]; headers: string[] } {
     const warnings: string[] = [];
 
     const fields: Partial<Record<KnownColumn, string>> = {};
+    const translationFields: Record<string, string> = {};
     for (let c = 0; c < columnMap.length; c++) {
       const col = columnMap[c];
-      if (col) {
-        fields[col] = (raw[c] ?? "").trim();
+      if (!col) continue;
+      const value = (raw[c] ?? "").trim();
+      if (typeof col === "string" && col.startsWith("translations.")) {
+        if (value) translationFields[col.slice("translations.".length)] = value;
+      } else {
+        fields[col as KnownColumn] = value;
       }
     }
 
     const danish = fields.danish ?? "";
     const english = fields.english ?? "";
-    const italian = fields.italian ?? "";
 
-    if (!danish && !english && !italian) {
+    if (!danish && !english) {
       errors.push(t("bulkImport.rowValidationError"));
     }
 
@@ -284,7 +321,7 @@ function parseRows(text: string): { rows: ParsedRow[]; headers: string[] } {
       english,
       notes: fields.notes ?? "",
       type,
-      ...(italian ? { translations: { it: italian } } : {}),
+      ...(Object.keys(translationFields).length > 0 ? { translations: translationFields } : {}),
       ...(Object.keys(grammarFields).length > 0 ? { grammar: grammarFields } : {}),
     };
 
@@ -460,6 +497,14 @@ export default function BulkImport() {
     }
   }, []);
 
+  // Enabled extra languages (re-read on settings-changed event)
+  const [extraLangs, setExtraLangs] = useState<string[]>(() => getExtraLanguages());
+  useEffect(() => {
+    const refresh = () => setExtraLangs(getExtraLanguages());
+    window.addEventListener("ordsamling:settings-changed", refresh);
+    return () => window.removeEventListener("ordsamling:settings-changed", refresh);
+  }, []);
+
   const handleProcessDocument = useCallback(async (file: File) => {
     if (!isAuthenticated) {
       alert(t("bulkImport.authRequired"));
@@ -470,16 +515,28 @@ export default function BulkImport() {
     setProcessedDocument(null);
 
     try {
+      const name = file.name.toLowerCase();
       let text: string;
 
-      // Extract text from the file
-      if (file.name.toLowerCase().endsWith('.docx')) {
-        // For now, skip mammoth and just show an error
-        alert("Word document processing is temporarily unavailable. Please use text files (.txt) for now.");
+      if (name.endsWith(".docx")) {
+        try {
+          const mammoth = await import("mammoth/mammoth.browser");
+          const arrayBuffer = await file.arrayBuffer();
+          const result = await mammoth.extractRawText({ arrayBuffer });
+          text = result.value ?? "";
+        } catch (err) {
+          console.error("docx parse failed", err);
+          alert(t("bulkImport.documentReadError"));
+          return;
+        }
+      } else if (name.endsWith(".doc")) {
+        alert(t("bulkImport.documentUnsupported"));
         return;
-      } else {
-        // Plain text file
+      } else if (name.endsWith(".txt") || name.endsWith(".md") || file.type.startsWith("text/")) {
         text = await file.text();
+      } else {
+        alert(t("bulkImport.documentUnsupported"));
+        return;
       }
 
       if (!text.trim()) {
@@ -500,16 +557,26 @@ export default function BulkImport() {
         body: formData,
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to process document");
+      // Read body as text first so we can survive HTML error pages
+      const bodyText = await response.text();
+      const ct = response.headers.get("content-type") ?? "";
+      let payload: unknown = null;
+      if (ct.includes("application/json")) {
+        try { payload = JSON.parse(bodyText); } catch { /* fall through */ }
       }
 
-      const result: ProcessedDocument = await response.json();
+      if (!response.ok || !payload || typeof payload !== "object") {
+        const serverMsg = (payload && typeof payload === "object" && "error" in (payload as Record<string, unknown>))
+          ? String((payload as Record<string, unknown>).error)
+          : null;
+        throw new Error(serverMsg ?? t("bulkImport.serverError"));
+      }
+
+      const result = payload as ProcessedDocument;
       setProcessedDocument(result);
 
       // Feed processed entries directly into the preview (preserves translations/grammar)
-      if (result.entries.length > 0) {
+      if (result.entries && result.entries.length > 0) {
         const rows: ParsedRow[] = result.entries.map((entry, i) => ({
           rowIndex: i + 1,
           raw: [],
@@ -529,7 +596,7 @@ export default function BulkImport() {
       }
     } catch (error) {
       console.error("Document processing failed:", error);
-      alert(`Failed to process document: ${error instanceof Error ? error.message : "Unknown error"}`);
+      alert(`${error instanceof Error ? error.message : t("bulkImport.unknownError")}`);
     } finally {
       setIsProcessingDocument(false);
     }
@@ -705,9 +772,14 @@ export default function BulkImport() {
             {t("bulkImport.formatDescription")}
           </p>
           <div className="flex flex-wrap gap-1.5">
-            {(["danish", "english", "italian", "type", "notes"] as const).map((col) => (
+            {(["danish", "english", "type", "notes"] as const).map((col) => (
               <code key={col} className="text-[11px] bg-muted px-1.5 py-0.5 rounded font-mono">
                 {col}
+              </code>
+            ))}
+            {extraLangs.map((code) => (
+              <code key={code} className="text-[11px] bg-muted px-1.5 py-0.5 rounded font-mono">
+                translations.{code}
               </code>
             ))}
             <span className="text-[11px] text-muted-foreground self-center">{t("bulkImport.grammarFields")}</span>
@@ -794,7 +866,7 @@ export default function BulkImport() {
             <div className="flex gap-2">
               <input
                 type="file"
-                accept=".txt"
+                accept=".txt,.md,.docx,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) {
@@ -940,7 +1012,11 @@ export default function BulkImport() {
                     )}
                     <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t("bulkImport.tableDanish")}</th>
                     <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t("bulkImport.tableEnglish")}</th>
-                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t("bulkImport.tableItalian")}</th>
+                    {extraLangs.map((code) => (
+                      <th key={code} className="text-left px-3 py-2 font-medium text-muted-foreground">
+                        {getLanguageLabel(code)}
+                      </th>
+                    ))}
                     <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t("bulkImport.tableType")}</th>
                     <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t("bulkImport.tableStatus")}</th>
                   </tr>
@@ -992,9 +1068,11 @@ export default function BulkImport() {
                         <td className="px-3 py-2 text-muted-foreground max-w-[120px] truncate">
                           {row.entry?.english || "—"}
                         </td>
-                        <td className="px-3 py-2 text-muted-foreground max-w-[120px] truncate">
-                          {row.entry?.translations?.it || "—"}
-                        </td>
+                        {extraLangs.map((code) => (
+                          <td key={code} className="px-3 py-2 text-muted-foreground max-w-[120px] truncate">
+                            {row.entry?.translations?.[code] || "—"}
+                          </td>
+                        ))}
                         <td className="px-3 py-2">
                           {row.entry ? (
                             <span className="text-muted-foreground">{entryTypeLabel(row.entry.type)}</span>
