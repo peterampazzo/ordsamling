@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SettingsDialog } from "@/components/SettingsDialog";
+import { useGoogleSheets } from "@/hooks/useGoogleSheets";
 import { useLexicon } from "@/hooks/useLexicon";
 import { ENTRY_TYPES, entryTypeLabel, normalizeEntryType, type EntryType } from "@/lib/lexicon";
 import type { LexisEntryInput } from "@/lib/lexicon";
