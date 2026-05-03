@@ -274,7 +274,7 @@ const Index = () => {
           showCloseButton={false}
           className={cn(
             "fixed inset-0 left-0 top-0 z-50 flex h-[100dvh] max-h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 border-0 bg-background p-0 shadow-none rounded-none overflow-hidden",
-            "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 duration-200",
+            "duration-0 data-[state=open]:animate-none data-[state=closed]:animate-none",
           )}
         >
           <DialogTitle className="sr-only">{t("index.addWord")}</DialogTitle>
