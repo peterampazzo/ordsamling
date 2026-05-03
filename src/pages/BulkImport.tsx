@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useLexicon } from "@/hooks/useLexicon";
 import { ENTRY_TYPES, entryTypeLabel, normalizeEntryType, type EntryType } from "@/lib/lexicon";
 import type { LexisEntryInput } from "@/lib/lexicon";
+import { getExtraLanguages, getLanguageLabel } from "@/lib/settings";
 import { t } from "@/i18n";
 
 // ---------------------------------------------------------------------------
