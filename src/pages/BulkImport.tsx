@@ -463,6 +463,7 @@ interface ProcessedDocument {
 export default function BulkImport() {
   const navigate = useNavigate();
   const { addEntry, updateEntry, allEntries } = useLexicon();
+  const { syncState, connect, disconnect } = useGoogleSheets();
 
   const [rawText, setRawText] = useState("");
   const [parsed, setParsed] = useState<{ rows: ParsedRow[]; headers: string[] } | null>(null);
