@@ -144,7 +144,6 @@ bulkImport:
   duplicateCount: "{count} mulige dubletter"
   tableDanish: "Dansk"
   tableEnglish: "Engelsk"
-  tableItalian: "Italiensk"
   tableType: "Type"
   tableStatus: "Status"
   startOver: "Start forfra"
