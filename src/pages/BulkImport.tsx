@@ -1031,9 +1031,11 @@ export default function BulkImport() {
                         <td className="px-3 py-2 text-muted-foreground max-w-[120px] truncate">
                           {row.entry?.english || "—"}
                         </td>
-                        <td className="px-3 py-2 text-muted-foreground max-w-[120px] truncate">
-                          {row.entry?.translations?.it || "—"}
-                        </td>
+                        {extraLangs.map((code) => (
+                          <td key={code} className="px-3 py-2 text-muted-foreground max-w-[120px] truncate">
+                            {row.entry?.translations?.[code] || "—"}
+                          </td>
+                        ))}
                         <td className="px-3 py-2">
                           {row.entry ? (
                             <span className="text-muted-foreground">{entryTypeLabel(row.entry.type)}</span>
