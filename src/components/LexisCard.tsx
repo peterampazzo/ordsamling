@@ -23,7 +23,8 @@ import type { LexisEntry } from "@/hooks/useLexicon";
 import { ENTRY_TYPES, entryTypeLabel, entryTypePillClass, pruneGrammar, type EntryType } from "@/lib/lexicon";
 import { GrammarDisplay, GrammarFields } from "@/components/EntryGrammar";
 import { t } from "@/i18n";
-import { useVisibleLanguages } from "@/hooks/useVisibleLanguages";
+import { useExtraLanguages } from "@/hooks/useVisibleLanguages";
+import { getLanguageLabel } from "@/lib/settings";
 
 interface Props {
   entry: LexisEntry;
