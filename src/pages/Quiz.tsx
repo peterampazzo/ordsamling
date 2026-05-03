@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { PageHeader, PageFooter } from "@/components/layout";
 import { cn } from "@/lib/utils";
 import { useLexicon } from "@/hooks/useLexicon";
 import { fetchDistractors, GeminiKeyMissingError } from "@/lib/gemini";import { toast } from "@/components/ui/sonner";
