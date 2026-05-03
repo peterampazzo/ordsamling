@@ -80,9 +80,33 @@ const Index = () => {
               <BookOpen className="h-5 w-5 text-primary shrink-0" aria-hidden />
               <h1 className="text-base sm:text-lg font-semibold text-foreground truncate">{t("index.title")}</h1>
             </div>
-            <span className="text-xs text-muted-foreground tabular-nums shrink-0" title={t("common.wordCount", { count: allEntries.length })}>
-              {t("common.wordCount", { count: allEntries.length })}
-            </span>
+            <div className="flex items-center gap-1 shrink-0">
+              <span className="text-xs text-muted-foreground tabular-nums mr-1" title={t("common.wordCount", { count: allEntries.length })}>
+                {t("common.wordCount", { count: allEntries.length })}
+              </span>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8"
+                onClick={() => setSettingsOpen(true)}
+                aria-label={t("settings.title")}
+              >
+                <SettingsIcon className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8"
+                asChild
+                aria-label="GitHub"
+              >
+                <a href="https://github.com/lorenzobertolini/ordsamling" target="_blank" rel="noreferrer">
+                  <Github className="h-4 w-4" />
+                </a>
+              </Button>
+            </div>
           </div>
 
           <div className="flex items-center gap-2 py-2.5">
@@ -118,31 +142,57 @@ const Index = () => {
                 <Brain className="h-4 w-4" />
               </Link>
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="shrink-0 h-9 w-9 p-0"
-              asChild
-              aria-label={t("index.importLabel")}
-            >
-              <Link to="/import">
-                <Upload className="h-4 w-4" />
-              </Link>
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              className="shrink-0 gap-1.5 h-9 px-3"
-              onClick={() => setAddFormOpen(true)}
-              disabled={isSaving}
-              aria-haspopup="dialog"
-              aria-expanded={addFormOpen}
-              aria-label={t("index.addWord")}
-            >
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">{t("common.add")}</span>
-            </Button>
+            {demo ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="shrink-0">
+                    <Button type="button" size="sm" variant="outline" className="shrink-0 h-9 w-9 p-0 opacity-50" disabled aria-label={t("index.importLabel")}>
+                      <Upload className="h-4 w-4" />
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>{t("demo.addDisabled")}</TooltipContent>
+              </Tooltip>
+            ) : (
+              <Button type="button" size="sm" variant="outline" className="shrink-0 h-9 w-9 p-0" asChild aria-label={t("index.importLabel")}>
+                <Link to="/import">
+                  <Upload className="h-4 w-4" />
+                </Link>
+              </Button>
+            )}
+            {demo ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="shrink-0">
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="shrink-0 gap-1.5 h-9 px-3 opacity-50"
+                      disabled
+                      aria-label={t("index.addWord")}
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span className="hidden sm:inline">{t("common.add")}</span>
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>{t("demo.addDisabled")}</TooltipContent>
+              </Tooltip>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                className="shrink-0 gap-1.5 h-9 px-3"
+                onClick={() => setAddFormOpen(true)}
+                disabled={isSaving}
+                aria-haspopup="dialog"
+                aria-expanded={addFormOpen}
+                aria-label={t("index.addWord")}
+              >
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">{t("common.add")}</span>
+              </Button>
+            )}
           </div>
 
           <div className="flex items-center gap-2 pb-2.5">
