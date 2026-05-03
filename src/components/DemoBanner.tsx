@@ -23,7 +23,6 @@ export function DemoBanner() {
   const handleDisable = () => {
     deactivateDemo();
     navigate("/", { replace: true });
-    setTimeout(() => window.location.reload(), 30);
   };
 
   return (
