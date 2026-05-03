@@ -160,7 +160,26 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
         </div>
         <div className="space-y-1">
           <span className="sr-only">{t("directions.danish")}</span>
-          <Input value={draft.danish} onChange={(e) => setDraft({ ...draft, danish: e.target.value })} autoFocus disabled={disabled || isSubmitting} className="text-base font-medium" placeholder={t("addEntry.danishPlaceholder")} />
+          <div className="relative">
+            {draft.type === "verb" && (
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base font-medium text-muted-foreground italic">
+                at
+              </span>
+            )}
+            <Input
+              value={draft.type === "verb" ? stripInfinitiveMarker(draft.danish, "da") : draft.danish}
+              onChange={(e) =>
+                setDraft({
+                  ...draft,
+                  danish: draft.type === "verb" ? stripInfinitiveMarker(e.target.value, "da") : e.target.value,
+                })
+              }
+              autoFocus
+              disabled={disabled || isSubmitting}
+              className={`text-base font-medium ${draft.type === "verb" ? "pl-9" : ""}`}
+              placeholder={draft.type === "verb" ? "spise, gå, lære…" : t("addEntry.danishPlaceholder")}
+            />
+          </div>
         </div>
         <GrammarFields type={draft.type} value={draft.grammar ?? {}} onChange={(g) => setDraft({ ...draft, grammar: g })} disabled={disabled || isSubmitting} />
         <div className="rounded-md border border-border bg-muted/25 p-2.5 space-y-2">
