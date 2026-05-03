@@ -816,7 +816,7 @@ export default function BulkImport() {
             <div className="flex gap-2">
               <input
                 type="file"
-                accept=".txt"
+                accept=".txt,.md,.docx,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) {
