@@ -451,16 +451,15 @@ const Quiz = () => {
     const scoreRatio = total > 0 ? score / Math.max(currentIdx, 1) : 0;
     let cancelled = false;
 
-    fetchSmartDistractors(current, difficulty, scoreRatio).then((distractors) => {
+    fetchSmartDistractors(current, difficulty, scoreRatio).then(({ distractors, aiActive: active }) => {
       if (cancelled || distractors.length === 0) return;
+      setAiActive(active);
       setQuestions((prev) => {
         const next = [...prev];
         const q = { ...next[currentIdx] };
-        // Replace random distractors with AI ones
         const kept = q.options.filter((o) => matchesAnswer(o, q.answer));
         const aiOptions = distractors.slice(0, 3);
         q.options = shuffle([...kept, ...aiOptions]).filter(isValid);
-        // Ensure correct answer is always present
         if (!q.options.some((o) => matchesAnswer(o, q.answer))) {
           q.options[0] = q.answer;
           q.options = shuffle(q.options);
@@ -734,6 +733,11 @@ const Quiz = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Brain className="h-5 w-5 text-primary" />
+              {aiActive && (
+                <span className="text-[9px] uppercase tracking-wider bg-primary/15 text-primary px-1.5 py-0.5 rounded font-bold">
+                  {t("settings.aiActive")}
+                </span>
+              )}
               <span className="text-sm font-medium text-foreground">{currentIdx + 1} / {total}</span>
               <span className={cn(
                 "text-[10px] uppercase px-1.5 py-0.5 rounded font-medium",
