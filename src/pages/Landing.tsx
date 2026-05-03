@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate, useLocation } from "react-router-dom";
 import {
   ArrowRight,
   BookOpen,
@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 const GITHUB_URL = "https://github.com/peterampazzo/ordsamling/";
 
 const Landing = () => {
+  const location = useLocation();
   const [lang, setLangState] = useState(getLang());
 
   useEffect(() => {
@@ -29,6 +30,12 @@ const Landing = () => {
     setLang(l);
     setLangState(l);
   };
+
+  // Legacy ?demo query → forward to dedicated route.
+  if (new URLSearchParams(location.search).has("demo")) {
+    return <Navigate to="/demo" replace />;
+  }
+
 
   const features = [
     { icon: BookOpen, title: t("landing.feature1Title"), body: t("landing.feature1Body") },
