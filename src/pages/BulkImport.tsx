@@ -516,7 +516,7 @@ export default function BulkImport() {
           const line = [
             entry.danish,
             entry.english,
-            entry.italian,
+            entry.translations?.it ?? "",
             entry.type,
             entry.notes,
           ].map(field => `"${field.replace(/"/g, '""')}"`).join(",");
