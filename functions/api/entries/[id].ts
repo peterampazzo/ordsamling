@@ -222,6 +222,12 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env, params })
     ...updates,
   };
 
+  // If the resulting entry is a verb, strip leading "at "/"to " from the headwords.
+  if (nextEntry.type === "verb") {
+    if (typeof nextEntry.danish === "string") nextEntry.danish = stripInfinitive(nextEntry.danish, "da");
+    if (typeof nextEntry.english === "string") nextEntry.english = stripInfinitive(nextEntry.english, "en");
+  }
+
   entries[index] = nextEntry;
   await writeEntries(env, entries);
 
