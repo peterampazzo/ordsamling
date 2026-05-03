@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const GITHUB_URL = "https://github.com/lorenzobertolini/ordsamling";
+const GITHUB_URL = "https://github.com/peterampazzo/ordsamling/";
 
 const features = [
   {
