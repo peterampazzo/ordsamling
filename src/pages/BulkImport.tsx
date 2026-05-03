@@ -826,35 +826,21 @@ export default function BulkImport() {
               )}
             </div>
           ) : (
-            <div className="relative overflow-hidden rounded-2xl border border-border bg-card">
-              {/* Blurred preview of the dropzone */}
-              <div aria-hidden className="pointer-events-none select-none px-6 py-10 sm:py-12 text-center blur-[6px] opacity-40">
-                <div className="flex flex-col items-center gap-3">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
-                    <FileUp className="h-6 w-6 text-muted-foreground" />
-                  </div>
-                  <p className="font-serif text-lg sm:text-xl tracking-tight">{t("bulkImport.uploadIntro")}</p>
-                  <p className="text-xs text-muted-foreground">{t("bulkImport.uploadHint")}</p>
-                </div>
+            <div className="flex items-center gap-4 rounded-xl border border-border bg-muted/40 px-4 py-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Lock className="h-4 w-4" />
               </div>
-              {/* Lock overlay */}
-              <div className="absolute inset-0 flex items-center justify-center bg-card/60 backdrop-blur-sm">
-                <div className="max-w-sm w-full px-6 text-center space-y-3">
-                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-                    <Lock className="h-5 w-5" />
-                  </div>
-                  <h3 className="font-serif text-lg tracking-tight flex items-center justify-center gap-1.5">
-                    <Sparkles className="h-4 w-4 text-primary" />
-                    {t("bulkImport.keyMissingTitle")}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    {t("bulkImport.keyMissingBody")}
-                  </p>
-                  <Button type="button" size="sm" onClick={() => setSettingsOpen(true)}>
-                    {t("bulkImport.keyMissingCta")}
-                  </Button>
-                </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium leading-tight">
+                  {t("bulkImport.keyMissingTitle")}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {t("bulkImport.keyMissingBody")}
+                </p>
               </div>
+              <Button type="button" size="sm" variant="outline" onClick={() => setSettingsOpen(true)} className="shrink-0">
+                {t("bulkImport.keyMissingCta")}
+              </Button>
             </div>
           )}
 
@@ -1013,14 +999,17 @@ export default function BulkImport() {
                 {t("bulkImport.supportsJsonText")}
               </p>
             </div>
-            <div className="rounded-lg border border-border bg-card p-3 text-sm">
-              <div className="mb-2 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-                {t("bulkImport.sampleJsonExamplesTitle")}
-              </div>
-              <pre className="overflow-x-auto rounded bg-background/90 p-3 text-[11px] font-mono text-muted-foreground">
+            <details className="group rounded-lg border border-border bg-card text-sm">
+              <summary className="flex items-center gap-2 px-3 py-2 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                <span className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+                  {t("bulkImport.sampleJsonExamplesTitle")}
+                </span>
+                <span className="ml-auto text-xs text-muted-foreground transition-transform group-open:rotate-180">▾</span>
+              </summary>
+              <pre className="overflow-x-auto rounded-b-lg bg-background/90 p-3 text-[11px] font-mono text-muted-foreground border-t border-border">
                 <code>{EXAMPLE_JSON}</code>
               </pre>
-            </div>
+            </details>
             <div className="flex gap-2 justify-end">
               {rawText.trim() && (
                 <Button type="button" variant="ghost" size="sm" onClick={handleReset}>
