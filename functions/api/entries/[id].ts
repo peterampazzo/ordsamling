@@ -129,6 +129,11 @@ function normalizeEntry(value: unknown): LexisEntry | null {
   return entry;
 }
 
+function stripInfinitive(value: string, lang: "da" | "en"): string {
+  const marker = lang === "da" ? /^at\s+/i : /^to\s+/i;
+  return value.replace(marker, "");
+}
+
 function validateEntryUpdate(value: unknown): LexisEntryUpdate | null {
   if (!value || typeof value !== "object") {
     return null;
