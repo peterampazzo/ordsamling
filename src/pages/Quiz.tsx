@@ -324,12 +324,11 @@ async function fetchSmartDistractors(
   question: QuizQuestion,
   difficulty: Difficulty,
   scoreRatio: number,
-): Promise<string[]> {
+): Promise<{ distractors: string[]; aiActive: boolean }> {
   if (isLocalStorageMode()) {
-    return [];
+    return { distractors: [], aiActive: false };
   }
 
-  // Detect verbal infinitive prefix ("at" Danish / "to" English) so distractors keep the same form
   const trimmed = question.answer.trim();
   const lower = trimmed.toLowerCase();
   let answerPrefix: string | undefined;
@@ -352,14 +351,17 @@ async function fetchSmartDistractors(
         answerPrefix,
       }),
     });
-    if (!res.ok) return [];
+    // Silent fallback on auth errors — never surface to user
+    if (res.status === 401 || res.status === 403) return { distractors: [], aiActive: false };
+    if (!res.ok) return { distractors: [], aiActive: false };
     const data = (await res.json()) as { distractors: string[] };
     const correctAlts = new Set(splitAlternatives(question.answer).map(normalize));
-    return (data.distractors || []).filter(
+    const filtered = (data.distractors || []).filter(
       (d) => isValid(d) && !correctAlts.has(normalize(d)) && normalize(d) !== normalize(question.answer),
     );
+    return { distractors: filtered, aiActive: filtered.length > 0 };
   } catch {
-    return [];
+    return { distractors: [], aiActive: false };
   }
 }
 
@@ -383,6 +385,7 @@ const Quiz = () => {
   const [showResult, setShowResult] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
   const [timerActive, setTimerActive] = useState(false);
+  const [aiActive, setAiActive] = useState(false);
 
   const answersRef = useRef<QuizAnswerRecord[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
