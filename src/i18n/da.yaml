@@ -182,6 +182,16 @@ bulkImport:
   serverError: "Serveren returnerede et uventet svar. Prøv igen med en mindre fil, eller indsæt teksten nedenfor."
   authRequired: "Du skal være logget ind for at bruge dokumentbehandling."
   translationCol: "Oversættelse ({lang})"
+  uploadIntro: "Slip et dokument her, eller klik for at vælge"
+  uploadHint: "Understøtter .txt, .md eller .docx — op til et par sider"
+  uploadProcessing: "Læser dit dokument…"
+  uploadChooseFile: "Vælg fil"
+  keyMissingTitle: "Lås dokumentupload op"
+  keyMissingBody: "Dokumentupload bruger Gemini AI til at finde nye ord og oversætte dem. Tilføj din gratis API-nøgle i Indstillinger for at slå det til."
+  keyMissingCta: "Åbn Indstillinger"
+  formatHelpToggle: "Understøttede formater og felter"
+  pasteSectionTitle: "Eller indsæt data manuelt"
+  pasteSectionDescription: "Indsæt CSV, TSV, JSON eller JSONL — første række skal indeholde kolonnenavne."
 
 notFound:
   title: "404"
