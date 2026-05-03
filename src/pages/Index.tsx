@@ -83,7 +83,7 @@ const Index = () => {
     if (sort !== "alpha") return null;
     const map = new Map<string, LexisEntry[]>();
     for (const e of sorted) {
-      const word = (e.danish || e.english || "").trim();
+      const word = sortKey(e).trim();
       const ch = word.charAt(0).toLocaleUpperCase("da");
       const letter = /[A-ZÆØÅ]/.test(ch) ? ch : "#";
       if (!map.has(letter)) map.set(letter, []);
