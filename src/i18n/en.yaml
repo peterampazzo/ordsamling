@@ -144,7 +144,6 @@ bulkImport:
   duplicateCount: "{count} possible duplicates"
   tableDanish: "Danish"
   tableEnglish: "English"
-  tableItalian: "Italian"
   tableType: "Type"
   tableStatus: "Status"
   startOver: "Start over"
