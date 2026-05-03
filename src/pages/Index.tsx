@@ -71,7 +71,7 @@ const Index = () => {
 
   const sorted = useMemo(() => sortEntries(filtered, sort), [filtered, sort]);
 
-  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
 
   const groups = useMemo(() => {
     if (sort !== "alpha") return null;
