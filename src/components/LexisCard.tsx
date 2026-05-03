@@ -20,7 +20,7 @@ import {
 import { Pencil, Trash2, Check, X, Link, ChevronDown, MoreVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LexisEntry } from "@/hooks/useLexicon";
-import { ENTRY_TYPES, entryTypeLabel, entryTypePillClass, pruneGrammar, type EntryType } from "@/lib/lexicon";
+import { ENTRY_TYPES, entryTypeLabel, entryTypePillClass, pruneGrammar, displayDanish, displayEnglish, stripInfinitiveMarker, type EntryType } from "@/lib/lexicon";
 import { GrammarDisplay, GrammarFields } from "@/components/EntryGrammar";
 import { t } from "@/i18n";
 import { useExtraLanguages } from "@/hooks/useVisibleLanguages";
@@ -117,8 +117,8 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
         if (t) cleaned[c] = t;
       }
       await onUpdate(entry.id, {
-        danish: draft.danish,
-        english: draft.english,
+        danish: draft.type === "verb" ? stripInfinitiveMarker(draft.danish, "da") : draft.danish,
+        english: draft.type === "verb" ? stripInfinitiveMarker(draft.english, "en") : draft.english,
         translations: Object.keys(cleaned).length > 0 ? cleaned : undefined,
         notes: draft.notes,
         type: draft.type,
@@ -160,7 +160,26 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
         </div>
         <div className="space-y-1">
           <span className="sr-only">{t("directions.danish")}</span>
-          <Input value={draft.danish} onChange={(e) => setDraft({ ...draft, danish: e.target.value })} autoFocus disabled={disabled || isSubmitting} className="text-base font-medium" placeholder={t("addEntry.danishPlaceholder")} />
+          <div className="relative">
+            {draft.type === "verb" && (
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base font-medium text-muted-foreground italic">
+                at
+              </span>
+            )}
+            <Input
+              value={draft.type === "verb" ? stripInfinitiveMarker(draft.danish, "da") : draft.danish}
+              onChange={(e) =>
+                setDraft({
+                  ...draft,
+                  danish: draft.type === "verb" ? stripInfinitiveMarker(e.target.value, "da") : e.target.value,
+                })
+              }
+              autoFocus
+              disabled={disabled || isSubmitting}
+              className={`text-base font-medium ${draft.type === "verb" ? "pl-9" : ""}`}
+              placeholder={draft.type === "verb" ? "spise, gå, lære…" : t("addEntry.danishPlaceholder")}
+            />
+          </div>
         </div>
         <GrammarFields type={draft.type} value={draft.grammar ?? {}} onChange={(g) => setDraft({ ...draft, grammar: g })} disabled={disabled || isSubmitting} />
         <div className="rounded-md border border-border bg-muted/25 p-2.5 space-y-2">
@@ -168,7 +187,24 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
               <span className="text-[10px] font-medium text-lang-en uppercase tracking-wider">{t("lexisCard.english")}</span>
-              <Input value={draft.english} onChange={(e) => setDraft({ ...draft, english: e.target.value })} disabled={disabled || isSubmitting} className="mt-0.5" />
+              <div className="relative mt-0.5">
+                {draft.type === "verb" && (
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground italic">
+                    to
+                  </span>
+                )}
+                <Input
+                  value={draft.type === "verb" ? stripInfinitiveMarker(draft.english, "en") : draft.english}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      english: draft.type === "verb" ? stripInfinitiveMarker(e.target.value, "en") : e.target.value,
+                    })
+                  }
+                  disabled={disabled || isSubmitting}
+                  className={draft.type === "verb" ? "pl-9" : ""}
+                />
+              </div>
             </div>
             {extraLangs.map((code) => (
               <div key={code}>
@@ -201,7 +237,7 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
       <div>
         <span className="text-[10px] font-medium text-lang-en uppercase tracking-wider">{t("lexisCard.english")}</span>
-        <p className="text-muted-foreground leading-snug break-words">{entry.english || "—"}</p>
+        <p className="text-muted-foreground leading-snug break-words">{displayEnglish(entry) || "—"}</p>
       </div>
       {extraLangs.map((code) => (
         <div key={code}>
@@ -287,7 +323,7 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
           <details className="group/detailsCard block w-full min-w-0 min-h-0">
             <summary className="list-none cursor-pointer select-none px-3 py-1.5 sm:pr-11 flex flex-nowrap items-center gap-2 min-w-0 rounded-none hover:bg-muted/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background max-sm:min-h-11 [&::-webkit-details-marker]:hidden">
               <span className="min-w-0 flex-1 text-left text-base sm:text-lg font-semibold text-foreground leading-tight tracking-tight truncate">
-                {entry.danish || "—"}
+                {displayDanish(entry) || "—"}
               </span>
               <span
                 className={cn(

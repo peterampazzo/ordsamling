@@ -179,3 +179,35 @@ export function grammarHasContent(type: EntryType, grammar: EntryGrammar | undef
   if (!fields || !grammar) return false;
   return fields.some(({ key }) => Boolean(grammar[key]?.trim()));
 }
+
+/**
+ * Strip a leading Danish/English infinitive marker ("at " / "to ") from a verb root.
+ * Idempotent — safe to call on already-stripped values. Case-insensitive on the marker.
+ */
+export function stripInfinitiveMarker(value: string, lang: "da" | "en" = "da"): string {
+  const v = value.trim();
+  const marker = lang === "da" ? /^at\s+/i : /^to\s+/i;
+  return v.replace(marker, "");
+}
+
+/**
+ * Format a verb root for display by prepending the infinitive marker
+ * ("at " for Danish, "to " for English). Returns empty string for empty input.
+ */
+export function formatInfinitive(value: string, lang: "da" | "en" = "da"): string {
+  const stripped = stripInfinitiveMarker(value, lang);
+  if (!stripped) return "";
+  return `${lang === "da" ? "at" : "to"} ${stripped}`;
+}
+
+/** Display helper: format an entry's Danish form, applying verb infinitive prefix. */
+export function displayDanish(entry: Pick<LexisEntry, "danish" | "type">): string {
+  if (!entry.danish) return "";
+  return entry.type === "verb" ? formatInfinitive(entry.danish, "da") : entry.danish;
+}
+
+/** Display helper: format an entry's English form, applying verb infinitive prefix. */
+export function displayEnglish(entry: Pick<LexisEntry, "english" | "type">): string {
+  if (!entry.english) return "";
+  return entry.type === "verb" ? formatInfinitive(entry.english, "en") : entry.english;
+}

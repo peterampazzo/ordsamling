@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { X, ArrowRight } from "lucide-react";
 import type { LexisEntry, EntryType } from "@/hooks/useLexicon";
-import { ENTRY_TYPES, entryTypeLabel, pruneGrammar, type EntryGrammar } from "@/lib/lexicon";
+import { ENTRY_TYPES, entryTypeLabel, pruneGrammar, stripInfinitiveMarker, type EntryGrammar } from "@/lib/lexicon";
 import { GrammarFields } from "@/components/EntryGrammar";
 import { t } from "@/i18n";
 import { useExtraLanguages } from "@/hooks/useVisibleLanguages";
@@ -55,8 +55,8 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
         if (v) cleanedTranslations[code] = v;
       }
       await onAdd({
-        danish: danish.trim(),
-        english: english.trim(),
+        danish: type === "verb" ? stripInfinitiveMarker(danish, "da") : danish.trim(),
+        english: type === "verb" ? stripInfinitiveMarker(english, "en") : english.trim(),
         notes: notes.trim(),
         type,
         ...(Object.keys(cleanedTranslations).length > 0 ? { translations: cleanedTranslations } : {}),
@@ -114,14 +114,21 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
 
       <div className="space-y-1 min-w-0">
         <span className="sr-only">{t("directions.danish")}</span>
-        <Input
-          value={danish}
-          onChange={(e) => setDanish(e.target.value)}
-          placeholder={t("addEntry.danishPlaceholder")}
-          autoFocus
-          disabled={disabled || isSubmitting}
-          className="text-base font-medium min-w-0"
-        />
+        <div className="relative">
+          {type === "verb" && (
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base font-medium text-muted-foreground italic">
+              at
+            </span>
+          )}
+          <Input
+            value={danish}
+            onChange={(e) => setDanish(stripInfinitiveMarker(e.target.value, "da"))}
+            placeholder={type === "verb" ? "spise, gå, lære…" : t("addEntry.danishPlaceholder")}
+            autoFocus
+            disabled={disabled || isSubmitting}
+            className={`text-base font-medium min-w-0 ${type === "verb" ? "pl-9" : ""}`}
+          />
+        </div>
       </div>
 
       <GrammarFields type={type} value={grammar} onChange={setGrammar} disabled={disabled || isSubmitting} />
@@ -131,13 +138,20 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 min-w-0">
           <div className="min-w-0">
             <span className="text-[10px] font-medium text-lang-en uppercase tracking-wider">{t("lexisCard.english")}</span>
-            <Input
-              value={english}
-              onChange={(e) => setEnglish(e.target.value)}
-              placeholder={t("addEntry.englishPlaceholder")}
-              disabled={disabled || isSubmitting}
-              className="mt-0.5 min-w-0"
-            />
+            <div className="relative mt-0.5">
+              {type === "verb" && (
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground italic">
+                  to
+                </span>
+              )}
+              <Input
+                value={english}
+                onChange={(e) => setEnglish(stripInfinitiveMarker(e.target.value, "en"))}
+                placeholder={type === "verb" ? "eat, go, learn…" : t("addEntry.englishPlaceholder")}
+                disabled={disabled || isSubmitting}
+                className={`min-w-0 ${type === "verb" ? "pl-9" : ""}`}
+              />
+            </div>
           </div>
           {showExtras && extraLangs.map((code) => (
             <div key={code} className="min-w-0">
