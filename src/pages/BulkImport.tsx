@@ -341,22 +341,19 @@ function statusBadge(status: RowStatus) {
   }
 }
 
-const EXAMPLE_INPUT = `danish,english,italian,type,notes
-hus,house,casa,noun,
-gå,to go,andare,verb,
-stor,big,grande,adjective,
-god morgen,good morning,buongiorno,expression,Hilsen om morgenen
-
-{"danish":"hus","english":"house","italian":"casa","type":"noun","grammar":{"article":"et","singularDefinite":"huset","pluralIndefinite":"huse","pluralDefinite":"husene"}}
-{"danish":"gå","english":"to go","italian":"andare","type":"verb","grammar":{"present":"går","past":"gik","perfect":"har gået"}}`;
+const EXAMPLE_INPUT = `danish,english,type,notes
+hus,house,noun,
+gå,to go,verb,
+stor,big,adjective,
+god morgen,good morning,expression,Hilsen om morgenen`;
 
 const EXAMPLE_JSON = `[
   {
     "danish": "hus",
     "english": "house",
-    "italian": "casa",
     "type": "noun",
     "notes": "En almindelig bolig",
+    "translations": { "fr": "maison", "de": "Haus" },
     "grammar": {
       "article": "et",
       "singularDefinite": "huset",
@@ -367,7 +364,6 @@ const EXAMPLE_JSON = `[
   {
     "danish": "spise",
     "english": "to eat",
-    "italian": "mangiare",
     "type": "verb",
     "grammar": {
       "present": "spiser",
@@ -378,7 +374,6 @@ const EXAMPLE_JSON = `[
   {
     "danish": "stor",
     "english": "big",
-    "italian": "grande",
     "type": "adjective",
     "grammar": {
       "neuter": "stort",
@@ -391,7 +386,6 @@ const EXAMPLE_JSON = `[
   {
     "danish": "godmorgen",
     "english": "good morning",
-    "italian": "buongiorno",
     "type": "expression",
     "notes": "Hilsen om morgenen"
   }
