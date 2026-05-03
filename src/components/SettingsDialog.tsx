@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Dialog,
@@ -7,20 +7,24 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Download, RotateCcw, Sparkles } from "lucide-react";
+import { Download, RotateCcw, Sparkles, Plus, X } from "lucide-react";
 import {
   ALL_LANGUAGES,
   type Language,
   getVisibleLanguages,
   setVisibleLanguages,
   getAiProvider,
-  setAiProvider,
   getAiKey,
-  setAiKey,
   exportEntriesAsJson,
   resetAllLocalData,
   type AiProvider,
@@ -34,37 +38,47 @@ interface SettingsDialogProps {
   entries: LexisEntry[];
 }
 
+const CORE_LANGUAGES: Language[] = ["danish", "english"];
+
 export function SettingsDialog({ open, onOpenChange, entries }: SettingsDialogProps) {
   const navigate = useNavigate();
   const [visible, setVisible] = useState<Language[]>(getVisibleLanguages());
-  const [provider, setProviderState] = useState<AiProvider>(getAiProvider());
-  const [apiKey, setApiKeyState] = useState<string>(getAiKey());
+  const [provider] = useState<AiProvider>(getAiProvider());
+  const [apiKey] = useState<string>(getAiKey());
+  const [pendingAdd, setPendingAdd] = useState<string>("");
 
   useEffect(() => {
     if (open) {
       setVisible(getVisibleLanguages());
-      setProviderState(getAiProvider());
-      setApiKeyState(getAiKey());
+      setPendingAdd("");
     }
   }, [open]);
 
-  const toggleLang = (lang: Language) => {
-    const next = visible.includes(lang)
-      ? visible.filter((l) => l !== lang)
-      : [...visible, lang];
-    if (next.length === 0) return; // require at least one
+  const extraLangs = useMemo(
+    () => visible.filter((l) => !CORE_LANGUAGES.includes(l)),
+    [visible],
+  );
+  const availableToAdd = useMemo(
+    () => ALL_LANGUAGES.filter((l) => !visible.includes(l)),
+    [visible],
+  );
+
+  const persist = (next: Language[]) => {
     setVisible(next);
     setVisibleLanguages(next);
   };
 
-  const handleProvider = (p: AiProvider) => {
-    setProviderState(p);
-    setAiProvider(p);
+  const addLang = () => {
+    if (!pendingAdd) return;
+    const lang = pendingAdd as Language;
+    if (!ALL_LANGUAGES.includes(lang) || visible.includes(lang)) return;
+    persist([...visible, lang]);
+    setPendingAdd("");
   };
 
-  const handleKey = (k: string) => {
-    setApiKeyState(k);
-    setAiKey(k);
+  const removeLang = (lang: Language) => {
+    if (CORE_LANGUAGES.includes(lang)) return;
+    persist(visible.filter((l) => l !== lang));
   };
 
   const handleReset = () => {
@@ -84,30 +98,80 @@ export function SettingsDialog({ open, onOpenChange, entries }: SettingsDialogPr
           <DialogDescription className="sr-only">{t("settings.title")}</DialogDescription>
         </DialogHeader>
 
-        {/* Visibility */}
+        {/* Languages */}
         <section className="space-y-3">
           <div>
             <h3 className="text-sm font-semibold">{t("settings.visibilityTitle")}</h3>
             <p className="text-xs text-muted-foreground">{t("settings.visibilityDesc")}</p>
           </div>
+
           <div className="space-y-2">
-            {ALL_LANGUAGES.map((lang) => (
-              <div key={lang} className="flex items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2">
-                <Label htmlFor={`lang-${lang}`} className="cursor-pointer">
-                  {t(`settings.langs.${lang}`)}
-                </Label>
-                <Switch
-                  id={`lang-${lang}`}
-                  checked={visible.includes(lang)}
-                  onCheckedChange={() => toggleLang(lang)}
-                />
+            {CORE_LANGUAGES.map((lang) => (
+              <div
+                key={lang}
+                className="flex items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2"
+              >
+                <span className="text-sm">{t(`settings.langs.${lang}`)}</span>
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  {t("settings.coreLanguage")}
+                </span>
+              </div>
+            ))}
+
+            {extraLangs.map((lang) => (
+              <div
+                key={lang}
+                className="flex items-center justify-between rounded-md border border-border bg-background px-3 py-2"
+              >
+                <span className="text-sm">{t(`settings.langs.${lang}`)}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removeLang(lang)}
+                  className="h-7 gap-1 text-muted-foreground hover:text-destructive"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  {t("settings.removeLanguage")}
+                </Button>
               </div>
             ))}
           </div>
+
+          {availableToAdd.length > 0 ? (
+            <div className="flex items-center gap-2 pt-1">
+              <Select value={pendingAdd} onValueChange={setPendingAdd}>
+                <SelectTrigger className="h-9 flex-1">
+                  <SelectValue placeholder={t("settings.addLanguage")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableToAdd.map((lang) => (
+                    <SelectItem key={lang} value={lang}>
+                      {t(`settings.langs.${lang}`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                size="sm"
+                onClick={addLang}
+                disabled={!pendingAdd}
+                className="gap-1"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {t("common.add")}
+              </Button>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground italic pt-1">
+              {t("settings.noMoreLanguages")}
+            </p>
+          )}
         </section>
 
-        {/* AI Provider */}
-        <section className="space-y-3 border-t border-border pt-4">
+        {/* AI Provider — disabled preview */}
+        <section className="space-y-3 border-t border-border pt-4 opacity-60">
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-muted-foreground" />
             <h3 className="text-sm font-semibold">{t("settings.aiTitle")}</h3>
@@ -115,14 +179,14 @@ export function SettingsDialog({ open, onOpenChange, entries }: SettingsDialogPr
               {t("settings.aiPreview")}
             </span>
           </div>
-          <p className="text-xs text-muted-foreground">{t("settings.aiDesc")}</p>
+          <p className="text-xs text-muted-foreground">{t("settings.aiDisabledHint")}</p>
           <div className="space-y-2">
             <Label htmlFor="ai-provider" className="text-xs">{t("settings.aiProvider")}</Label>
             <select
               id="ai-provider"
               value={provider}
-              onChange={(e) => handleProvider(e.target.value as AiProvider)}
-              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+              disabled
+              className="flex h-9 w-full rounded-md border border-input bg-muted px-3 py-1 text-sm cursor-not-allowed"
             >
               <option value="">{t("settings.providerNone")}</option>
               <option value="cloudflare">{t("settings.providerCloudflare")}</option>
@@ -135,7 +199,8 @@ export function SettingsDialog({ open, onOpenChange, entries }: SettingsDialogPr
               id="ai-key"
               type="password"
               value={apiKey}
-              onChange={(e) => handleKey(e.target.value)}
+              disabled
+              readOnly
               placeholder={t("settings.aiKeyPlaceholder")}
               autoComplete="off"
             />
