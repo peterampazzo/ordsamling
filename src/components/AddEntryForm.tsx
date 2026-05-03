@@ -55,8 +55,8 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
         if (v) cleanedTranslations[code] = v;
       }
       await onAdd({
-        danish: danish.trim(),
-        english: english.trim(),
+        danish: type === "verb" ? stripInfinitiveMarker(danish, "da") : danish.trim(),
+        english: type === "verb" ? stripInfinitiveMarker(english, "en") : english.trim(),
         notes: notes.trim(),
         type,
         ...(Object.keys(cleanedTranslations).length > 0 ? { translations: cleanedTranslations } : {}),
