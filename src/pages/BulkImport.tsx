@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Upload, ArrowLeft, CheckCircle2, XCircle, AlertCircle, Loader2, FileText, RefreshCw, Settings, FileUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageHeader, PageFooter } from "@/components/layout";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
