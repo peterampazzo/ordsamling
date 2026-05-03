@@ -62,10 +62,7 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const touchStartX = useRef<number | null>(null);
-  const visibleLangs = useVisibleLanguages();
-  const showDanish = visibleLangs.includes("danish");
-  const showEnglish = visibleLangs.includes("english");
-  const showItalian = visibleLangs.includes("italian");
+  const extraLangs = useExtraLanguages();
 
   useEffect(() => {
     if (editing) setSwipeOpen(false);
