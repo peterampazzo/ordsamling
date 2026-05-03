@@ -122,9 +122,9 @@ const Landing = () => {
           <p className="text-xs sm:text-sm uppercase tracking-[0.32em] text-muted-foreground mb-6">
             {t("landing.eyebrow")}
           </p>
-          <h1 className="font-serif text-5xl sm:text-7xl leading-[1.05] text-foreground mb-6 tracking-tight">
+          <SerifHeading level="display" as="h1" className="mb-6">
             Ordsamling.
-          </h1>
+          </SerifHeading>
           <p className="font-serif italic text-lg sm:text-2xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
             {t("landing.tagline")}
           </p>
