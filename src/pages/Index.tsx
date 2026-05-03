@@ -298,15 +298,13 @@ const Index = () => {
         </div>
       </header>
 
-      <Dialog open={addFormOpen} onOpenChange={setAddFormOpen}>
-        <DialogContent
-          showCloseButton={false}
-          className={cn(
-            "fixed inset-0 left-0 top-0 z-50 flex h-[100dvh] max-h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 border-0 bg-background p-0 shadow-none rounded-none overflow-hidden",
-            "duration-0 data-[state=open]:animate-none data-[state=closed]:animate-none",
-          )}
+      {addFormOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("index.addWord")}
+          className="fixed inset-0 z-50 flex h-[100dvh] w-full flex-col bg-background"
         >
-          <DialogTitle className="sr-only">{t("index.addWord")}</DialogTitle>
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))]">
             <div className="mx-auto w-full max-w-3xl">
               <AddEntryForm
@@ -321,9 +319,8 @@ const Index = () => {
               />
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
-
+        </div>
+      )}
       <main className="max-w-3xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
         {isLoading ? (
           <div className="text-center py-16 text-muted-foreground">
