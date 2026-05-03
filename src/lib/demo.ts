@@ -41,14 +41,17 @@ export function activateDemo(): void {
   window.dispatchEvent(new CustomEvent("ordsamling:demo-changed"));
 }
 
-/** Disable demo mode. Real user data is untouched. */
+/**
+ * Disable demo mode. Real user data is untouched.
+ * Demo entries are kept in their own localStorage key so re-entering /demo
+ * is instant; they're harmless and re-seeded on activate anyway.
+ */
 export function deactivateDemo(): void {
   try {
     sessionStorage.removeItem(DEMO_FLAG_KEY);
   } catch {
     /* ignore */
   }
-  localStorage.removeItem(DEMO_STORAGE_KEY);
   window.dispatchEvent(new CustomEvent("ordsamling:demo-changed"));
 }
 
