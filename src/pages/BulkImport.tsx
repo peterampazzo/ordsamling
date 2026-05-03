@@ -460,6 +460,14 @@ export default function BulkImport() {
     }
   }, []);
 
+  // Enabled extra languages (re-read on settings-changed event)
+  const [extraLangs, setExtraLangs] = useState<string[]>(() => getExtraLanguages());
+  useEffect(() => {
+    const refresh = () => setExtraLangs(getExtraLanguages());
+    window.addEventListener("ordsamling:settings-changed", refresh);
+    return () => window.removeEventListener("ordsamling:settings-changed", refresh);
+  }, []);
+
   const handleProcessDocument = useCallback(async (file: File) => {
     if (!isAuthenticated) {
       alert(t("bulkImport.authRequired"));
