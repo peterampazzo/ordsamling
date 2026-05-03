@@ -155,10 +155,6 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
             </button>
           ))}
         </div>
-        <div className="space-y-1">
-          <span className="sr-only">{t("directions.danish")}</span>
-          <Input value={draft.danish} onChange={(e) => setDraft({ ...draft, danish: e.target.value })} autoFocus disabled={disabled || isSubmitting} className="text-base font-medium" placeholder={t("addEntry.danishPlaceholder")} />
-        </div>
         {showDanish && (
           <div className="space-y-1">
             <span className="sr-only">{t("directions.danish")}</span>
