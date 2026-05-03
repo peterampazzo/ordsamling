@@ -494,7 +494,7 @@ const Quiz = () => {
     setTimeLeft(TIMER_SECONDS[difficulty]);
     setTimerActive(true);
     setState("playing");
-  }, [allEntries, questionCount, difficulty, mode]);
+  }, [allEntries, questionCount, difficulty, mode, activeDirections]);
 
   const submitAnswer = useCallback(
     (answer: string) => {
