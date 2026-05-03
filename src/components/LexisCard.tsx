@@ -190,18 +190,22 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
     );
   }
 
-  const translationBlock = (
+  const translationBlock = (showEnglish || showItalian) ? (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
-      <div>
-        <span className="text-[10px] font-medium text-lang-en uppercase tracking-wider">{t("lexisCard.english")}</span>
-        <p className="text-muted-foreground leading-snug break-words">{entry.english || "—"}</p>
-      </div>
-      <div>
-        <span className="text-[10px] font-medium text-lang-it uppercase tracking-wider">{t("lexisCard.italian")}</span>
-        <p className="text-muted-foreground leading-snug break-words">{entry.italian || "—"}</p>
-      </div>
+      {showEnglish && (
+        <div>
+          <span className="text-[10px] font-medium text-lang-en uppercase tracking-wider">{t("lexisCard.english")}</span>
+          <p className="text-muted-foreground leading-snug break-words">{entry.english || "—"}</p>
+        </div>
+      )}
+      {showItalian && (
+        <div>
+          <span className="text-[10px] font-medium text-lang-it uppercase tracking-wider">{t("lexisCard.italian")}</span>
+          <p className="text-muted-foreground leading-snug break-words">{entry.italian || "—"}</p>
+        </div>
+      )}
     </div>
-  );
+  ) : null;
 
   const actionStrip = (
     <div
