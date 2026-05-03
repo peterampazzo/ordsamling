@@ -1062,7 +1062,7 @@ export default function BulkImport() {
                   {t("bulkImport.selectedCount", { count: selectedRows.size })}
                 </Badge>
               )}
-          </section>
+            </div>
 
             {/* Selection controls */}
             {validRows.length > 0 && parsed && (
