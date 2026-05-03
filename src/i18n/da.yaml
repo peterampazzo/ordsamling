@@ -226,6 +226,8 @@ settings:
   resetConfirm1: "Slet ALLE lokale data? Dette inkluderer ord, indstillinger og historik."
   resetConfirm2: "Er du HELT sikker? Dette kan ikke fortrydes."
   dataDisclaimer: "Bemærk: At fjerne et sprog skjuler det kun fra visningen. Dine data forbliver gemt på denne enhed og slettes aldrig, medmindre du bruger «Nulstil app»."
+  uiLangTitle: "Sprog i appen"
+  uiLangDesc: "Vælg sprog for grænsefladen. Dine ord påvirkes ikke."
   langs:
     danish: "Dansk"
     english: "Engelsk"
