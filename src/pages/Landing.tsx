@@ -161,21 +161,14 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* Mission strip */}
-      <section className="max-w-3xl mx-auto px-4 sm:px-6 py-16 sm:py-20 text-center">
-        <Sparkles className="h-5 w-5 text-muted-foreground/60 mx-auto mb-4" />
-        <p className="font-serif italic text-2xl sm:text-3xl text-foreground leading-relaxed">
-          “Stop forgetting, start capturing.”
-        </p>
-      </section>
-
       {/* Final CTA */}
-      <section className="max-w-3xl mx-auto px-4 sm:px-6 pb-20 sm:pb-28 text-center">
-        <h2 className="font-serif text-3xl sm:text-4xl text-foreground mb-4">
-          Begin your collection.
+      <section className="max-w-3xl mx-auto px-4 sm:px-6 py-20 sm:py-28 text-center">
+        <Sparkles className="h-5 w-5 text-muted-foreground/60 mx-auto mb-6" />
+        <h2 className="font-serif text-3xl sm:text-4xl text-foreground mb-5 leading-tight">
+          Start your Danish collection today.
         </h2>
-        <p className="text-muted-foreground max-w-xl mx-auto mb-8">
-          Add your first word in under a minute. Quiz yourself for the rest of your life.
+        <p className="font-serif italic text-lg sm:text-xl text-muted-foreground max-w-xl mx-auto mb-8 leading-relaxed">
+          Capture words from school or daily life and never let them slip away.
         </p>
         <Button asChild size="lg" className="h-12 px-7 gap-2 text-base">
           <Link to="/app">
