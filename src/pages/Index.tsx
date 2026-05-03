@@ -329,6 +329,7 @@ const Index = () => {
           </div>
         )}
       </main>
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} entries={allEntries} />
     </div>
   );
 };
