@@ -679,14 +679,9 @@ const Quiz = () => {
 
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <header className="sticky top-0 z-30 border-b border-border bg-card/90 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80">
-          <div className="max-w-3xl mx-auto px-3 sm:px-4 flex items-center gap-3 py-3">
-            <Brain className="h-5 w-5 text-primary" />
-            <h1 className="text-base sm:text-lg font-semibold text-foreground">{t("quiz.result")}</h1>
-          </div>
-        </header>
+        <PageHeader pageLabel={t("quiz.result")} backTo="/quiz" />
 
-        <main className="flex-1 px-4 py-8">
+        <main className="flex-1 px-4 py-6 sm:py-8">
           <div className="max-w-md mx-auto space-y-8">
             <div className="text-center space-y-3">
               <div className={cn("text-6xl font-bold", pct >= 80 ? "text-primary" : pct >= 50 ? "text-accent-foreground" : "text-destructive")}>{pct}%</div>
