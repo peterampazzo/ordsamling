@@ -203,9 +203,9 @@ const Landing = () => {
       {/* Final CTA */}
       <section className="max-w-3xl mx-auto px-4 sm:px-6 py-20 sm:py-28 text-center">
         <Sparkles className="h-5 w-5 text-muted-foreground/60 mx-auto mb-6" />
-        <h2 className="font-serif text-3xl sm:text-4xl text-foreground mb-5 leading-tight">
+        <SerifHeading level="xl" className="mb-5">
           {t("landing.ctaTitle")}
-        </h2>
+        </SerifHeading>
         <p className="font-serif italic text-lg sm:text-xl text-muted-foreground max-w-xl mx-auto mb-8 leading-relaxed">
           {t("landing.ctaBody")}
         </p>
