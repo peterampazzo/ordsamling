@@ -982,7 +982,15 @@ export default function BulkImport() {
 
         {/* Input area */}
         {(importStatus === "idle" || importStatus === "parsed") && (
-          <div className="space-y-3">
+          <section className="rounded-lg border border-border bg-card p-4 sm:p-5 space-y-3">
+            <div className="space-y-1">
+              <h2 className="font-serif text-base sm:text-lg tracking-tight">
+                {t("bulkImport.pasteSectionTitle")}
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                {t("bulkImport.pasteSectionDescription")}
+              </p>
+            </div>
             <Textarea
               value={rawText}
               onChange={(e) => {
