@@ -114,14 +114,21 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
 
       <div className="space-y-1 min-w-0">
         <span className="sr-only">{t("directions.danish")}</span>
-        <Input
-          value={danish}
-          onChange={(e) => setDanish(e.target.value)}
-          placeholder={t("addEntry.danishPlaceholder")}
-          autoFocus
-          disabled={disabled || isSubmitting}
-          className="text-base font-medium min-w-0"
-        />
+        <div className="relative">
+          {type === "verb" && (
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base font-medium text-muted-foreground italic">
+              at
+            </span>
+          )}
+          <Input
+            value={danish}
+            onChange={(e) => setDanish(stripInfinitiveMarker(e.target.value, "da"))}
+            placeholder={type === "verb" ? "spise, gå, lære…" : t("addEntry.danishPlaceholder")}
+            autoFocus
+            disabled={disabled || isSubmitting}
+            className={`text-base font-medium min-w-0 ${type === "verb" ? "pl-9" : ""}`}
+          />
+        </div>
       </div>
 
       <GrammarFields type={type} value={grammar} onChange={setGrammar} disabled={disabled || isSubmitting} />
