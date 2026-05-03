@@ -163,6 +163,10 @@ export function SettingsDialog({ open, onOpenChange, entries }: SettingsDialogPr
               {t("settings.noMoreLanguages")}
             </p>
           )}
+
+          <p className="text-[11px] text-muted-foreground leading-relaxed bg-muted/40 border border-border rounded-md px-3 py-2 mt-2">
+            {t("settings.dataDisclaimer")}
+          </p>
         </section>
 
         <section className="space-y-3 border-t border-border pt-4 opacity-60">

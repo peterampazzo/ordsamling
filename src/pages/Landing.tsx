@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const GITHUB_URL = "https://github.com/lorenzobertolini/ordsamling";
+const GITHUB_URL = "https://github.com/peterampazzo/ordsamling/";
 
 const features = [
   {
@@ -84,8 +84,7 @@ const Landing = () => {
             Ordsamling.
           </h1>
           <p className="font-serif italic text-lg sm:text-2xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            A minimalist language notebook designed to rescue your Danish and
-            English vocabulary from being forgotten.
+            Your personal Danish vocabulary notebook.
           </p>
 
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -162,21 +161,14 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* Mission strip */}
-      <section className="max-w-3xl mx-auto px-4 sm:px-6 py-16 sm:py-20 text-center">
-        <Sparkles className="h-5 w-5 text-muted-foreground/60 mx-auto mb-4" />
-        <p className="font-serif italic text-2xl sm:text-3xl text-foreground leading-relaxed">
-          “Stop forgetting, start capturing.”
-        </p>
-      </section>
-
       {/* Final CTA */}
-      <section className="max-w-3xl mx-auto px-4 sm:px-6 pb-20 sm:pb-28 text-center">
-        <h2 className="font-serif text-3xl sm:text-4xl text-foreground mb-4">
-          Begin your collection.
+      <section className="max-w-3xl mx-auto px-4 sm:px-6 py-20 sm:py-28 text-center">
+        <Sparkles className="h-5 w-5 text-muted-foreground/60 mx-auto mb-6" />
+        <h2 className="font-serif text-3xl sm:text-4xl text-foreground mb-5 leading-tight">
+          Start your Danish collection today.
         </h2>
-        <p className="text-muted-foreground max-w-xl mx-auto mb-8">
-          Add your first word in under a minute. Quiz yourself for the rest of your life.
+        <p className="font-serif italic text-lg sm:text-xl text-muted-foreground max-w-xl mx-auto mb-8 leading-relaxed">
+          Capture words from school or daily life and never let them slip away.
         </p>
         <Button asChild size="lg" className="h-12 px-7 gap-2 text-base">
           <Link to="/app">
@@ -190,7 +182,7 @@ const Landing = () => {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted-foreground">
           <p className="font-serif text-sm text-foreground">Ordsamling</p>
           <div className="flex items-center gap-4">
-            <span>Built with care · Local-first</span>
+            <span>From an idea to reality, built with the help of AI.</span>
             <a
               href={GITHUB_URL}
               target="_blank"
