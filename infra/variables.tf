@@ -14,3 +14,15 @@ variable "production_branch" {
   type        = string
   default     = "main"
 }
+
+variable "google_client_id" {
+  description = "Google OAuth2 client ID — set as a Cloudflare Pages secret."
+  type        = string
+  sensitive   = true
+}
+
+variable "google_client_secret" {
+  description = "Google OAuth2 client secret — set as a Cloudflare Pages secret."
+  type        = string
+  sensitive   = true
+}

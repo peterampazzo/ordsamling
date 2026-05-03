@@ -88,6 +88,8 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build (pnpm)
+        env:
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
         run: pnpm run build
 
       - name: Deploy to Cloudflare Pages with Wrangler
