@@ -191,9 +191,9 @@ const Landing = () => {
           <span className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-primary/10 text-primary mb-5">
             <Lock className="h-5 w-5" />
           </span>
-          <h2 className="font-serif text-2xl sm:text-3xl text-foreground mb-3">
+          <SerifHeading level="lg" className="mb-3">
             {t("landing.privacyTitle")}
-          </h2>
+          </SerifHeading>
           <p className="text-muted-foreground max-w-xl mx-auto leading-relaxed">
             {t("landing.privacyBody")}
           </p>
