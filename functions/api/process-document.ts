@@ -23,6 +23,8 @@ type LexisEntryInput = Omit<LexisEntry, "id" | "createdAt">;
 
 const STORAGE_KEY = "entries:v1";
 const MAX_EXTRA_LANGUAGES = 5;
+const MAX_WORDS = 20;
+const PARALLEL = 4;
 
 const LANGUAGE_NAMES: Record<string, string> = {
   it: "Italian",
