@@ -23,6 +23,7 @@ import type { LexisEntry } from "@/hooks/useLexicon";
 import { ENTRY_TYPES, entryTypeLabel, entryTypePillClass, pruneGrammar, type EntryType } from "@/lib/lexicon";
 import { GrammarDisplay, GrammarFields } from "@/components/EntryGrammar";
 import { t } from "@/i18n";
+import { useVisibleLanguages } from "@/hooks/useVisibleLanguages";
 
 interface Props {
   entry: LexisEntry;
@@ -60,6 +61,10 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const touchStartX = useRef<number | null>(null);
+  const visibleLangs = useVisibleLanguages();
+  const showDanish = visibleLangs.includes("danish");
+  const showEnglish = visibleLangs.includes("english");
+  const showItalian = visibleLangs.includes("italian");
 
   useEffect(() => {
     if (editing) setSwipeOpen(false);
@@ -150,24 +155,32 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
             </button>
           ))}
         </div>
-        <div className="space-y-1">
-          <span className="sr-only">{t("directions.danish")}</span>
-          <Input value={draft.danish} onChange={(e) => setDraft({ ...draft, danish: e.target.value })} autoFocus disabled={disabled || isSubmitting} className="text-base font-medium" placeholder={t("addEntry.danishPlaceholder")} />
-        </div>
+        {showDanish && (
+          <div className="space-y-1">
+            <span className="sr-only">{t("directions.danish")}</span>
+            <Input value={draft.danish} onChange={(e) => setDraft({ ...draft, danish: e.target.value })} autoFocus disabled={disabled || isSubmitting} className="text-base font-medium" placeholder={t("addEntry.danishPlaceholder")} />
+          </div>
+        )}
         <GrammarFields type={draft.type} value={draft.grammar ?? {}} onChange={(g) => setDraft({ ...draft, grammar: g })} disabled={disabled || isSubmitting} />
-        <div className="rounded-md border border-border bg-muted/25 p-2.5 space-y-2">
-          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t("lexisCard.translations")}</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <div>
-              <span className="text-[10px] font-medium text-lang-en uppercase tracking-wider">{t("lexisCard.english")}</span>
-              <Input value={draft.english} onChange={(e) => setDraft({ ...draft, english: e.target.value })} disabled={disabled || isSubmitting} className="mt-0.5" />
-            </div>
-            <div>
-              <span className="text-[10px] font-medium text-lang-it uppercase tracking-wider">{t("lexisCard.italian")}</span>
-              <Input value={draft.italian} onChange={(e) => setDraft({ ...draft, italian: e.target.value })} disabled={disabled || isSubmitting} className="mt-0.5" />
+        {(showEnglish || showItalian) && (
+          <div className="rounded-md border border-border bg-muted/25 p-2.5 space-y-2">
+            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t("lexisCard.translations")}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {showEnglish && (
+                <div>
+                  <span className="text-[10px] font-medium text-lang-en uppercase tracking-wider">{t("lexisCard.english")}</span>
+                  <Input value={draft.english} onChange={(e) => setDraft({ ...draft, english: e.target.value })} disabled={disabled || isSubmitting} className="mt-0.5" />
+                </div>
+              )}
+              {showItalian && (
+                <div>
+                  <span className="text-[10px] font-medium text-lang-it uppercase tracking-wider">{t("lexisCard.italian")}</span>
+                  <Input value={draft.italian} onChange={(e) => setDraft({ ...draft, italian: e.target.value })} disabled={disabled || isSubmitting} className="mt-0.5" />
+                </div>
+              )}
             </div>
           </div>
-        </div>
+        )}
         <Textarea value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} rows={2} disabled={disabled || isSubmitting} />
         <div className="flex gap-2 justify-end pt-0.5">
           <Button size="sm" variant="ghost" onClick={cancel} disabled={isSubmitting}><X className="h-4 w-4" /></Button>
@@ -177,18 +190,22 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
     );
   }
 
-  const translationBlock = (
+  const translationBlock = (showEnglish || showItalian) ? (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
-      <div>
-        <span className="text-[10px] font-medium text-lang-en uppercase tracking-wider">{t("lexisCard.english")}</span>
-        <p className="text-muted-foreground leading-snug break-words">{entry.english || "—"}</p>
-      </div>
-      <div>
-        <span className="text-[10px] font-medium text-lang-it uppercase tracking-wider">{t("lexisCard.italian")}</span>
-        <p className="text-muted-foreground leading-snug break-words">{entry.italian || "—"}</p>
-      </div>
+      {showEnglish && (
+        <div>
+          <span className="text-[10px] font-medium text-lang-en uppercase tracking-wider">{t("lexisCard.english")}</span>
+          <p className="text-muted-foreground leading-snug break-words">{entry.english || "—"}</p>
+        </div>
+      )}
+      {showItalian && (
+        <div>
+          <span className="text-[10px] font-medium text-lang-it uppercase tracking-wider">{t("lexisCard.italian")}</span>
+          <p className="text-muted-foreground leading-snug break-words">{entry.italian || "—"}</p>
+        </div>
+      )}
     </div>
-  );
+  ) : null;
 
   const actionStrip = (
     <div
@@ -282,10 +299,12 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
             </summary>
             <div className="border-t border-border bg-muted/15 px-3 py-2.5 space-y-3">
               <GrammarDisplay type={entry.type} grammar={entry.grammar} />
-              <div>
-                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1.5">{t("lexisCard.translations")}</p>
-                {translationBlock}
-              </div>
+              {translationBlock && (
+                <div>
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1.5">{t("lexisCard.translations")}</p>
+                  {translationBlock}
+                </div>
+              )}
               {(entry.notes || linkedWords.length > 0) && (
                 <div className="pt-2 border-t border-border/80 space-y-1.5">
                   {entry.notes && <p className="text-sm text-muted-foreground italic leading-snug">{entry.notes}</p>}

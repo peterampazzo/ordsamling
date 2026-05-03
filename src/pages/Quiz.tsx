@@ -23,6 +23,7 @@ import { useLexicon, isLocalStorageMode } from "@/hooks/useLexicon";
 import type { LexisEntry } from "@/hooks/useLexicon";
 import { entryTypeLabel, type EntryGrammar } from "@/lib/lexicon";
 import { saveSession, type QuizAnswerRecord } from "@/lib/quizHistory";
+import { useVisibleLanguages } from "@/hooks/useVisibleLanguages";
 import { t } from "@/i18n";
 
 /* ------------------------------------------------------------------ */
@@ -229,11 +230,11 @@ function buildQuestions(
   count: number,
   difficulty: Difficulty,
   mode: QuizMode,
+  directions: LangDirection[] = DIRECTIONS,
 ): QuizQuestion[] {
   let pool: QuizQuestion[] = [];
 
-  // Build questions in BOTH directions for true bilingual mix
-  for (const dir of DIRECTIONS) {
+  for (const dir of directions) {
     const eligible = entries.filter((e) => isValid(e[dir.from]) && isValid(e[dir.to]));
     if (eligible.length < 2) continue;
 
@@ -324,12 +325,11 @@ async function fetchSmartDistractors(
   question: QuizQuestion,
   difficulty: Difficulty,
   scoreRatio: number,
-): Promise<string[]> {
+): Promise<{ distractors: string[]; aiActive: boolean }> {
   if (isLocalStorageMode()) {
-    return [];
+    return { distractors: [], aiActive: false };
   }
 
-  // Detect verbal infinitive prefix ("at" Danish / "to" English) so distractors keep the same form
   const trimmed = question.answer.trim();
   const lower = trimmed.toLowerCase();
   let answerPrefix: string | undefined;
@@ -352,14 +352,17 @@ async function fetchSmartDistractors(
         answerPrefix,
       }),
     });
-    if (!res.ok) return [];
+    // Silent fallback on auth errors — never surface to user
+    if (res.status === 401 || res.status === 403) return { distractors: [], aiActive: false };
+    if (!res.ok) return { distractors: [], aiActive: false };
     const data = (await res.json()) as { distractors: string[] };
     const correctAlts = new Set(splitAlternatives(question.answer).map(normalize));
-    return (data.distractors || []).filter(
+    const filtered = (data.distractors || []).filter(
       (d) => isValid(d) && !correctAlts.has(normalize(d)) && normalize(d) !== normalize(question.answer),
     );
+    return { distractors: filtered, aiActive: filtered.length > 0 };
   } catch {
-    return [];
+    return { distractors: [], aiActive: false };
   }
 }
 
@@ -369,6 +372,11 @@ async function fetchSmartDistractors(
 
 const Quiz = () => {
   const { allEntries } = useLexicon();
+  const visibleLangs = useVisibleLanguages();
+  const activeDirections = useMemo(
+    () => DIRECTIONS.filter((d) => visibleLangs.includes(d.from) && visibleLangs.includes(d.to)),
+    [visibleLangs],
+  );
 
   const [mode, setMode] = useState<QuizMode>("mixed");
   const [difficulty, setDifficulty] = useState<Difficulty>("beginner");
@@ -383,6 +391,7 @@ const Quiz = () => {
   const [showResult, setShowResult] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
   const [timerActive, setTimerActive] = useState(false);
+  const [aiActive, setAiActive] = useState(false);
 
   const answersRef = useRef<QuizAnswerRecord[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -448,16 +457,15 @@ const Quiz = () => {
     const scoreRatio = total > 0 ? score / Math.max(currentIdx, 1) : 0;
     let cancelled = false;
 
-    fetchSmartDistractors(current, difficulty, scoreRatio).then((distractors) => {
+    fetchSmartDistractors(current, difficulty, scoreRatio).then(({ distractors, aiActive: active }) => {
       if (cancelled || distractors.length === 0) return;
+      setAiActive(active);
       setQuestions((prev) => {
         const next = [...prev];
         const q = { ...next[currentIdx] };
-        // Replace random distractors with AI ones
         const kept = q.options.filter((o) => matchesAnswer(o, q.answer));
         const aiOptions = distractors.slice(0, 3);
         q.options = shuffle([...kept, ...aiOptions]).filter(isValid);
-        // Ensure correct answer is always present
         if (!q.options.some((o) => matchesAnswer(o, q.answer))) {
           q.options[0] = q.answer;
           q.options = shuffle(q.options);
@@ -474,7 +482,7 @@ const Quiz = () => {
   }, [currentIdx, state]);
 
   const startQuiz = useCallback(() => {
-    const q = buildQuestions(allEntries, questionCount, difficulty, mode);
+    const q = buildQuestions(allEntries, questionCount, difficulty, mode, activeDirections.length > 0 ? activeDirections : DIRECTIONS);
     if (q.length < 2) return;
     setQuestions(q);
     setCurrentIdx(0);
@@ -486,7 +494,7 @@ const Quiz = () => {
     setTimeLeft(TIMER_SECONDS[difficulty]);
     setTimerActive(true);
     setState("playing");
-  }, [allEntries, questionCount, difficulty, mode]);
+  }, [allEntries, questionCount, difficulty, mode, activeDirections]);
 
   const submitAnswer = useCallback(
     (answer: string) => {
@@ -731,6 +739,11 @@ const Quiz = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Brain className="h-5 w-5 text-primary" />
+              {aiActive && (
+                <span className="text-[9px] uppercase tracking-wider bg-primary/15 text-primary px-1.5 py-0.5 rounded font-bold">
+                  {t("settings.aiActive")}
+                </span>
+              )}
               <span className="text-sm font-medium text-foreground">{currentIdx + 1} / {total}</span>
               <span className={cn(
                 "text-[10px] uppercase px-1.5 py-0.5 rounded font-medium",

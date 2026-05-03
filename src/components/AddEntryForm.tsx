@@ -7,6 +7,7 @@ import type { LexisEntry, EntryType } from "@/hooks/useLexicon";
 import { ENTRY_TYPES, entryTypeLabel, pruneGrammar, type EntryGrammar } from "@/lib/lexicon";
 import { GrammarFields } from "@/components/EntryGrammar";
 import { t } from "@/i18n";
+import { useVisibleLanguages } from "@/hooks/useVisibleLanguages";
 
 interface Props {
   onAdd: (entry: Omit<LexisEntry, "id" | "createdAt">) => Promise<void>;
@@ -24,6 +25,10 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
   const [type, setType] = useState<EntryType>("word");
   const [grammar, setGrammar] = useState<EntryGrammar>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const visibleLangs = useVisibleLanguages();
+  const showDanish = visibleLangs.includes("danish");
+  const showEnglish = visibleLangs.includes("english");
+  const showItalian = visibleLangs.includes("italian");
 
   const reset = () => {
     setDanish("");
@@ -100,45 +105,53 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
         ))}
       </div>
 
-      <div className="space-y-1 min-w-0">
-        <span className="sr-only">{t("directions.danish")}</span>
-        <Input
-          value={danish}
-          onChange={(e) => setDanish(e.target.value)}
-          placeholder={t("addEntry.danishPlaceholder")}
-          autoFocus
-          disabled={disabled || isSubmitting}
-          className="text-base font-medium min-w-0"
-        />
-      </div>
+      {showDanish && (
+        <div className="space-y-1 min-w-0">
+          <span className="sr-only">{t("directions.danish")}</span>
+          <Input
+            value={danish}
+            onChange={(e) => setDanish(e.target.value)}
+            placeholder={t("addEntry.danishPlaceholder")}
+            autoFocus
+            disabled={disabled || isSubmitting}
+            className="text-base font-medium min-w-0"
+          />
+        </div>
+      )}
 
       <GrammarFields type={type} value={grammar} onChange={setGrammar} disabled={disabled || isSubmitting} />
 
-      <div className="rounded-md border border-border bg-muted/25 p-2.5 space-y-2 min-w-0">
-        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t("addEntry.translations")}</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 min-w-0">
-          <div className="min-w-0">
-            <span className="text-[10px] font-medium text-lang-en uppercase tracking-wider">{t("lexisCard.english")}</span>
-            <Input
-              value={english}
-              onChange={(e) => setEnglish(e.target.value)}
-              placeholder={t("addEntry.englishPlaceholder")}
-              disabled={disabled || isSubmitting}
-              className="mt-0.5 min-w-0"
-            />
-          </div>
-          <div className="min-w-0">
-            <span className="text-[10px] font-medium text-lang-it uppercase tracking-wider">{t("lexisCard.italian")}</span>
-            <Input
-              value={italian}
-              onChange={(e) => setItalian(e.target.value)}
-              placeholder={t("addEntry.italianPlaceholder")}
-              disabled={disabled || isSubmitting}
-              className="mt-0.5 min-w-0"
-            />
+      {(showEnglish || showItalian) && (
+        <div className="rounded-md border border-border bg-muted/25 p-2.5 space-y-2 min-w-0">
+          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t("addEntry.translations")}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 min-w-0">
+            {showEnglish && (
+              <div className="min-w-0">
+                <span className="text-[10px] font-medium text-lang-en uppercase tracking-wider">{t("lexisCard.english")}</span>
+                <Input
+                  value={english}
+                  onChange={(e) => setEnglish(e.target.value)}
+                  placeholder={t("addEntry.englishPlaceholder")}
+                  disabled={disabled || isSubmitting}
+                  className="mt-0.5 min-w-0"
+                />
+              </div>
+            )}
+            {showItalian && (
+              <div className="min-w-0">
+                <span className="text-[10px] font-medium text-lang-it uppercase tracking-wider">{t("lexisCard.italian")}</span>
+                <Input
+                  value={italian}
+                  onChange={(e) => setItalian(e.target.value)}
+                  placeholder={t("addEntry.italianPlaceholder")}
+                  disabled={disabled || isSubmitting}
+                  className="mt-0.5 min-w-0"
+                />
+              </div>
+            )}
           </div>
         </div>
-      </div>
+      )}
 
       {matches.length > 0 && (
         <div className="rounded-md border border-primary/20 bg-accent/50 p-2.5 space-y-2 min-w-0">

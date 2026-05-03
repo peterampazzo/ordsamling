@@ -197,5 +197,31 @@ directions:
   english: "Engelsk"
 
 demo:
-  banner: "Demo-tilstand — data er kun lokalt og forsvinder når du deaktiverer"
+  banner: "Demo-tilstand — du udforsker eksempeldata. Dine egne ord er i sikkerhed på /app"
   disable: "Afslut demo"
+  goToApp: "Til min ordbog"
+  addDisabled: "Deaktiveret i demo-tilstand"
+
+settings:
+  title: "Indstillinger"
+  visibilityTitle: "Synlige sprog"
+  visibilityDesc: "Vælg hvilke sprog der vises i kort, formularer og quizzer."
+  aiTitle: "Ekstern AI-udbyder"
+  aiPreview: "Forhåndsvisning"
+  aiDesc: "Brug din egen API-nøgle til AI-genererede distraktorer. Kun gemt lokalt i din browser."
+  aiProvider: "Udbyder"
+  aiKey: "API-nøgle"
+  aiKeyPlaceholder: "sk-…"
+  providerCloudflare: "Cloudflare"
+  providerOpenAI: "OpenAI"
+  providerNone: "Ingen (brug standard)"
+  dataTitle: "Data"
+  exportJson: "Eksportér som JSON"
+  reset: "Nulstil app"
+  resetConfirm1: "Slet ALLE lokale data? Dette inkluderer ord, indstillinger og historik."
+  resetConfirm2: "Er du HELT sikker? Dette kan ikke fortrydes."
+  langs:
+    danish: "Dansk"
+    english: "Engelsk"
+    italian: "Italiensk"
+  aiActive: "AI"

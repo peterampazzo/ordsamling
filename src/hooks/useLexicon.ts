@@ -9,10 +9,10 @@ import {
   type LexisEntry,
   type LexisEntryInput,
 } from "@/lib/lexicon";
+import { getEntriesStorageKey, isDemoMode } from "@/lib/demo";
 
 export type { EntryGrammar, EntryType, LexisEntry } from "@/lib/lexicon";
 
-const STORAGE_KEY = "lexikon-entries";
 const ENTRIES_QUERY_KEY = ["entries"];
 
 function normalizeEntry(entry: Partial<LexisEntry>): LexisEntry {
@@ -30,7 +30,7 @@ function normalizeEntry(entry: Partial<LexisEntry>): LexisEntry {
 
 function loadLocalEntries(): LexisEntry[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(getEntriesStorageKey());
     const parsed = raw ? JSON.parse(raw) : [];
 
     if (!Array.isArray(parsed)) {
@@ -44,7 +44,7 @@ function loadLocalEntries(): LexisEntry[] {
 }
 
 function saveLocalEntries(entries: LexisEntry[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  localStorage.setItem(getEntriesStorageKey(), JSON.stringify(entries));
 }
 
 async function requestJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
@@ -69,6 +69,8 @@ async function requestJson<T>(input: RequestInfo, init?: RequestInit): Promise<T
 }
 
 export function isLocalStorageMode() {
+  // Demo always runs purely from local storage and never hits the API
+  if (isDemoMode()) return true;
   return import.meta.env.DEV || window.location.hostname.endsWith(".pages.dev");
 }
 
