@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Search, BookOpen, ArrowDownAZ, Clock, Plus, Upload, Brain, X, Filter, Settings as SettingsIcon, Github } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
