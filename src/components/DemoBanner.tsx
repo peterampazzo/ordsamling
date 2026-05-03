@@ -1,20 +1,23 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { X, FlaskConical } from "lucide-react";
 import { isDemoMode, deactivateDemo } from "@/lib/demo";
 import { t } from "@/i18n";
 
 export function DemoBanner() {
-  const [visible, setVisible] = useState(false);
+  const [active, setActive] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
-    setVisible(isDemoMode());
-    const update = () => setVisible(isDemoMode());
+    setActive(isDemoMode());
+    const update = () => setActive(isDemoMode());
     window.addEventListener("ordsamling:demo-changed", update);
     return () => window.removeEventListener("ordsamling:demo-changed", update);
   }, []);
 
+  // Hide on the public landing page; only show inside the actual app surfaces.
+  const visible = active && location.pathname !== "/";
   if (!visible) return null;
 
   const handleDisable = () => {
