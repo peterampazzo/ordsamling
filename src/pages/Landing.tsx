@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
@@ -10,34 +11,32 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { t, getLang, setLang, AVAILABLE_LANGS } from "@/i18n";
+import { cn } from "@/lib/utils";
 
 const GITHUB_URL = "https://github.com/peterampazzo/ordsamling/";
 
-const features = [
-  {
-    icon: BookOpen,
-    title: "Personal Notebook",
-    body: "A mobile-first workspace to capture and organize the words you actually meet — at school, at work, in conversation.",
-  },
-  {
-    icon: Languages,
-    title: "Danish Grammar",
-    body: "Built-in support for noun genders (en/et), verb tenses, and adjective inflections. Not just translations — the full picture.",
-  },
-  {
-    icon: Brain,
-    title: "Smart Quizzes",
-    body: "Memory exercises with intelligent distractors so the wrong answers actually feel plausible.",
-    badge: "Preview",
-  },
-  {
-    icon: LineChart,
-    title: "Progress Insights",
-    body: "Your weakest words rise to the top automatically, so practice always lands where it matters most.",
-  },
-];
-
 const Landing = () => {
+  const [lang, setLangState] = useState(getLang());
+
+  useEffect(() => {
+    const handler = () => setLangState(getLang());
+    window.addEventListener("ordsamling:lang-changed", handler);
+    return () => window.removeEventListener("ordsamling:lang-changed", handler);
+  }, []);
+
+  const switchLang = (l: string) => {
+    setLang(l);
+    setLangState(l);
+  };
+
+  const features = [
+    { icon: BookOpen, title: t("landing.feature1Title"), body: t("landing.feature1Body") },
+    { icon: Languages, title: t("landing.feature2Title"), body: t("landing.feature2Body") },
+    { icon: Brain, title: t("landing.feature3Title"), body: t("landing.feature3Body"), badge: t("landing.feature3Badge") },
+    { icon: LineChart, title: t("landing.feature4Title"), body: t("landing.feature4Body") },
+  ];
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
@@ -47,25 +46,64 @@ const Landing = () => {
             <span className="font-serif text-xl sm:text-2xl text-foreground tracking-tight">
               Ordsamling.
             </span>
-            <span className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground hidden sm:inline">
-              · DA · EN
-            </span>
           </Link>
           <div className="flex items-center gap-1.5 sm:gap-2">
+            <div
+              role="group"
+              aria-label="Language"
+              className="hidden sm:flex items-center rounded-full border border-border bg-background/60 p-0.5 text-[11px] font-mono uppercase tracking-wider"
+            >
+              {AVAILABLE_LANGS.map((l) => (
+                <button
+                  key={l}
+                  type="button"
+                  onClick={() => switchLang(l)}
+                  aria-pressed={lang === l}
+                  className={cn(
+                    "px-2 py-0.5 rounded-full transition-colors",
+                    lang === l
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
             <Button variant="ghost" size="sm" asChild className="gap-1.5">
-              <a href={GITHUB_URL} target="_blank" rel="noreferrer" aria-label="View on GitHub">
+              <a href={GITHUB_URL} target="_blank" rel="noreferrer" aria-label={t("landing.footerGithub")}>
                 <Github className="h-4 w-4" />
-                <span className="hidden sm:inline">GitHub</span>
+                <span className="hidden sm:inline">{t("landing.github")}</span>
               </a>
             </Button>
             <Button asChild size="sm" className="gap-1.5">
               <Link to="/app">
-                Open app <ArrowRight className="h-4 w-4" />
+                {t("landing.openApp")} <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
           </div>
         </div>
       </header>
+
+      {/* Mobile lang switch */}
+      <div className="sm:hidden flex justify-center pt-3">
+        <div role="group" aria-label="Language" className="flex items-center rounded-full border border-border bg-background/60 p-0.5 text-[11px] font-mono uppercase tracking-wider">
+          {AVAILABLE_LANGS.map((l) => (
+            <button
+              key={l}
+              type="button"
+              onClick={() => switchLang(l)}
+              aria-pressed={lang === l}
+              className={cn(
+                "px-2.5 py-0.5 rounded-full transition-colors",
+                lang === l ? "bg-primary text-primary-foreground" : "text-muted-foreground",
+              )}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Hero */}
       <section className="relative overflow-hidden">
@@ -76,31 +114,29 @@ const Landing = () => {
           Aa
         </div>
 
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-16 sm:pt-24 pb-16 sm:pb-20 text-center relative">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-12 sm:pt-24 pb-16 sm:pb-20 text-center relative">
           <p className="text-xs sm:text-sm uppercase tracking-[0.32em] text-muted-foreground mb-6">
-            A pocket notebook for languages
+            {t("landing.eyebrow")}
           </p>
           <h1 className="font-serif text-5xl sm:text-7xl leading-[1.05] text-foreground mb-6 tracking-tight">
             Ordsamling.
           </h1>
           <p className="font-serif italic text-lg sm:text-2xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            Your personal Danish vocabulary notebook.
+            {t("landing.tagline")}
           </p>
 
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Button asChild size="lg" className="h-12 px-6 gap-2 text-base">
               <Link to="/app">
-                Start collecting <ArrowRight className="h-4 w-4" />
+                {t("landing.startCollecting")} <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
             <Button asChild variant="outline" size="lg" className="h-12 px-6 text-base">
-              <Link to="/demo">Try the demo</Link>
+              <Link to="/demo">{t("landing.tryDemo")}</Link>
             </Button>
           </div>
 
-          <p className="mt-6 text-xs text-muted-foreground">
-            No account. Your words stay yours.
-          </p>
+          <p className="mt-6 text-xs text-muted-foreground">{t("landing.noAccount")}</p>
         </div>
 
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -112,10 +148,10 @@ const Landing = () => {
       <section className="max-w-5xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
         <div className="mb-12 sm:mb-16 text-center max-w-2xl mx-auto">
           <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground mb-3">
-            What Ordsamling does
+            {t("landing.featuresEyebrow")}
           </p>
           <h2 className="font-serif text-2xl sm:text-3xl text-foreground">
-            A small notebook with bigger ambitions
+            {t("landing.featuresTitle")}
           </h2>
         </div>
 
@@ -152,11 +188,10 @@ const Landing = () => {
             <Lock className="h-5 w-5" />
           </span>
           <h2 className="font-serif text-2xl sm:text-3xl text-foreground mb-3">
-            100% Private.
+            {t("landing.privacyTitle")}
           </h2>
           <p className="text-muted-foreground max-w-xl mx-auto leading-relaxed">
-            All data is stored locally in your browser. No accounts, no
-            sign-ups, no tracking. Export your collection at any time.
+            {t("landing.privacyBody")}
           </p>
         </div>
       </section>
@@ -165,14 +200,14 @@ const Landing = () => {
       <section className="max-w-3xl mx-auto px-4 sm:px-6 py-20 sm:py-28 text-center">
         <Sparkles className="h-5 w-5 text-muted-foreground/60 mx-auto mb-6" />
         <h2 className="font-serif text-3xl sm:text-4xl text-foreground mb-5 leading-tight">
-          Start your Danish collection today.
+          {t("landing.ctaTitle")}
         </h2>
         <p className="font-serif italic text-lg sm:text-xl text-muted-foreground max-w-xl mx-auto mb-8 leading-relaxed">
-          Capture words from school or daily life and never let them slip away.
+          {t("landing.ctaBody")}
         </p>
         <Button asChild size="lg" className="h-12 px-7 gap-2 text-base">
           <Link to="/app">
-            Open Ordsamling <ArrowRight className="h-4 w-4" />
+            {t("landing.openOrdsamling")} <ArrowRight className="h-4 w-4" />
           </Link>
         </Button>
       </section>
@@ -182,14 +217,14 @@ const Landing = () => {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted-foreground">
           <p className="font-serif text-sm text-foreground">Ordsamling</p>
           <div className="flex items-center gap-4">
-            <span>From an idea to reality, built with the help of AI.</span>
+            <span>{t("landing.footerCredit")}</span>
             <a
               href={GITHUB_URL}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1.5 text-foreground hover:text-primary transition-colors"
             >
-              <Github className="h-3.5 w-3.5" /> View on GitHub
+              <Github className="h-3.5 w-3.5" /> {t("landing.footerGithub")}
             </a>
           </div>
         </div>
