@@ -166,9 +166,9 @@ function parseJsonObjects(items: unknown[]): { rows: ParsedRow[]; headers: strin
     const entry: LexisEntryInput = {
       danish,
       english,
-      italian,
       notes: fields.notes ?? "",
       type,
+      ...(italian ? { translations: { it: italian } } : {}),
       ...(Object.keys(grammarFields).length > 0 ? { grammar: grammarFields } : {}),
     };
 
