@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { X, ArrowRight } from "lucide-react";
 import type { LexisEntry, EntryType } from "@/hooks/useLexicon";
-import { ENTRY_TYPES, entryTypeLabel, pruneGrammar, type EntryGrammar } from "@/lib/lexicon";
+import { ENTRY_TYPES, entryTypeLabel, pruneGrammar, stripInfinitiveMarker, type EntryGrammar } from "@/lib/lexicon";
 import { GrammarFields } from "@/components/EntryGrammar";
 import { t } from "@/i18n";
 import { useExtraLanguages } from "@/hooks/useVisibleLanguages";
