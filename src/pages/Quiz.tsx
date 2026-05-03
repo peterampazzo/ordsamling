@@ -230,11 +230,11 @@ function buildQuestions(
   count: number,
   difficulty: Difficulty,
   mode: QuizMode,
+  directions: LangDirection[] = DIRECTIONS,
 ): QuizQuestion[] {
   let pool: QuizQuestion[] = [];
 
-  // Build questions in BOTH directions for true bilingual mix
-  for (const dir of DIRECTIONS) {
+  for (const dir of directions) {
     const eligible = entries.filter((e) => isValid(e[dir.from]) && isValid(e[dir.to]));
     if (eligible.length < 2) continue;
 
