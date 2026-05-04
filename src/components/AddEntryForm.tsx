@@ -155,9 +155,19 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
             onChange={(e) => setDanish(stripInfinitiveMarker(e.target.value, "da"))}
             placeholder={type === "verb" ? "spise, gå, lære…" : t("addEntry.danishPlaceholder")}
             autoFocus
-            disabled={disabled || isSubmitting}
-            className={`text-base font-medium min-w-0 ${type === "verb" ? "pl-9" : ""}`}
+            disabled={disabled || isSubmitting || isAutofilling}
+            className={`text-base font-medium min-w-0 pr-10 ${type === "verb" ? "pl-9" : ""}`}
           />
+          <button
+            type="button"
+            onClick={handleAutofill}
+            disabled={disabled || isSubmitting || isAutofilling || !(danish.trim() || english.trim())}
+            aria-label={t("addEntry.aiAutofill")}
+            title={t("addEntry.aiAutofill")}
+            className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {isAutofilling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          </button>
         </div>
       </div>
 
