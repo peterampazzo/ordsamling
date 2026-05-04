@@ -28,6 +28,7 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
   const [type, setType] = useState<EntryType>("word");
   const [grammar, setGrammar] = useState<EntryGrammar>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAutofilling, setIsAutofilling] = useState(false);
   const extraLangs = useExtraLanguages();
 
   const reset = () => {
@@ -37,6 +38,33 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
     setNotes("");
     setType("word");
     setGrammar({});
+  };
+
+  const handleAutofill = async () => {
+    const seed = danish.trim() || english.trim();
+    if (!seed) {
+      toast.error(t("addEntry.aiAutofillEmpty"));
+      return;
+    }
+    if (!getGeminiApiKey()) {
+      toast.error(t("addEntry.aiAutofillNoKey"));
+      return;
+    }
+    setIsAutofilling(true);
+    try {
+      const sourceLang: "da" | "en" = danish.trim() ? "da" : "en";
+      const result = await autocompleteSingleWord(seed, sourceLang);
+      if (result.danish) setDanish(result.danish);
+      if (result.english) setEnglish(result.english);
+      if (result.notes) setNotes(result.notes);
+      if (result.type) setType(result.type);
+      if (result.grammar) setGrammar(result.grammar as EntryGrammar);
+    } catch (err) {
+      console.error("AI autofill failed", err);
+      toast.error(t("addEntry.aiAutofillError"));
+    } finally {
+      setIsAutofilling(false);
+    }
   };
 
   const activeQuery =
