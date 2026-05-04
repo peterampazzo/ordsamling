@@ -12,7 +12,7 @@ import { useLexicon } from "@/hooks/useLexicon";
 import { ENTRY_TYPES, entryTypeLabel, normalizeEntryType, type EntryType } from "@/lib/lexicon";
 import type { LexisEntryInput } from "@/lib/lexicon";
 import { getExtraLanguages, getLanguageLabel, getGeminiApiKey } from "@/lib/settings";
-import { processDocument, GeminiKeyMissingError, GeminiKeyInvalidError, GeminiRateLimitError } from "@/lib/gemini";
+import { processDocument, processDocumentChunked, GeminiKeyMissingError, GeminiKeyInvalidError, GeminiRateLimitError } from "@/lib/gemini";
 import { t } from "@/i18n";
 
 // ---------------------------------------------------------------------------
@@ -602,6 +602,67 @@ export default function BulkImport() {
     setSelectedRows(new Set(validRowIndices));
   }, [rawText]);
 
+  // Detect a raw word list: every non-empty line is short, no commas/tabs/braces.
+  const looksLikeRawList = useMemo(() => {
+    const lines = rawText.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (lines.length < 2) return false;
+    return lines.every(
+      (l) => l.length <= 40 && !/[,\t{}\[\]:]/.test(l),
+    );
+  }, [rawText]);
+
+  const handleMagicFill = useCallback(async () => {
+    const words = rawText.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (words.length === 0) return;
+    if (!getGeminiApiKey()) {
+      setDocumentError(t("bulkImport.keyMissingBody"));
+      return;
+    }
+    setIsProcessingDocument(true);
+    setDocumentError(null);
+    setDocumentProgress(null);
+    try {
+      const langs = getExtraLanguages();
+      const entries = await processDocumentChunked(
+        words,
+        langs,
+        allEntries.map((e) => e.danish),
+        (p) => setDocumentProgress(p),
+      );
+      if (entries.length === 0) {
+        setDocumentError("No new words to fill — they may already exist.");
+        return;
+      }
+      const rows: ParsedRow[] = entries.map((entry, i) => ({
+        rowIndex: i + 1,
+        raw: [],
+        entry,
+        errors: [],
+        warnings: [],
+      }));
+      const headers = ["danish", "english", "type", "notes"];
+      if (langs.length > 0) headers.push(...langs.map((c) => `translations.${c}`));
+      setRawText(JSON.stringify(entries, null, 2));
+      setParsed({ rows, headers });
+      setImportStatus("parsed");
+      setResults([]);
+      setSelectedRows(new Set(rows.map((r) => r.rowIndex)));
+    } catch (err) {
+      console.error("Magic Fill failed", err);
+      if (err instanceof GeminiRateLimitError) {
+        setDocumentError(err.isDailyQuota
+          ? "Gemini daily quota exhausted. Try again tomorrow."
+          : "Gemini rate limit hit. Please wait a minute and try again.");
+      } else if (err instanceof GeminiKeyMissingError || err instanceof GeminiKeyInvalidError) {
+        setDocumentError(err.message);
+      } else {
+        setDocumentError(err instanceof Error ? err.message : t("bulkImport.unknownError"));
+      }
+    } finally {
+      setIsProcessingDocument(false);
+    }
+  }, [rawText, allEntries]);
+
   const validRows = parsed?.rows.filter((r) => r.entry !== null) ?? [];
   const errorRows = parsed?.rows.filter((r) => r.entry === null) ?? [];
 
@@ -1010,6 +1071,28 @@ export default function BulkImport() {
                 <code>{EXAMPLE_JSON}</code>
               </pre>
             </details>
+            {looksLikeRawList && hasGeminiKey && (
+              <div className="rounded-md border border-primary/30 bg-primary/5 p-3 flex items-start gap-3">
+                <Sparkles className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0 space-y-2">
+                  <p className="text-xs text-foreground/80">{t("bulkImport.magicFillHint")}</p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleMagicFill}
+                    disabled={isProcessingDocument}
+                    className="gap-1.5"
+                  >
+                    {isProcessingDocument ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-3.5 w-3.5" />
+                    )}
+                    {t("bulkImport.magicFill")}
+                  </Button>
+                </div>
+              </div>
+            )}
             <div className="flex gap-2 justify-end">
               {rawText.trim() && (
                 <Button type="button" variant="ghost" size="sm" onClick={handleReset}>

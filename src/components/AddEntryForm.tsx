@@ -1,14 +1,16 @@
 import { useState, useMemo } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { X, ArrowRight } from "lucide-react";
+import { X, ArrowRight, Sparkles, Loader2 } from "lucide-react";
 import type { LexisEntry, EntryType } from "@/hooks/useLexicon";
 import { ENTRY_TYPES, entryTypeLabel, pruneGrammar, stripInfinitiveMarker, type EntryGrammar } from "@/lib/lexicon";
 import { GrammarFields } from "@/components/EntryGrammar";
 import { t } from "@/i18n";
 import { useExtraLanguages } from "@/hooks/useVisibleLanguages";
-import { getLanguageLabel } from "@/lib/settings";
+import { getLanguageLabel, getGeminiApiKey } from "@/lib/settings";
+import { autocompleteSingleWord } from "@/lib/gemini";
 
 interface Props {
   onAdd: (entry: Omit<LexisEntry, "id" | "createdAt">) => Promise<void>;
@@ -26,6 +28,7 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
   const [type, setType] = useState<EntryType>("word");
   const [grammar, setGrammar] = useState<EntryGrammar>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAutofilling, setIsAutofilling] = useState(false);
   const extraLangs = useExtraLanguages();
 
   const reset = () => {
@@ -35,6 +38,33 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
     setNotes("");
     setType("word");
     setGrammar({});
+  };
+
+  const handleAutofill = async () => {
+    const seed = danish.trim() || english.trim();
+    if (!seed) {
+      toast.error(t("addEntry.aiAutofillEmpty"));
+      return;
+    }
+    if (!getGeminiApiKey()) {
+      toast.error(t("addEntry.aiAutofillNoKey"));
+      return;
+    }
+    setIsAutofilling(true);
+    try {
+      const sourceLang: "da" | "en" = danish.trim() ? "da" : "en";
+      const result = await autocompleteSingleWord(seed, sourceLang);
+      if (result.danish) setDanish(result.danish);
+      if (result.english) setEnglish(result.english);
+      if (result.notes) setNotes(result.notes);
+      if (result.type) setType(result.type);
+      if (result.grammar) setGrammar(result.grammar as EntryGrammar);
+    } catch (err) {
+      console.error("AI autofill failed", err);
+      toast.error(t("addEntry.aiAutofillError"));
+    } finally {
+      setIsAutofilling(false);
+    }
   };
 
   const activeQuery =
@@ -125,9 +155,19 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
             onChange={(e) => setDanish(stripInfinitiveMarker(e.target.value, "da"))}
             placeholder={type === "verb" ? "spise, gå, lære…" : t("addEntry.danishPlaceholder")}
             autoFocus
-            disabled={disabled || isSubmitting}
-            className={`text-base font-medium min-w-0 ${type === "verb" ? "pl-9" : ""}`}
+            disabled={disabled || isSubmitting || isAutofilling}
+            className={`text-base font-medium min-w-0 pr-10 ${type === "verb" ? "pl-9" : ""}`}
           />
+          <button
+            type="button"
+            onClick={handleAutofill}
+            disabled={disabled || isSubmitting || isAutofilling || !(danish.trim() || english.trim())}
+            aria-label={t("addEntry.aiAutofill")}
+            title={t("addEntry.aiAutofill")}
+            className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {isAutofilling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          </button>
         </div>
       </div>
 
