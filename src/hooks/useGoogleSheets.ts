@@ -26,6 +26,8 @@ import {
   isCloudSyncEnabled,
   type DirtyOperation,
 } from '@/lib/storageConfig';
+import { getExtraLanguages, setExtraLanguages } from '@/lib/settings';
+import type { SheetSettings } from '@/lib/sheetTypes';
 
 // ---------------------------------------------------------------------------
 // Types
