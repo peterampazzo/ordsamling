@@ -56,6 +56,10 @@ addEntry:
   notesPlaceholder: "Notes — grammar, examples…"
   translations: "Translations"
   matchesFound: "Already exists ({count})"
+  aiAutofill: "Auto-fill with AI"
+  aiAutofillNoKey: "Add a Gemini key in Settings to enable AI auto-fill"
+  aiAutofillError: "Couldn't auto-fill — check your Gemini key or try again."
+  aiAutofillEmpty: "Type a Danish word first"
 
 lexisCard:
   translations: "Translations"
