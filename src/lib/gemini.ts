@@ -1,119 +1,13 @@
 /**
- * Client-side Gemini API helpers.
- * All calls go directly from the browser to the Gemini REST API.
+ * Client-side Gemini API helpers using the official @google/genai SDK.
+ * All calls go directly from the browser to the Gemini API.
  * The user's API key is read from localStorage and never sent to any
  * developer-controlled server.
  */
 
+import { GoogleGenAI } from "@google/genai";
 import { getGeminiApiKey, getGeminiModel } from "@/lib/settings";
 import type { LexisEntryInput, EntryType } from "@/lib/lexicon";
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
-
-const ALLOWED_MODELS = ["gemini-2.0-flash", "gemini-2.5-flash-preview-04-17"] as const;
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function resolvedModel(): string {
-  const m = getGeminiModel();
-  return (ALLOWED_MODELS as readonly string[]).includes(m) ? m : "gemini-2.0-flash";
-}
-
-function geminiUrl(model: string): string {
-  return `${GEMINI_BASE}/${model}:generateContent`;
-}
-
-interface GeminiResponse {
-  candidates?: Array<{
-    content?: { parts?: Array<{ text?: string }> };
-  }>;
-  error?: { message?: string; status?: string; details?: unknown[] };
-}
-
-async function callGemini(
-  prompt: string,
-  options: {
-    temperature?: number;
-    maxOutputTokens?: number;
-    systemInstruction?: string;
-  } = {},
-): Promise<string> {
-  const key = getGeminiApiKey();
-  if (!key) throw new GeminiKeyMissingError();
-
-  const model = resolvedModel();
-  const body: Record<string, unknown> = {
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: {
-      temperature: options.temperature ?? 0.3,
-      ...(options.maxOutputTokens ? { maxOutputTokens: options.maxOutputTokens } : {}),
-    },
-  };
-  if (options.systemInstruction) {
-    body.systemInstruction = { parts: [{ text: options.systemInstruction }] };
-  }
-
-  const res = await fetch(`${geminiUrl(model)}?key=${encodeURIComponent(key)}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as GeminiResponse;
-    if (res.status === 429) {
-      const details = err.error?.details as Array<Record<string, unknown>> | undefined;
-      // Check if any violation is a daily quota
-      const quotaFailure = details?.find(
-        (d) => d["@type"] === "type.googleapis.com/google.rpc.QuotaFailure"
-      );
-      const violations = quotaFailure?.violations as Array<Record<string, unknown>> | undefined;
-      const isDailyQuota = violations?.some((v) =>
-        typeof v.quotaId === "string" && v.quotaId.toLowerCase().includes("perday")
-      ) ?? false;
-      // Extract retryDelay from the RetryInfo detail if present
-      const retryInfo = details?.find(
-        (d) => d["@type"] === "type.googleapis.com/google.rpc.RetryInfo"
-      );
-      const retryDelayStr = retryInfo?.retryDelay as string | undefined;
-      const retryAfterSeconds = retryDelayStr
-        ? parseInt(retryDelayStr.replace("s", ""), 10) || null
-        : null;
-      throw new GeminiRateLimitError(retryAfterSeconds, isDailyQuota);
-    }
-    if (res.status === 400 && err.error?.status === "INVALID_ARGUMENT") {
-      throw new GeminiKeyInvalidError();
-    }
-    if (res.status === 401 || res.status === 403) {
-      throw new GeminiKeyInvalidError();
-    }
-    throw new Error(`Gemini API error ${res.status}: ${err.error?.message ?? res.statusText}`);
-  }
-
-  const data = (await res.json()) as GeminiResponse;
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-}
-
-/** Best-effort JSON extraction from possibly-noisy LLM output. */
-function safeJsonParse<T = unknown>(raw: string): T | null {
-  if (!raw) return null;
-  let s = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/g, "").trim();
-  try { return JSON.parse(s) as T; } catch { /* fallthrough */ }
-  const firstBrace = s.search(/[\[{]/);
-  const lastBrace = Math.max(s.lastIndexOf("]"), s.lastIndexOf("}"));
-  if (firstBrace >= 0 && lastBrace > firstBrace) {
-    try { return JSON.parse(s.slice(firstBrace, lastBrace + 1)) as T; } catch { /* fallthrough */ }
-  }
-  return null;
-}
 
 // ---------------------------------------------------------------------------
 // Custom errors
@@ -134,9 +28,7 @@ export class GeminiKeyInvalidError extends Error {
 }
 
 export class GeminiRateLimitError extends Error {
-  /** Seconds until the quota resets, if provided by the API. */
   retryAfterSeconds: number | null;
-  /** True when the daily quota is exhausted (reset at midnight PT, not just next minute). */
   isDailyQuota: boolean;
   constructor(retryAfterSeconds: number | null = null, isDailyQuota = false) {
     super("Gemini API quota exceeded.");
@@ -146,26 +38,147 @@ export class GeminiRateLimitError extends Error {
   }
 }
 
+export class GeminiUnavailableError extends Error {
+  constructor() {
+    super("Gemini is currently experiencing high demand. Please try again in a moment.");
+    this.name = "GeminiUnavailableError";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SDK client factory (one instance per key)
+// ---------------------------------------------------------------------------
+
+let _client: GoogleGenAI | null = null;
+let _clientKey = "";
+
+// ---------------------------------------------------------------------------
+// Last prompt storage (for troubleshooting)
+// ---------------------------------------------------------------------------
+
+let _lastPrompt = "";
+let _lastPromptTimestamp: Date | null = null;
+
+export function getLastPrompt(): { prompt: string; timestamp: Date | null } {
+  return { prompt: _lastPrompt, timestamp: _lastPromptTimestamp };
+}
+
+function getClient(): GoogleGenAI {
+  const key = getGeminiApiKey();
+  if (!key) throw new GeminiKeyMissingError();
+  if (!_client || _clientKey !== key) {
+    _client = new GoogleGenAI({ apiKey: key });
+    _clientKey = key;
+  }
+  return _client;
+}
+
+function resolvedModel(): string {
+  const m = getGeminiModel();
+  return m || "gemini-2.5-flash";
+}
+
+// ---------------------------------------------------------------------------
+// Error mapping
+// ---------------------------------------------------------------------------
+
+function mapSdkError(err: unknown): never {
+  const msg = err instanceof Error ? err.message : String(err);
+
+  if (msg.includes("API_KEY_INVALID") || msg.includes("401") || msg.includes("403")) {
+    throw new GeminiKeyInvalidError();
+  }
+  if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED")) {
+    // Try to extract retryDelay from the message
+    const retryMatch = msg.match(/retryDelay["\s:]+(\d+)/);
+    const retryAfterSeconds = retryMatch ? parseInt(retryMatch[1], 10) : null;
+    const isDailyQuota = msg.toLowerCase().includes("perday");
+    throw new GeminiRateLimitError(retryAfterSeconds, isDailyQuota);
+  }
+  if (msg.includes("503") || msg.includes("UNAVAILABLE")) {
+    throw new GeminiUnavailableError();
+  }
+  throw err instanceof Error ? err : new Error(msg);
+}
+
+// ---------------------------------------------------------------------------
+// Core callf
+// ---------------------------------------------------------------------------
+
+async function callGemini(
+  prompt: string,
+  options: {
+    temperature?: number;
+    maxOutputTokens?: number;
+    systemInstruction?: string;
+  } = {},
+): Promise<string> {
+  const ai = getClient();
+  const model = resolvedModel();
+
+  // Store prompt for troubleshooting
+  _lastPrompt = prompt;
+  _lastPromptTimestamp = new Date();
+
+  try {
+    const response = await ai.models.generateContent({
+      model,
+      contents: prompt,
+      config: {
+        temperature: options.temperature ?? 0.3,
+        ...(options.maxOutputTokens ? { maxOutputTokens: options.maxOutputTokens } : {}),
+        ...(options.systemInstruction
+          ? { systemInstruction: options.systemInstruction }
+          : {}),
+      },
+    });
+
+    // response.text may be empty for thinking models — extract from parts directly
+    const text = response.text
+      ?? response.candidates?.[0]?.content?.parts
+          ?.filter((p: any) => !p.thought && p.text)
+          ?.map((p: any) => p.text)
+          ?.join("") 
+      ?? "";
+
+    return text;
+  } catch (err) {
+    mapSdkError(err);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// JSON parsing helper
+// ---------------------------------------------------------------------------
+
+function safeJsonParse<T = unknown>(raw: string): T | null {
+  if (!raw) return null;
+  // Strip markdown fences
+  let s = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/g, "").trim();
+  try { return JSON.parse(s) as T; } catch { /* fallthrough */ }
+  // Extract first JSON object or array
+  const firstBrace = s.search(/[\[{]/);
+  const lastBrace = Math.max(s.lastIndexOf("]"), s.lastIndexOf("}"));
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    try { return JSON.parse(s.slice(firstBrace, lastBrace + 1)) as T; } catch { /* fallthrough */ }
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Key validation
 // ---------------------------------------------------------------------------
 
 export type KeyValidationStatus = "valid" | "invalid" | "missing" | "checking";
 
-/**
- * Validates the stored Gemini API key by making a minimal generateContent call.
- * Returns "valid", "invalid", or "missing".
- */
 export async function validateGeminiKey(): Promise<"valid" | "invalid" | "missing"> {
   const key = getGeminiApiKey();
   if (!key.trim()) return "missing";
-
   try {
     await callGemini("Say OK", { maxOutputTokens: 5 });
     return "valid";
   } catch (err) {
     if (err instanceof GeminiKeyInvalidError) return "invalid";
-    // Network errors etc — don't mark as invalid
     return "valid";
   }
 }
@@ -252,10 +265,6 @@ function parseDistractors(text: string): string[] {
   }
 }
 
-/**
- * Fetches AI-generated distractors for a quiz question directly from Gemini.
- * Returns empty array silently if no key is configured.
- */
 export async function fetchDistractors(req: DistractorRequest): Promise<string[]> {
   try {
     const text = await callGemini(buildDistractorPrompt(req), {
@@ -266,7 +275,7 @@ export async function fetchDistractors(req: DistractorRequest): Promise<string[]
     return parseDistractors(text);
   } catch (err) {
     if (err instanceof GeminiKeyMissingError || err instanceof GeminiKeyInvalidError) {
-      throw err; // let caller handle
+      throw err;
     }
     return [];
   }
@@ -282,9 +291,6 @@ const LANGUAGE_NAMES: Record<string, string> = {
   fi: "Finnish", is: "Icelandic", pl: "Polish", ja: "Japanese", zh: "Chinese",
 };
 
-// Max words per single Gemini request — keeps output tokens manageable (~50 words
-// × ~60 tokens/entry ≈ 3 000 tokens, well within limits). Multiple chunks are
-// processed sequentially to stay inside the 15 RPM free-tier rate limit.
 const WORDS_PER_CHUNK = 50;
 
 function fallbackExtractWords(text: string): string[] {
@@ -328,33 +334,44 @@ function normalizeEntryTypeLocal(value: unknown): EntryType {
   return "word";
 }
 
-/**
- * Processes a chunk of words in a single Gemini request, returning one entry per word.
- * Using a single batched request per chunk instead of one request per word keeps
- * API usage well within the free-tier rate limits (15 RPM / 200 RPD).
- */
-async function processWordChunk(
-  words: string[],
-  languages: string[],
-): Promise<LexisEntryInput[]> {
+async function processWordChunk(words: string[], languages: string[]): Promise<LexisEntryInput[]> {
   if (words.length === 0) return [];
 
-  const translationFields = languages.length > 0
-    ? `,\n  "translations": { ${languages.map((c) => `"${c}": "${LANGUAGE_NAMES[c] ?? c.toUpperCase()} translation"`).join(", ")} }`
+  const translationInstruction = languages.length > 0
+    ? `\n- "translations": object with keys ${languages.map((c) => `"${c}"`).join(", ")} (${languages.map((c) => LANGUAGE_NAMES[c] ?? c.toUpperCase()).join(", ")} translations)`
     : "";
 
-  const prompt = `For each Danish word in the list below, return a JSON array where each element has:
-- "danish": the word exactly as given
-- "english": English translation
+  const translationExample = languages.length > 0
+    ? `, "translations": { ${languages.map((c) => `"${c}": "..."`).join(", ")} }`
+    : "";
+
+  const prompt = `For each Danish word or phrase in the list below, return a JSON array where each element has:
+- "danish": the word exactly as given (strip leading "at " for verbs)
+- "english": English translation (strip leading "to " for verbs)
 - "type": one of "noun", "verb", "adjective", "expression", or "word"
-- "notes": brief grammar/usage note, or empty string${languages.length > 0 ? `\n- "translations": object with keys ${languages.map((c) => `"${c}"`).join(", ")} (${languages.map((c) => LANGUAGE_NAMES[c] ?? c.toUpperCase()).join(", ")} translations)` : ""}
+- "notes": any useful usage note for the learner, or empty string — do NOT put grammar info here
+- "grammar": object with type-appropriate Danish inflections:
+    - noun: { "article": "en" or "et", "singularDefinite": "...", "pluralIndefinite": "...", "pluralDefinite": "..." }
+    - verb: { "present": "...", "past": "...", "perfect": "har/er ..." }
+    - adjective: { "neuter": "...", "definite": "...", "plural": "...", "comparative": "...", "superlative": "..." }
+    - expression, word: omit "grammar" entirely${translationInstruction}
+
+IMPORTANT:
+- Only include words that are genuine Danish words or phrases. Skip any English words, proper nouns, or non-Danish entries.
+- If a word is not Danish, omit it from the output entirely — do not include it with a note.
+- The "notes" field is for learner context (e.g. "used with 'at have'", "informal"), NOT for grammar labels like "common gender" or "neuter gender" — those belong in grammar.article.
 
 Words: ${JSON.stringify(words)}
 
 Return ONLY a JSON array, no markdown, no explanation.
-Example element: {"danish": "hus", "english": "house", "type": "noun", "notes": "common gender"${translationFields}}`;
+Examples:
+{"danish": "hus", "english": "house", "type": "noun", "notes": "", "grammar": {"article": "et", "singularDefinite": "huset", "pluralIndefinite": "huse", "pluralDefinite": "husene"}${translationExample}}
+{"danish": "løbe", "english": "run", "type": "verb", "notes": "", "grammar": {"present": "løber", "past": "løb", "perfect": "har løbet"}${translationExample}}
+{"danish": "stor", "english": "big", "type": "adjective", "notes": "", "grammar": {"neuter": "stort", "definite": "store", "plural": "store", "comparative": "større", "superlative": "størst"}${translationExample}}
+{"danish": "god morgen", "english": "good morning", "type": "expression", "notes": "common greeting"${translationExample}}
+{"danish": "altid", "english": "always", "type": "word", "notes": "adverb"${translationExample}}`;
 
-  const responseText = await callGemini(prompt, { temperature: 0.1, maxOutputTokens: 4096 });
+  const responseText = await callGemini(prompt, { temperature: 0.1, maxOutputTokens: 8192 });
   const parsed = safeJsonParse<unknown>(responseText);
   if (!Array.isArray(parsed)) return [];
 
@@ -372,12 +389,22 @@ Example element: {"danish": "hus", "english": "house", "type": "noun", "notes": 
       }
     }
 
+    const grammarRaw =
+      obj.grammar && typeof obj.grammar === "object" && !Array.isArray(obj.grammar)
+        ? (obj.grammar as Record<string, unknown>)
+        : {};
+    const grammar: Record<string, string> = {};
+    for (const [k, v] of Object.entries(grammarRaw)) {
+      if (typeof v === "string" && v.trim()) grammar[k] = v.trim();
+    }
+
     return [{
       danish,
       english: typeof obj.english === "string" ? obj.english : "",
       notes: typeof obj.notes === "string" ? obj.notes : "",
       type: normalizeEntryTypeLocal(obj.type),
       ...(Object.keys(translations).length > 0 ? { translations } : {}),
+      ...(Object.keys(grammar).length > 0 ? { grammar } : {}),
     }];
   });
 }
@@ -393,16 +420,6 @@ export interface ProcessDocumentResult {
   error?: string;
 }
 
-/**
- * Extracts and processes Danish words from a plain-text document using Gemini.
- * Runs entirely client-side — no server involved.
- *
- * Words are processed in chunks of WORDS_PER_CHUNK per Gemini request (instead of
- * one request per word) to stay within free-tier rate limits.
- *
- * @param onProgress - called after each step with { completed, total } where
- *   step 0 = word extraction, steps 1..N = chunk processing.
- */
 export async function processDocument(
   text: string,
   languages: string[],
@@ -411,7 +428,6 @@ export async function processDocument(
 ): Promise<ProcessDocumentResult> {
   const existingSet = new Set(existingWords.map((w) => w.toLowerCase()));
 
-  // Step 0: extract words (counts as 1 step)
   onProgress?.({ completed: 0, total: 1 });
   const extractedWords = await extractWordsFromText(text);
   const newWords = extractedWords.filter((w) => !existingSet.has(w.toLowerCase()));
@@ -429,12 +445,10 @@ export async function processDocument(
     };
   }
 
-  // Now we know how many chunks there are: 1 extraction step + N chunk steps
   const totalChunks = Math.ceil(newWords.length / WORDS_PER_CHUNK);
   const totalSteps = 1 + totalChunks;
   onProgress?.({ completed: 1, total: totalSteps });
 
-  // Split into chunks and process each with a single Gemini request
   const entries: LexisEntryInput[] = [];
   let firstError: Error | null = null;
 
@@ -450,7 +464,6 @@ export async function processDocument(
         err instanceof GeminiRateLimitError
       ) throw err;
       if (!firstError) firstError = err instanceof Error ? err : new Error(String(err));
-      // Continue with remaining chunks even if one fails
     }
     onProgress?.({ completed: 1 + Math.floor(i / WORDS_PER_CHUNK) + 1, total: totalSteps });
   }
@@ -460,21 +473,12 @@ export async function processDocument(
     totalExtracted: extractedWords.length,
     newWords: newWords.length,
     processed: entries.length,
-    truncated: false, // no longer truncating — we process all words
+    truncated: false,
     languages,
     ...(firstError && entries.length === 0 ? { error: firstError.message } : {}),
   };
 }
 
-// ---------------------------------------------------------------------------
-// Chunked processing for an explicit word list (Magic Fill in the wizard)
-// ---------------------------------------------------------------------------
-
-/**
- * Processes an explicit list of Danish words in chunks of WORDS_PER_CHUNK.
- * Skips any words already in `existingWords`. Returns one LexisEntryInput per
- * processed word.
- */
 export async function processDocumentChunked(
   words: string[],
   languages: string[],
@@ -510,7 +514,6 @@ export async function processDocumentChunked(
         err instanceof GeminiKeyInvalidError ||
         err instanceof GeminiRateLimitError
       ) throw err;
-      // continue on transient errors
     }
     onProgress?.({ completed: Math.floor(i / WORDS_PER_CHUNK) + 1, total: totalChunks });
   }
@@ -521,10 +524,6 @@ export async function processDocumentChunked(
 // Single-word AI autocomplete (Sparkles button in AddEntryForm)
 // ---------------------------------------------------------------------------
 
-/**
- * Uses Gemini to generate a complete LexisEntryInput from a single word.
- * `sourceLang` indicates which side the input word is in.
- */
 export async function autocompleteSingleWord(
   word: string,
   sourceLang: "da" | "en" = "da",
@@ -551,12 +550,14 @@ Return ONLY the JSON object, no markdown, no explanation.`;
 
   const responseText = await callGemini(prompt, {
     temperature: 0.2,
-    maxOutputTokens: 512,
     systemInstruction: "Return only valid JSON. No prose, no markdown fences.",
   });
 
   const parsed = safeJsonParse<Record<string, unknown>>(responseText);
   if (!parsed || typeof parsed !== "object") {
+    console.error("Could not parse AI response. Length:", responseText.length);
+    console.error("Raw (first 500):", responseText.slice(0, 500));
+    console.error("Raw (last 200):", responseText.slice(-200));
     throw new Error("Could not parse AI response");
   }
 
@@ -564,9 +565,10 @@ Return ONLY the JSON object, no markdown, no explanation.`;
   const english = typeof parsed.english === "string" ? parsed.english.trim() : "";
   if (!danish && !english) throw new Error("AI returned no usable translation");
 
-  const grammarRaw = parsed.grammar && typeof parsed.grammar === "object" && !Array.isArray(parsed.grammar)
-    ? (parsed.grammar as Record<string, unknown>)
-    : {};
+  const grammarRaw =
+    parsed.grammar && typeof parsed.grammar === "object" && !Array.isArray(parsed.grammar)
+      ? (parsed.grammar as Record<string, unknown>)
+      : {};
   const grammar: Record<string, string> = {};
   for (const [k, v] of Object.entries(grammarRaw)) {
     if (typeof v === "string" && v.trim()) grammar[k] = v.trim();

@@ -19,7 +19,7 @@ export interface StorageConfig {
   oauthTokenExpiry: number | null;
 }
 
-export type GeminiModel = 'gemini-2.0-flash' | 'gemini-2.5-flash-preview-04-17';
+export type GeminiModel = string;
 
 /** Persisted at key 'ordsamling-ai-config' */
 export interface AiConfig {
@@ -82,7 +82,7 @@ export function setStorageConfig(config: StorageConfig): void {
 
 const DEFAULT_AI_CONFIG: AiConfig = {
   geminiApiKey: '',
-  geminiModel: 'gemini-2.0-flash',
+  geminiModel: '',
 };
 
 export function getAiConfig(): AiConfig {

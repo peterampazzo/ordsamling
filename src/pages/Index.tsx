@@ -15,7 +15,6 @@ import { AddEntryForm } from "@/components/AddEntryForm";
 import { LexisCard } from "@/components/LexisCard";
 import { SettingsDialog } from "@/components/SettingsDialog";
 import { useGoogleSheets } from "@/hooks/useGoogleSheets";
-import { isDemoMode } from "@/lib/demo";
 import { registerPushQuizSession } from "@/lib/quizHistory";
 import type { LexisEntry } from "@/hooks/useLexicon";
 import { ENTRY_TYPES, entryTypeLabel, stripInfinitiveMarker, type EntryType } from "@/lib/lexicon";
@@ -44,7 +43,7 @@ const SORT_OPTIONS: { value: SortMode; labelKey: string; descKey: string; icon: 
   { value: "alpha", labelKey: "index.sortAlpha", descKey: "index.sortAlphaDesc", icon: ArrowDownAZ },
 ];
 
-const Index = () => {
+const Index = ({ demo = false }: { demo?: boolean }) => {
   const {
     entries,
     allEntries,
@@ -57,19 +56,19 @@ const Index = () => {
     findLinkedWords,
     isLoading,
     isSaving,
-  } = useLexicon();
+  } = useLexicon({ demo });
   const { syncState, connect, disconnect, pushQuizSession } = useGoogleSheets();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [addFormOpen, setAddFormOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sort, setSort] = useState<SortMode>("alpha");
   const [typeFilters, setTypeFilters] = useState<Set<EntryType>>(new Set());
-  const demo = isDemoMode();
+  // demo prop is the source of truth — no sessionStorage flag needed
 
   // Task 9.3 — register pushQuizSession so quizHistory module can push to Sheets
   useEffect(() => {
-    registerPushQuizSession(pushQuizSession);
-  }, [pushQuizSession]);
+    if (!demo) registerPushQuizSession(pushQuizSession);
+  }, [demo, pushQuizSession]);
 
   const toggleTypeFilter = (type: EntryType) => {
     setTypeFilters((prev) => {
@@ -124,21 +123,25 @@ const Index = () => {
             <span className="text-xs text-muted-foreground tabular-nums mr-1" title={t("common.wordCount", { count: allEntries.length })}>
               {t("common.wordCount", { count: allEntries.length })}
             </span>
-            <CloudSyncIndicator
-              status={syncState.status}
-              lastSyncAt={syncState.lastSyncAt}
-              onClick={() => setSettingsOpen(true)}
-            />
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="h-8 w-8"
-              onClick={() => setSettingsOpen(true)}
-              aria-label={t("settings.title")}
-            >
-              <SettingsIcon className="h-4 w-4" />
-            </Button>
+            {!demo && (
+              <>
+                <CloudSyncIndicator
+                  status={syncState.status}
+                  lastSyncAt={syncState.lastSyncAt}
+                  onClick={() => setSettingsOpen(true)}
+                />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8"
+                  onClick={() => setSettingsOpen(true)}
+                  aria-label={t("settings.title")}
+                >
+                  <SettingsIcon className="h-4 w-4" />
+                </Button>
+              </>
+            )}
           </>
         }
         subRow={
@@ -164,18 +167,31 @@ const Index = () => {
                   </button>
                 )}
               </div>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="shrink-0 h-9 w-9 p-0"
-                asChild
-                aria-label={t("index.quizLabel")}
-              >
-                <Link to="/quiz">
-                  <Brain className="h-4 w-4" />
-                </Link>
-              </Button>
+              {demo ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="shrink-0">
+                      <Button type="button" size="sm" variant="outline" className="shrink-0 h-9 w-9 p-0 opacity-50" disabled aria-label={t("index.quizLabel")}>
+                        <Brain className="h-4 w-4" />
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>{t("demo.addDisabled")}</TooltipContent>
+                </Tooltip>
+              ) : (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0 h-9 w-9 p-0"
+                  asChild
+                  aria-label={t("index.quizLabel")}
+                >
+                  <Link to="/quiz">
+                    <Brain className="h-4 w-4" />
+                  </Link>
+                </Button>
+              )}
               {demo ? (
                 <Tooltip>
                   <TooltipTrigger asChild>

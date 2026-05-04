@@ -1,19 +1,26 @@
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { activateDemo } from "@/lib/demo";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { seedDemoEntries } from "@/lib/demo";
+import Index from "./Index";
 
 /**
- * Mounting this component activates demo mode and redirects to /app.
- * Demo entries live in a separate localStorage key, so the user's real
- * data at /app is never touched.
+ * The /demo route.
+ *
+ * - Has its own QueryClient so the cache is completely isolated from /app.
+ * - Seeds demo entries synchronously at module evaluation time so they are
+ *   present before the first render (avoids the useEffect timing gap).
+ * - Renders Index with demo=true so it reads/writes only the demo storage key
+ *   and never touches Google Sheets sync.
  */
-const DemoEntry = () => {
-  const navigate = useNavigate();
-  useEffect(() => {
-    activateDemo();
-    navigate("/app", { replace: true });
-  }, [navigate]);
-  return null;
-};
+
+// Seed before any render so useLexicon's initialData sees the entries.
+seedDemoEntries();
+
+const demoQueryClient = new QueryClient();
+
+const DemoEntry = () => (
+  <QueryClientProvider client={demoQueryClient}>
+    <Index demo />
+  </QueryClientProvider>
+);
 
 export default DemoEntry;

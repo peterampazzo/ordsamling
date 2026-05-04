@@ -25,6 +25,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -43,6 +48,10 @@ import {
   X,
   CheckCircle2,
   XCircle,
+  ChevronDown,
+  Copy,
+  Check,
+  Bug,
 } from "lucide-react";
 import {
   LANGUAGE_CATALOG,
@@ -57,7 +66,8 @@ import {
   setGeminiModel,
 } from "@/lib/settings";
 import type { GeminiModel } from "@/lib/storageConfig";
-import { validateGeminiKey, type KeyValidationStatus } from "@/lib/gemini";
+import { fetchAvailableModels, type GeminiModelInfo } from "@/lib/gemini-models";
+import { validateGeminiKey, type KeyValidationStatus, getLastPrompt } from "@/lib/gemini";
 import { t, getLang, setLang, AVAILABLE_LANGS } from "@/i18n";
 import type { LexisEntry } from "@/lib/lexicon";
 import type { SyncState } from "@/hooks/useGoogleSheets";
@@ -105,6 +115,12 @@ export function SettingsDialog({
   const [geminiKey, setGeminiKeyState] = useState<string>(getGeminiApiKey());
   const [showKey, setShowKey] = useState(false);
   const [keyValidation, setKeyValidation] = useState<KeyValidationStatus>("missing");
+  const [availableModels, setAvailableModels] = useState<GeminiModelInfo[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+
+  // Troubleshooting state
+  const [troubleshootingOpen, setTroubleshootingOpen] = useState(false);
+  const [promptCopied, setPromptCopied] = useState(false);
 
   // ---------------------------------------------------------------------------
   // Effects
@@ -121,12 +137,33 @@ export function SettingsDialog({
     if (open) {
       setExtras(getExtraLanguages());
       setPendingAdd("");
-      setGeminiModelState(getGeminiModel());
-      setGeminiKeyState(getGeminiApiKey());
+      const savedModel = getGeminiModel();
+      const savedKey = getGeminiApiKey();
+      setGeminiModelState(savedModel);
+      setGeminiKeyState(savedKey);
       setShowKey(false);
-      setKeyValidation(getGeminiApiKey() ? "missing" : "missing");
+      setKeyValidation(savedKey ? "missing" : "missing");
     }
   }, [open]);
+
+  // Fetch available models when API key is provided or dialog opens
+  useEffect(() => {
+    if (!open) return;
+    if (geminiKey.trim() && geminiKey.startsWith("AIza")) {
+      setLoadingModels(true);
+      fetchAvailableModels(geminiKey)
+        .then((models) => {
+          setAvailableModels(models);
+        })
+        .catch((err) => {
+          console.error("Failed to fetch models:", err);
+          setAvailableModels([]);
+        })
+        .finally(() => setLoadingModels(false));
+    } else {
+      setAvailableModels([]);
+    }
+  }, [geminiKey, open]);
 
   // ---------------------------------------------------------------------------
   // Language helpers
@@ -160,6 +197,27 @@ export function SettingsDialog({
     setKeyValidation("checking");
     const result = await validateGeminiKey();
     setKeyValidation(result);
+  };
+
+  // ---------------------------------------------------------------------------
+  // Troubleshooting helpers
+  // ---------------------------------------------------------------------------
+
+  const handleCopyPrompt = async () => {
+    const { prompt } = getLastPrompt();
+    if (!prompt) return;
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setPromptCopied(true);
+      setTimeout(() => setPromptCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy prompt:", err);
+    }
+  };
+
+  const formatTimestamp = (date: Date | null): string => {
+    if (!date) return "";
+    return date.toLocaleString();
   };
 
   const handleReset = () => {
@@ -439,17 +497,28 @@ export function SettingsDialog({
                 setGeminiModelState(model);
                 setGeminiModel(model);
               }}
+              disabled={loadingModels || availableModels.length === 0}
             >
               <SelectTrigger id="gemini-model" className="h-9">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="gemini-1.5-flash">
-                  Gemini 1.5 Flash — Fast &amp; Lightweight (Generous Free Tier)
-                </SelectItem>
-                <SelectItem value="gemini-1.5-pro">
-                  Gemini 1.5 Pro — Complex &amp; Creative (Stricter Free Tier)
-                </SelectItem>
+              <SelectContent className="max-h-60 overflow-y-auto">
+                {loadingModels ? (
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                    Loading models...
+                  </div>
+                ) : availableModels.length === 0 ? (
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                    Add a valid API key to see available models
+                  </div>
+                ) : (
+                  availableModels.map((model) => (
+                    <SelectItem key={model.id} value={model.id}>
+                      {model.label}
+                      {model.description && ` — ${model.description}`}
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -530,6 +599,76 @@ export function SettingsDialog({
               account.
             </p>
           </div>
+        </section>
+
+        {/* ------------------------------------------------------------------ */}
+        {/* Section C: Troubleshooting                                           */}
+        {/* ------------------------------------------------------------------ */}
+        <section className="space-y-3 border-t border-border pt-4">
+          <div className="flex items-center gap-2">
+            <Bug className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold">Troubleshooting</h3>
+          </div>
+
+          <Collapsible open={troubleshootingOpen} onOpenChange={setTroubleshootingOpen}>
+            <CollapsibleTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full justify-between gap-2"
+              >
+                <span className="text-xs">Last AI Prompt Sent</span>
+                <ChevronDown
+                  className={
+                    "h-3.5 w-3.5 transition-transform " +
+                    (troubleshootingOpen ? "rotate-180" : "")
+                  }
+                />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-3 space-y-2">
+              {(() => {
+                const { prompt, timestamp } = getLastPrompt();
+                if (!prompt) {
+                  return (
+                    <p className="text-xs text-muted-foreground italic">
+                      No AI prompt has been sent yet. Use an AI feature (like bulk import or
+                      autocomplete) to see the prompt here.
+                    </p>
+                  );
+                }
+                return (
+                  <>
+                    {timestamp && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Sent at: {formatTimestamp(timestamp)}
+                      </p>
+                    )}
+                    <div className="relative">
+                      <pre className="text-[11px] bg-muted border border-border rounded-md p-3 overflow-x-auto max-h-60 overflow-y-auto font-mono leading-relaxed whitespace-pre-wrap break-words">
+                        {prompt}
+                      </pre>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleCopyPrompt}
+                        className="absolute top-2 right-2 h-7 w-7 p-0"
+                        aria-label="Copy prompt"
+                      >
+                        {promptCopied ? (
+                          <Check className="h-3.5 w-3.5 text-emerald-600" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    </div>
+                  </>
+                );
+              })()}
+            </CollapsibleContent>
+          </Collapsible>
         </section>
 
         {/* ------------------------------------------------------------------ */}

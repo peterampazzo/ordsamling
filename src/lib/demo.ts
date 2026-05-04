@@ -13,6 +13,8 @@ const DEMO_FLAG_KEY = "ordsamling-demo-route";
 const REAL_STORAGE_KEY = "lexikon-entries";
 const DEMO_STORAGE_KEY = "lexikon-entries-demo";
 
+export { REAL_STORAGE_KEY, DEMO_STORAGE_KEY };
+
 export function isDemoMode(): boolean {
   try {
     return sessionStorage.getItem(DEMO_FLAG_KEY) === "1";
@@ -26,6 +28,14 @@ export function getEntriesStorageKey(): string {
   return isDemoMode() ? DEMO_STORAGE_KEY : REAL_STORAGE_KEY;
 }
 
+/** Seed the demo storage with sample entries (idempotent). */
+export function seedDemoEntries(): void {
+  const existing = localStorage.getItem(DEMO_STORAGE_KEY);
+  if (!existing || JSON.parse(existing).length === 0) {
+    localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(DEMO_ENTRIES));
+  }
+}
+
 /** Activate demo mode and seed the demo storage with sample entries (idempotent). */
 export function activateDemo(): void {
   try {
@@ -33,11 +43,7 @@ export function activateDemo(): void {
   } catch {
     /* ignore */
   }
-  // Always re-seed if empty so demo always has content
-  const existing = localStorage.getItem(DEMO_STORAGE_KEY);
-  if (!existing || JSON.parse(existing).length === 0) {
-    localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(DEMO_ENTRIES));
-  }
+  seedDemoEntries();
   window.dispatchEvent(new CustomEvent("ordsamling:demo-changed"));
 }
 

@@ -10,7 +10,7 @@ import { GrammarFields } from "@/components/EntryGrammar";
 import { t } from "@/i18n";
 import { useExtraLanguages } from "@/hooks/useVisibleLanguages";
 import { getLanguageLabel, getGeminiApiKey } from "@/lib/settings";
-import { autocompleteSingleWord } from "@/lib/gemini";
+import { autocompleteSingleWord, GeminiRateLimitError, GeminiUnavailableError } from "@/lib/gemini";
 
 interface Props {
   onAdd: (entry: Omit<LexisEntry, "id" | "createdAt">) => Promise<void>;
@@ -61,7 +61,16 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
       if (result.grammar) setGrammar(result.grammar as EntryGrammar);
     } catch (err) {
       console.error("AI autofill failed", err);
-      toast.error(t("addEntry.aiAutofillError"));
+      if (err instanceof GeminiRateLimitError) {
+        const msg = err.isDailyQuota
+          ? "Gemini daily quota exhausted. Try again tomorrow or enable billing in Google AI Studio."
+          : err.retryAfterSeconds
+          ? `Gemini rate limit hit. Try again in ${err.retryAfterSeconds}s.`
+          : "Gemini rate limit hit. Try again in a moment.";
+        toast.error(msg);
+      } else {
+        toast.error(t("addEntry.aiAutofillError"));
+      }
     } finally {
       setIsAutofilling(false);
     }

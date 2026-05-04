@@ -11,7 +11,7 @@ import {
   type LexisEntry,
   type LexisEntryInput,
 } from "@/lib/lexicon";
-import { getEntriesStorageKey } from "@/lib/demo";
+import { DEMO_STORAGE_KEY, REAL_STORAGE_KEY } from "@/lib/demo";
 import { useGoogleSheets } from "@/hooks/useGoogleSheets";
 
 export type { EntryGrammar, EntryType, LexisEntry } from "@/lib/lexicon";
@@ -41,9 +41,9 @@ function normalizeEntry(entry: Partial<LexisEntry> & { italian?: unknown }): Lex
   };
 }
 
-function loadLocalEntries(): LexisEntry[] {
+function loadLocalEntries(storageKey: string): LexisEntry[] {
   try {
-    const raw = localStorage.getItem(getEntriesStorageKey());
+    const raw = localStorage.getItem(storageKey);
     const parsed = raw ? JSON.parse(raw) : [];
 
     if (!Array.isArray(parsed)) {
@@ -56,16 +56,17 @@ function loadLocalEntries(): LexisEntry[] {
   }
 }
 
-function saveLocalEntries(entries: LexisEntry[]) {
-  localStorage.setItem(getEntriesStorageKey(), JSON.stringify(entries));
+function saveLocalEntries(entries: LexisEntry[], storageKey: string) {
+  localStorage.setItem(storageKey, JSON.stringify(entries));
 }
 
 // Task 8.5 — always use localStorage, no KV API branch
-async function fetchEntries(): Promise<LexisEntry[]> {
-  return loadLocalEntries();
+async function fetchEntries(storageKey: string): Promise<LexisEntry[]> {
+  return loadLocalEntries(storageKey);
 }
 
-export function useLexicon() {
+export function useLexicon({ demo = false }: { demo?: boolean } = {}) {
+  const storageKey = demo ? DEMO_STORAGE_KEY : REAL_STORAGE_KEY;
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
 
@@ -74,15 +75,15 @@ export function useLexicon() {
 
   const entriesQuery = useQuery({
     queryKey: ENTRIES_QUERY_KEY,
-    queryFn: fetchEntries,
-    initialData: loadLocalEntries,
+    queryFn: () => fetchEntries(storageKey),
+    initialData: () => loadLocalEntries(storageKey),
   });
 
   const allEntries = useMemo(() => entriesQuery.data || [], [entriesQuery.data]);
 
-  // Task 8.6 — trigger syncNow on mount (no-op if not in cloud sync mode)
+  // Task 8.6 — trigger syncNow on mount (no-op if not in cloud sync mode, no-op in demo)
   useEffect(() => {
-    void syncNow();
+    if (!demo) void syncNow();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -103,14 +104,14 @@ export function useLexicon() {
         id: crypto.randomUUID(),
         createdAt: Date.now(),
       });
-      const nextEntries = [createdEntry, ...loadLocalEntries()];
-      saveLocalEntries(nextEntries);
+      const nextEntries = [createdEntry, ...loadLocalEntries(storageKey)];
+      saveLocalEntries(nextEntries, storageKey);
       return createdEntry;
     },
     onSuccess: (createdEntry) => {
       queryClient.invalidateQueries({ queryKey: ENTRIES_QUERY_KEY });
-      // Task 8.2 — push to Sheets after add
-      pushEntry(createdEntry, "add");
+      // Task 8.2 — push to Sheets after add (skipped in demo)
+      if (!demo) pushEntry(createdEntry, "add");
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Could not save entry.");
@@ -126,7 +127,7 @@ export function useLexicon() {
       id: string;
       updates: Partial<LexisEntryInput> & { grammar?: LexisEntry["grammar"] | null };
     }) => {
-      const nextEntries = loadLocalEntries().map((entry) => {
+      const nextEntries = loadLocalEntries(storageKey).map((entry) => {
         if (entry.id !== id) return entry;
         const merged: LexisEntry = { ...entry, ...updates };
         if (updates.grammar === null) {
@@ -136,13 +137,13 @@ export function useLexicon() {
         }
         return normalizeEntry(merged);
       });
-      saveLocalEntries(nextEntries);
+      saveLocalEntries(nextEntries, storageKey);
       return nextEntries.find((entry) => entry.id === id) || null;
     },
     onSuccess: (updatedEntry) => {
       queryClient.invalidateQueries({ queryKey: ENTRIES_QUERY_KEY });
-      // Task 8.3 — push to Sheets after update
-      if (updatedEntry !== null) {
+      // Task 8.3 — push to Sheets after update (skipped in demo)
+      if (!demo && updatedEntry !== null) {
         pushEntry(updatedEntry, "update");
       }
     },
@@ -154,17 +155,19 @@ export function useLexicon() {
   // Task 8.5 — always use localStorage path (no isLocalStorageMode branch)
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const nextEntries = loadLocalEntries().filter((entry) => entry.id !== id);
-      saveLocalEntries(nextEntries);
+      const nextEntries = loadLocalEntries(storageKey).filter((entry) => entry.id !== id);
+      saveLocalEntries(nextEntries, storageKey);
       return id;
     },
     onSuccess: (id) => {
       queryClient.invalidateQueries({ queryKey: ENTRIES_QUERY_KEY });
-      // Task 8.4 — push to Sheets after delete (minimal entry with just the id)
-      pushEntry(
-        { id, danish: "", english: "", notes: "", type: "word" as const, createdAt: 0 },
-        "delete",
-      );
+      // Task 8.4 — push to Sheets after delete (skipped in demo)
+      if (!demo) {
+        pushEntry(
+          { id, danish: "", english: "", notes: "", type: "word" as const, createdAt: 0 },
+          "delete",
+        );
+      }
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Could not delete entry.");
