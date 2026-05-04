@@ -39,7 +39,7 @@ index:
   importLabel: "Masseimport"
   addWord: "Tilføj nyt ord"
   noWordsYet: "Ingen ord endnu"
-  noWordsHint: "Tryk «Tilføj» ovenfor for at komme i gang"
+  noWordsHint: "Tryk «+» ovenfor for at komme i gang"
   loadingWords: "Indlæser ord…"
   sortNewest: "Nyeste"
   sortNewestDesc: "Senest tilføjet først"
