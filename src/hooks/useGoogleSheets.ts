@@ -26,6 +26,8 @@ import {
   isCloudSyncEnabled,
   type DirtyOperation,
 } from '@/lib/storageConfig';
+import { getExtraLanguages, setExtraLanguages } from '@/lib/settings';
+import type { SheetSettings } from '@/lib/sheetTypes';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -138,6 +140,9 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
 
   // Debounce timer map: entry.id → timer handle
   const debounceMap = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  // Settings push debounce + suppression flag for incoming sheet→local updates
+  const settingsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suppressSettingsDirty = useRef(false);
 
   // ---------------------------------------------------------------------------
   // Task 4.5 — retryDirtyQueue
@@ -174,6 +179,12 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
           await sheetsService.appendQuizSession(
             spreadsheetId,
             op.payload as QuizSessionRecord,
+            accessToken
+          );
+        } else if (op.type === 'settings') {
+          await sheetsService.writeSettings(
+            spreadsheetId,
+            op.payload as SheetSettings,
             accessToken
           );
         }
@@ -235,6 +246,25 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
 
         // Notify React Query to invalidate
         window.dispatchEvent(new CustomEvent('ordsamling:entries-synced'));
+
+        // Pull settings from sheet (extraLanguages) — sheet wins on load
+        try {
+          const sheetSettings = await sheetsService.readSettings(spreadsheetId!, accessToken);
+          if (Array.isArray(sheetSettings.extraLanguages)) {
+            const local = getExtraLanguages();
+            const sameOrder =
+              local.length === sheetSettings.extraLanguages.length &&
+              local.every((c, i) => c === sheetSettings.extraLanguages[i]);
+            if (!sameOrder) {
+              suppressSettingsDirty.current = true;
+              setExtraLanguages(sheetSettings.extraLanguages);
+              // release on next microtask so the dirty event we just fired is ignored
+              queueMicrotask(() => { suppressSettingsDirty.current = false; });
+            }
+          }
+        } catch (err) {
+          console.warn('readSettings failed (non-fatal):', err);
+        }
 
         if (!cancelled) {
           setSyncState((prev) => ({
