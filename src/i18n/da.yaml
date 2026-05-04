@@ -56,6 +56,10 @@ addEntry:
   notesPlaceholder: "Noter — grammatik, eksempler…"
   translations: "Oversættelser"
   matchesFound: "Findes allerede ({count})"
+  aiAutofill: "Udfyld med AI"
+  aiAutofillNoKey: "Tilføj en Gemini-nøgle i Indstillinger for at slå AI til"
+  aiAutofillError: "AI-udfyldning mislykkedes — tjek din Gemini-nøgle eller prøv igen."
+  aiAutofillEmpty: "Skriv et dansk ord først"
 
 lexisCard:
   translations: "Oversættelser"
