@@ -140,6 +140,9 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
 
   // Debounce timer map: entry.id → timer handle
   const debounceMap = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  // Settings push debounce + suppression flag for incoming sheet→local updates
+  const settingsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suppressSettingsDirty = useRef(false);
 
   // ---------------------------------------------------------------------------
   // Task 4.5 — retryDirtyQueue
