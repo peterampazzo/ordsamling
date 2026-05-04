@@ -602,6 +602,67 @@ export default function BulkImport() {
     setSelectedRows(new Set(validRowIndices));
   }, [rawText]);
 
+  // Detect a raw word list: every non-empty line is short, no commas/tabs/braces.
+  const looksLikeRawList = useMemo(() => {
+    const lines = rawText.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (lines.length < 2) return false;
+    return lines.every(
+      (l) => l.length <= 40 && !/[,\t{}\[\]:]/.test(l),
+    );
+  }, [rawText]);
+
+  const handleMagicFill = useCallback(async () => {
+    const words = rawText.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (words.length === 0) return;
+    if (!getGeminiApiKey()) {
+      setDocumentError(t("bulkImport.keyMissingBody"));
+      return;
+    }
+    setIsProcessingDocument(true);
+    setDocumentError(null);
+    setDocumentProgress(null);
+    try {
+      const langs = getExtraLanguages();
+      const entries = await processDocumentChunked(
+        words,
+        langs,
+        allEntries.map((e) => e.danish),
+        (p) => setDocumentProgress(p),
+      );
+      if (entries.length === 0) {
+        setDocumentError("No new words to fill — they may already exist.");
+        return;
+      }
+      const rows: ParsedRow[] = entries.map((entry, i) => ({
+        rowIndex: i + 1,
+        raw: [],
+        entry,
+        errors: [],
+        warnings: [],
+      }));
+      const headers = ["danish", "english", "type", "notes"];
+      if (langs.length > 0) headers.push(...langs.map((c) => `translations.${c}`));
+      setRawText(JSON.stringify(entries, null, 2));
+      setParsed({ rows, headers });
+      setImportStatus("parsed");
+      setResults([]);
+      setSelectedRows(new Set(rows.map((r) => r.rowIndex)));
+    } catch (err) {
+      console.error("Magic Fill failed", err);
+      if (err instanceof GeminiRateLimitError) {
+        setDocumentError(err.isDailyQuota
+          ? "Gemini daily quota exhausted. Try again tomorrow."
+          : "Gemini rate limit hit. Please wait a minute and try again.");
+      } else if (err instanceof GeminiKeyMissingError || err instanceof GeminiKeyInvalidError) {
+        setDocumentError(err.message);
+      } else {
+        setDocumentError(err instanceof Error ? err.message : t("bulkImport.unknownError"));
+      }
+    } finally {
+      setIsProcessingDocument(false);
+    }
+  }, [rawText, allEntries]);
+
   const validRows = parsed?.rows.filter((r) => r.entry !== null) ?? [];
   const errorRows = parsed?.rows.filter((r) => r.entry === null) ?? [];
 
