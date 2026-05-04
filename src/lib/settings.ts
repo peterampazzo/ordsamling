@@ -67,6 +67,7 @@ export function setExtraLanguages(codes: string[]): void {
   const safe = codes.filter((c) => LANGUAGE_CATALOG.some((l) => l.code === c));
   localStorage.setItem(EXTRA_LANGS_KEY, JSON.stringify(safe));
   window.dispatchEvent(new CustomEvent("ordsamling:settings-changed"));
+  window.dispatchEvent(new CustomEvent("ordsamling:settings-dirty", { detail: { extraLanguages: safe } }));
 }
 
 export function isExtraLanguageEnabled(code: string): boolean {
