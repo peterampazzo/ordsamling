@@ -196,6 +196,16 @@ bulkImport:
   formatHelpToggle: "Understøttede formater og felter"
   pasteSectionTitle: "Eller indsæt data manuelt"
   pasteSectionDescription: "Indsæt CSV, TSV, JSON eller JSONL — første række skal indeholde kolonnenavne."
+  wizardStepInput: "Input"
+  wizardStepProcessing: "Behandler"
+  wizardStepReview: "Gennemse"
+  wizardStepResults: "Resultat"
+  magicFill: "Magic Fill ✨"
+  magicFillHint: "Ligner en ren ordliste — lad AI udfylde oversættelser & grammatik."
+  fileUploadCardTitle: "Upload et dokument"
+  pasteCardTitle: "Indsæt en liste"
+  pasteCardHint: "Ord, CSV, JSON — alt går."
+  back: "Tilbage"
 
 notFound:
   title: "404"
