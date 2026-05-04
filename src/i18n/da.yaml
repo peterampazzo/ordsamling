@@ -202,6 +202,8 @@ bulkImport:
   wizardStepResults: "Resultat"
   magicFill: "Magic Fill ✨"
   magicFillHint: "Ligner en ren ordliste — lad AI udfylde oversættelser & grammatik."
+  directProcessing: "Direkte behandling (send hele dokumentet til AI)"
+  directProcessingHint: "Udtræk alt indhold i ét trin. Fjern markeringen for at bruge to-trins tilstand til simple ordlister."
   fileUploadCardTitle: "Upload et dokument"
   pasteCardTitle: "Indsæt en liste"
   pasteCardHint: "Ord, CSV, JSON — alt går."

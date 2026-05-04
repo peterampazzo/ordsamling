@@ -12,7 +12,7 @@ import { useLexicon } from "@/hooks/useLexicon";
 import { ENTRY_TYPES, entryTypeLabel, normalizeEntryType, type EntryType } from "@/lib/lexicon";
 import type { LexisEntryInput } from "@/lib/lexicon";
 import { getExtraLanguages, getLanguageLabel, getGeminiApiKey } from "@/lib/settings";
-import { processDocument, processDocumentChunked, GeminiKeyMissingError, GeminiKeyInvalidError, GeminiRateLimitError } from "@/lib/gemini";
+import { processDocument, processDocumentDirect, processDocumentChunked, GeminiKeyMissingError, GeminiKeyInvalidError, GeminiRateLimitError } from "@/lib/gemini";
 import { t } from "@/i18n";
 
 // ---------------------------------------------------------------------------
@@ -489,6 +489,13 @@ export default function BulkImport() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  
+  // Direct processing mode preference
+  const [useDirectProcessing, setUseDirectProcessing] = useState<boolean>(() => {
+    const stored = localStorage.getItem('ordsamling:direct-processing');
+    return stored === null ? true : stored === 'true'; // Default to true for new users
+  });
+  
   useEffect(() => {
     const refresh = () => {
       setExtraLangs(getExtraLanguages());
@@ -541,12 +548,22 @@ export default function BulkImport() {
       }
 
       const extraLangs = getExtraLanguages();
-      const result = await processDocument(
-        text,
-        extraLangs,
-        allEntries.map((e) => e.danish),
-        (progress) => setDocumentProgress(progress),
-      );
+      
+      // Use direct processing or two-step mode based on user preference
+      const result = useDirectProcessing
+        ? await processDocumentDirect(
+            text,
+            extraLangs,
+            allEntries.map((e) => e.danish),
+            (progress) => setDocumentProgress(progress),
+          )
+        : await processDocument(
+            text,
+            extraLangs,
+            allEntries.map((e) => e.danish),
+            (progress) => setDocumentProgress(progress),
+          );
+      
       setProcessedDocument(result);
 
       // Feed processed entries directly into the preview (preserves translations/grammar)
@@ -587,7 +604,7 @@ export default function BulkImport() {
     } finally {
       setIsProcessingDocument(false);
     }
-  }, [allEntries]);
+  }, [allEntries, useDirectProcessing]);
 
   const handleParse = useCallback(async () => {
     // Yield to the browser so the button click registers before heavy parsing
@@ -794,6 +811,26 @@ export default function BulkImport() {
       <PageHeader backTo="/app" pageLabel={t("bulkImport.title")} />
 
       <main className="max-w-3xl mx-auto px-3 sm:px-4 py-6 sm:py-8 space-y-8">
+
+        {/* Direct processing mode toggle */}
+        {hasGeminiKey && (
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="direct-processing"
+              checked={useDirectProcessing}
+              onCheckedChange={(checked) => {
+                setUseDirectProcessing(!!checked);
+                localStorage.setItem('ordsamling:direct-processing', String(!!checked));
+              }}
+            />
+            <label 
+              htmlFor="direct-processing" 
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+            >
+              {t("bulkImport.directProcessing")}
+            </label>
+          </div>
+        )}
 
         {/* Document upload — hero */}
         <section className="relative">

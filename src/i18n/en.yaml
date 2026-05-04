@@ -202,6 +202,8 @@ bulkImport:
   wizardStepResults: "Results"
   magicFill: "Magic Fill ✨"
   magicFillHint: "Looks like a raw word list — let AI fill in translations & grammar."
+  directProcessing: "Direct processing (send full document to AI)"
+  directProcessingHint: "Extract all content in one step. Uncheck to use two-step mode for simple word lists."
   fileUploadCardTitle: "Upload a document"
   pasteCardTitle: "Paste a list"
   pasteCardHint: "Words, CSV, JSON — anything goes."

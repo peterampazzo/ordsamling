@@ -521,6 +521,170 @@ export async function processDocumentChunked(
 }
 
 // ---------------------------------------------------------------------------
+// Direct document processing (single-step extraction)
+// ---------------------------------------------------------------------------
+
+export async function processDocumentDirect(
+  text: string,
+  languages: string[],
+  existingWords: string[],
+  onProgress?: (progress: { completed: number; total: number }) => void,
+): Promise<ProcessDocumentResult> {
+  const existingSet = new Set(existingWords.map((w) => w.toLowerCase()));
+  
+  // Truncate text to 6000 characters if longer
+  const truncated = text.slice(0, 6000);
+  const wasTruncated = text.length > 6000;
+
+  onProgress?.({ completed: 0, total: 1 });
+
+  // Build translation instruction
+  const translationInstruction = languages.length > 0
+    ? `\n- "translations": object with keys ${languages.map((c) => `"${c}"`).join(", ")} (${languages.map((c) => LANGUAGE_NAMES[c] ?? c.toUpperCase()).join(", ")} translations)`
+    : "";
+
+  const translationExample = languages.length > 0
+    ? `, "translations": { ${languages.map((c) => `"${c}": "..."`).join(", ")} }`
+    : "";
+
+  // Build comprehensive prompt for direct processing
+  const prompt = `Extract ALL Danish words, phrases, and expressions from the following document. Parse mixed Danish/English content, grammar notes, and usage examples.
+
+For each Danish entry, return a JSON array where each element has:
+- "danish": the Danish word or phrase (strip leading "at " for verbs)
+- "english": English translation (strip leading "to " for verbs)
+- "type": one of "noun", "verb", "adjective", "expression", or "word"
+- "notes": any usage notes, context, or examples from the document (or empty string)
+- "grammar": object with type-appropriate Danish inflections:
+    - noun: { "article": "en" or "et", "singularDefinite": "...", "pluralIndefinite": "...", "pluralDefinite": "..." }
+    - verb: { "present": "...", "past": "...", "perfect": "har/er ..." }
+    - adjective: { "neuter": "...", "definite": "...", "plural": "...", "comparative": "...", "superlative": "..." }
+    - expression, word: omit "grammar" entirely${translationInstruction}
+
+IMPORTANT INSTRUCTIONS:
+- Extract ALL Danish content: single words, phrases, expressions, idioms
+- Handle mixed formats: "hus - house", "at spise = to eat", "stor (big)", etc.
+- If grammar notes are present in the document (e.g., "huset, huse, husene"), extract them into the grammar field
+- Only include genuine Danish words/phrases. Skip English-only entries and proper nouns.
+- If a word appears multiple times with different translations, create separate entries
+- The "notes" field is for learner context from the document, NOT for grammar labels
+- Generate appropriate grammar inflections even if not explicitly in the document
+- **CRITICAL DEDUPLICATION RULE**: If you encounter multiple inflected forms of the same word (e.g., "vokal" and "vokaler", "spise/spiser/spiste", "stor/stort/store"), return ONLY ONE ENTRY with the base/dictionary form as the "danish" field, and put all inflections in the appropriate grammar fields. Never create separate entries for different inflections of the same word.
+
+Document text:
+${truncated}
+
+Return ONLY a JSON array, no markdown, no explanation.
+
+Example entries:
+{"danish": "hus", "english": "house", "type": "noun", "notes": "", "grammar": {"article": "et", "singularDefinite": "huset", "pluralIndefinite": "huse", "pluralDefinite": "husene"}${translationExample}}
+{"danish": "løbe", "english": "run", "type": "verb", "notes": "common verb", "grammar": {"present": "løber", "past": "løb", "perfect": "har løbet"}${translationExample}}
+{"danish": "stor", "english": "big", "type": "adjective", "notes": "", "grammar": {"neuter": "stort", "definite": "store", "plural": "store", "comparative": "større", "superlative": "størst"}${translationExample}}
+{"danish": "god morgen", "english": "good morning", "type": "expression", "notes": "common greeting"${translationExample}}`;
+
+  try {
+    const responseText = await callGemini(prompt, { 
+      temperature: 0.2, 
+      maxOutputTokens: 8192,
+      systemInstruction: "You are a Danish-English dictionary assistant. Extract and structure vocabulary data accurately. Return only valid JSON arrays."
+    });
+    
+    const parsed = safeJsonParse<unknown>(responseText);
+    
+    if (!Array.isArray(parsed)) {
+      console.error("Direct processing: AI did not return a JSON array");
+      onProgress?.({ completed: 1, total: 1 });
+      return {
+        entries: [],
+        totalExtracted: 0,
+        newWords: 0,
+        processed: 0,
+        truncated: wasTruncated,
+        languages,
+        error: "Could not parse AI response as JSON array",
+      };
+    }
+
+    // Parse entries from AI response
+    const allEntries: LexisEntryInput[] = (parsed as unknown[]).flatMap((item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+      const obj = item as Record<string, unknown>;
+      const danish = typeof obj.danish === "string" ? obj.danish.trim() : "";
+      if (!danish) return [];
+
+      const translations: Record<string, string> = {};
+      if (obj.translations && typeof obj.translations === "object") {
+        for (const code of languages) {
+          const v = (obj.translations as Record<string, unknown>)[code];
+          if (typeof v === "string" && v.trim()) translations[code] = v.trim();
+        }
+      }
+
+      const grammarRaw =
+        obj.grammar && typeof obj.grammar === "object" && !Array.isArray(obj.grammar)
+          ? (obj.grammar as Record<string, unknown>)
+          : {};
+      const grammar: Record<string, string> = {};
+      for (const [k, v] of Object.entries(grammarRaw)) {
+        if (typeof v === "string" && v.trim()) grammar[k] = v.trim();
+      }
+
+      return [{
+        danish,
+        english: typeof obj.english === "string" ? obj.english : "",
+        notes: typeof obj.notes === "string" ? obj.notes : "",
+        type: normalizeEntryTypeLocal(obj.type),
+        ...(Object.keys(translations).length > 0 ? { translations } : {}),
+        ...(Object.keys(grammar).length > 0 ? { grammar } : {}),
+      }];
+    });
+
+    // Filter out existing words (case-insensitive)
+    const newEntries = allEntries.filter(
+      (entry) => !existingSet.has(entry.danish.toLowerCase())
+    );
+
+    onProgress?.({ completed: 1, total: 1 });
+
+    return {
+      entries: newEntries,
+      totalExtracted: allEntries.length,
+      newWords: newEntries.length,
+      processed: newEntries.length,
+      truncated: wasTruncated,
+      languages,
+      ...(newEntries.length === 0 && allEntries.length > 0 
+        ? { message: "All extracted words already exist in your lexicon." }
+        : newEntries.length === 0 
+        ? { message: "No Danish words found in the document." }
+        : {}),
+    };
+  } catch (err) {
+    // Re-throw API errors
+    if (
+      err instanceof GeminiKeyMissingError ||
+      err instanceof GeminiKeyInvalidError ||
+      err instanceof GeminiRateLimitError
+    ) {
+      throw err;
+    }
+    
+    // Log and return error for other failures
+    console.error("Direct processing failed:", err);
+    onProgress?.({ completed: 1, total: 1 });
+    return {
+      entries: [],
+      totalExtracted: 0,
+      newWords: 0,
+      processed: 0,
+      truncated: wasTruncated,
+      languages,
+      error: err instanceof Error ? err.message : "Unknown error during processing",
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Single-word AI autocomplete (Sparkles button in AddEntryForm)
 // ---------------------------------------------------------------------------
 
