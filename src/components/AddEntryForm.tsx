@@ -1,14 +1,16 @@
 import { useState, useMemo } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { X, ArrowRight } from "lucide-react";
+import { X, ArrowRight, Sparkles, Loader2 } from "lucide-react";
 import type { LexisEntry, EntryType } from "@/hooks/useLexicon";
 import { ENTRY_TYPES, entryTypeLabel, pruneGrammar, stripInfinitiveMarker, type EntryGrammar } from "@/lib/lexicon";
 import { GrammarFields } from "@/components/EntryGrammar";
 import { t } from "@/i18n";
 import { useExtraLanguages } from "@/hooks/useVisibleLanguages";
-import { getLanguageLabel } from "@/lib/settings";
+import { getLanguageLabel, getGeminiApiKey } from "@/lib/settings";
+import { autocompleteSingleWord } from "@/lib/gemini";
 
 interface Props {
   onAdd: (entry: Omit<LexisEntry, "id" | "createdAt">) => Promise<void>;
