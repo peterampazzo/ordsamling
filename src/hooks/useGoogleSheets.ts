@@ -181,6 +181,12 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
             op.payload as QuizSessionRecord,
             accessToken
           );
+        } else if (op.type === 'settings') {
+          await sheetsService.writeSettings(
+            spreadsheetId,
+            op.payload as SheetSettings,
+            accessToken
+          );
         }
         // Success: remove from remaining
         remaining.splice(remaining.findIndex((r) => r.id === op.id), 1);
