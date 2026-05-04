@@ -247,6 +247,25 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
         // Notify React Query to invalidate
         window.dispatchEvent(new CustomEvent('ordsamling:entries-synced'));
 
+        // Pull settings from sheet (extraLanguages) — sheet wins on load
+        try {
+          const sheetSettings = await sheetsService.readSettings(spreadsheetId!, accessToken);
+          if (Array.isArray(sheetSettings.extraLanguages)) {
+            const local = getExtraLanguages();
+            const sameOrder =
+              local.length === sheetSettings.extraLanguages.length &&
+              local.every((c, i) => c === sheetSettings.extraLanguages[i]);
+            if (!sameOrder) {
+              suppressSettingsDirty.current = true;
+              setExtraLanguages(sheetSettings.extraLanguages);
+              // release on next microtask so the dirty event we just fired is ignored
+              queueMicrotask(() => { suppressSettingsDirty.current = false; });
+            }
+          }
+        } catch (err) {
+          console.warn('readSettings failed (non-fatal):', err);
+        }
+
         if (!cancelled) {
           setSyncState((prev) => ({
             ...prev,
