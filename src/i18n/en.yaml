@@ -196,6 +196,16 @@ bulkImport:
   formatHelpToggle: "Accepted formats & fields"
   pasteSectionTitle: "Or paste data manually"
   pasteSectionDescription: "Paste CSV, TSV, JSON or JSONL — the first row should contain column names."
+  wizardStepInput: "Input"
+  wizardStepProcessing: "Processing"
+  wizardStepReview: "Review"
+  wizardStepResults: "Results"
+  magicFill: "Magic Fill ✨"
+  magicFillHint: "Looks like a raw word list — let AI fill in translations & grammar."
+  fileUploadCardTitle: "Upload a document"
+  pasteCardTitle: "Paste a list"
+  pasteCardHint: "Words, CSV, JSON — anything goes."
+  back: "Back"
 
 notFound:
   title: "404"
