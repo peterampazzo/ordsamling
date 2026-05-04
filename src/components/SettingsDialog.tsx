@@ -191,53 +191,69 @@ export function SettingsDialog({
         </DialogHeader>
 
         {/* ------------------------------------------------------------------ */}
-        {/* Section A: Storage Solution                                         */}
+        {/* Section A: Storage                                                   */}
         {/* ------------------------------------------------------------------ */}
         <section className="space-y-3 border-b border-border pb-4">
           <div className="flex items-center gap-2">
             <Database className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-sm font-semibold">Storage</h3>
+            <h3 className="text-sm font-semibold">{t("settings.storageTitle")}</h3>
           </div>
 
-          {/* Status badge */}
-          <div className="flex items-center gap-2">
-            {syncState.status === "disconnected" ? (
-              <Badge
-                variant="secondary"
-                role="status"
-                aria-label="Storage status: local only"
-                className="text-xs"
-              >
-                Local Only
-              </Badge>
-            ) : (
-              <>
+          <div className="rounded-md border border-border bg-muted/30 p-4 space-y-3">
+            {/* Local-first disclaimer */}
+            <p className="text-xs text-foreground/80 leading-relaxed">
+              {t("settings.storageDisclaimer")}
+            </p>
+
+            {/* Status row */}
+            <div className="flex flex-wrap items-center gap-2">
+              {syncState.status === "disconnected" ? (
                 <Badge
-                  variant="default"
+                  variant="secondary"
                   role="status"
-                  aria-label="Storage status: cloud sync active"
-                  className="bg-green-600 text-white text-xs hover:bg-green-600"
+                  aria-label="Storage status: local only"
+                  className="text-xs"
                 >
-                  Cloud Sync
+                  {t("settings.storageLocalBadge")}
                 </Badge>
-                {syncState.connectedEmail && (
-                  <span className="text-xs text-muted-foreground truncate">
-                    {syncState.connectedEmail}
-                  </span>
-                )}
-              </>
-            )}
-          </div>
+              ) : (
+                <>
+                  <Badge
+                    variant="default"
+                    role="status"
+                    aria-label="Storage status: cloud sync active"
+                    className="bg-green-600 text-white text-xs hover:bg-green-600"
+                  >
+                    {t("settings.storageCloudBadge")}
+                  </Badge>
+                  {syncState.connectedEmail && (
+                    <span className="text-xs text-muted-foreground truncate">
+                      · {syncState.connectedEmail}
+                    </span>
+                  )}
+                  {syncState.spreadsheetId && (
+                    <a
+                      href={`https://docs.google.com/spreadsheets/d/${syncState.spreadsheetId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ml-auto inline-flex items-center gap-1 text-xs text-primary hover:underline underline-offset-2"
+                    >
+                      {t("settings.storageOpenSpreadsheet")}
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </>
+              )}
+            </div>
 
-          {/* Connect / Disconnect buttons */}
-          {!isConnected ? (
-            <div className="space-y-2">
+            {/* Connect / Disconnect */}
+            {!isConnected ? (
               <Button
                 type="button"
                 size="sm"
                 onClick={onConnect}
                 disabled={isSyncing}
-                aria-label="Connect to Google Drive for cloud sync"
+                aria-label={t("settings.storageConnect")}
                 className="gap-1.5"
               >
                 {isSyncing ? (
@@ -245,48 +261,50 @@ export function SettingsDialog({
                 ) : (
                   <Cloud className="h-3.5 w-3.5" />
                 )}
-                Connect Google Drive
+                {t("settings.storageConnect")}
               </Button>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Google Drive sync is currently in limited testing.{" "}
-                <a
-                  href="mailto:pietro@rampazzo.eu?subject=Ordsamling%20Google%20Drive%20access"
-                  className="underline underline-offset-2 hover:text-foreground transition-colors"
-                >
-                  Write me
-                </a>{" "}
-                to request access.
-              </p>
-            </div>
-          ) : (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  aria-label="Disconnect from Google Drive"
-                  className="gap-1.5"
-                >
-                  Disconnect
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Disconnect from Google Drive?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Your data will remain in the cloud but the app will switch to local-only mode.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => void onDisconnect()}>
-                    Disconnect
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
+            ) : (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    aria-label={t("settings.storageDisconnect")}
+                    className="gap-1.5"
+                  >
+                    {t("settings.storageDisconnect")}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>{t("settings.storageDisconnectTitle")}</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {t("settings.storageDisconnectBody")}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => void onDisconnect()}>
+                      {t("settings.storageDisconnect")}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+
+            {/* Beta note */}
+            <p className="text-[11px] text-muted-foreground leading-relaxed pt-1 border-t border-border/60">
+              {t("settings.storageBetaNote")}{" "}
+              <a
+                href="mailto:pietro@rampazzo.eu?subject=Ordsamling%20Google%20Sheets%20access"
+                className="underline underline-offset-2 hover:text-foreground transition-colors"
+              >
+                {t("settings.storageBetaCta")}
+              </a>{" "}
+              {t("settings.storageGoogleAccountAside")}
+            </p>
+          </div>
         </section>
 
         {/* ------------------------------------------------------------------ */}
