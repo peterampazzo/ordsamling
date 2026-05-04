@@ -1071,6 +1071,28 @@ export default function BulkImport() {
                 <code>{EXAMPLE_JSON}</code>
               </pre>
             </details>
+            {looksLikeRawList && hasGeminiKey && (
+              <div className="rounded-md border border-primary/30 bg-primary/5 p-3 flex items-start gap-3">
+                <Sparkles className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0 space-y-2">
+                  <p className="text-xs text-foreground/80">{t("bulkImport.magicFillHint")}</p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleMagicFill}
+                    disabled={isProcessingDocument}
+                    className="gap-1.5"
+                  >
+                    {isProcessingDocument ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-3.5 w-3.5" />
+                    )}
+                    {t("bulkImport.magicFill")}
+                  </Button>
+                </div>
+              </div>
+            )}
             <div className="flex gap-2 justify-end">
               {rawText.trim() && (
                 <Button type="button" variant="ghost" size="sm" onClick={handleReset}>
