@@ -465,3 +465,118 @@ export async function processDocument(
     ...(firstError && entries.length === 0 ? { error: firstError.message } : {}),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Chunked processing for an explicit word list (Magic Fill in the wizard)
+// ---------------------------------------------------------------------------
+
+/**
+ * Processes an explicit list of Danish words in chunks of WORDS_PER_CHUNK.
+ * Skips any words already in `existingWords`. Returns one LexisEntryInput per
+ * processed word.
+ */
+export async function processDocumentChunked(
+  words: string[],
+  languages: string[],
+  existingWords: string[] = [],
+  onProgress?: (progress: { completed: number; total: number }) => void,
+): Promise<LexisEntryInput[]> {
+  const existingSet = new Set(existingWords.map((w) => w.toLowerCase()));
+  const cleaned = Array.from(
+    new Set(
+      words
+        .map((w) => w.trim().toLowerCase())
+        .filter((w) => w.length > 0 && !existingSet.has(w)),
+    ),
+  );
+
+  if (cleaned.length === 0) {
+    onProgress?.({ completed: 1, total: 1 });
+    return [];
+  }
+
+  const totalChunks = Math.ceil(cleaned.length / WORDS_PER_CHUNK);
+  onProgress?.({ completed: 0, total: totalChunks });
+
+  const entries: LexisEntryInput[] = [];
+  for (let i = 0; i < cleaned.length; i += WORDS_PER_CHUNK) {
+    const chunk = cleaned.slice(i, i + WORDS_PER_CHUNK);
+    try {
+      const chunkEntries = await processWordChunk(chunk, languages);
+      entries.push(...chunkEntries);
+    } catch (err) {
+      if (
+        err instanceof GeminiKeyMissingError ||
+        err instanceof GeminiKeyInvalidError ||
+        err instanceof GeminiRateLimitError
+      ) throw err;
+      // continue on transient errors
+    }
+    onProgress?.({ completed: Math.floor(i / WORDS_PER_CHUNK) + 1, total: totalChunks });
+  }
+  return entries;
+}
+
+// ---------------------------------------------------------------------------
+// Single-word AI autocomplete (Sparkles button in AddEntryForm)
+// ---------------------------------------------------------------------------
+
+/**
+ * Uses Gemini to generate a complete LexisEntryInput from a single word.
+ * `sourceLang` indicates which side the input word is in.
+ */
+export async function autocompleteSingleWord(
+  word: string,
+  sourceLang: "da" | "en" = "da",
+): Promise<LexisEntryInput> {
+  const trimmed = word.trim();
+  if (!trimmed) throw new Error("Empty word");
+
+  const sourceLabel = sourceLang === "da" ? "Danish" : "English";
+  const prompt = `You are a Danish-English dictionary assistant.
+The user provided this ${sourceLabel} word: "${trimmed}"
+
+Return a single JSON object with these fields:
+- "danish": the Danish form (without "at " for verbs)
+- "english": the English translation (without "to " for verbs)
+- "type": one of "noun", "verb", "adjective", "expression", or "word"
+- "notes": short usage/grammar note in English (or empty string)
+- "grammar": object with type-appropriate Danish inflections, or empty object
+    - noun: { article, singularDefinite, pluralIndefinite, pluralDefinite }
+    - verb: { present, past, perfect }
+    - adjective: { neuter, definite, plural, comparative, superlative }
+    - other: {}
+
+Return ONLY the JSON object, no markdown, no explanation.`;
+
+  const responseText = await callGemini(prompt, {
+    temperature: 0.2,
+    maxOutputTokens: 512,
+    systemInstruction: "Return only valid JSON. No prose, no markdown fences.",
+  });
+
+  const parsed = safeJsonParse<Record<string, unknown>>(responseText);
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("Could not parse AI response");
+  }
+
+  const danish = typeof parsed.danish === "string" ? parsed.danish.trim() : "";
+  const english = typeof parsed.english === "string" ? parsed.english.trim() : "";
+  if (!danish && !english) throw new Error("AI returned no usable translation");
+
+  const grammarRaw = parsed.grammar && typeof parsed.grammar === "object" && !Array.isArray(parsed.grammar)
+    ? (parsed.grammar as Record<string, unknown>)
+    : {};
+  const grammar: Record<string, string> = {};
+  for (const [k, v] of Object.entries(grammarRaw)) {
+    if (typeof v === "string" && v.trim()) grammar[k] = v.trim();
+  }
+
+  return {
+    danish,
+    english,
+    notes: typeof parsed.notes === "string" ? parsed.notes : "",
+    type: normalizeEntryTypeLocal(parsed.type),
+    ...(Object.keys(grammar).length > 0 ? { grammar } : {}),
+  };
+}
