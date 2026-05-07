@@ -1,31 +1,13 @@
-## Plan: 3 colorful OG image options with Danish word cards
+Swap the canonical and Open Graph URLs in `index.html` so Chrome's share button (and any social card) uses `https://ordsamling.pages.dev/` instead of `https://ordsamling.app/`.
 
-Generate three branded 1200×630 social-share images, all featuring overlapping/illustrated Danish word cards (hygge, skål, kærlighed, tak) with English translations. You pick the favorite, I wire it into `index.html` as `/og-image.jpg` and delete the others.
+## Changes
 
-### The three options
+`index.html`:
+- `<link rel="canonical" href="https://ordsamling.pages.dev/" />`
+- `<meta property="og:url" content="https://ordsamling.pages.dev/" />`
 
-**Option 1 — Cream paper + earthy cards**
-- Background: warm cream (#F5F0E8), subtle paper grain
-- Left: navy "Ordsamling" wordmark + tagline
-- Right: three overlapping cards in terracotta, sage green, dusty mustard, with handwritten-style "hygge / coziness", "skål / cheers", "kærlighed / love"
-- Vibe: warm, organic, artisan
+That's it — the `og:image` path stays relative (`/og-image.jpg`) so it resolves correctly on whichever host serves the page. Chrome's share button reads the canonical link (or falls back to the address bar), so this is enough to flip the shared URL.
 
-**Option 2 — Navy hero + pastel scattered cards**
-- Background: deep navy (#1a2942)
-- Centered cream "Ordsamling" wordmark + tagline
-- Four small pastel cards (blush, mint, butter, sky blue) floating at varied angles around the title, navy ink, with "hygge / coziness", "skål / cheers", "kærlighed / love", "tak / thanks"
-- Vibe: bold, playful, modern editorial
+## Note
 
-**Option 3 — Sage background + fanned terracotta/navy stack**
-- Background: soft sage green (#dce5d4)
-- Left-aligned navy wordmark + tagline
-- Right: a fanned stack of three cards (terracotta, cream, navy) with printed-style Danish + English
-- Vibe: calm, grounded, premium
-
-### After approval
-
-1. Generate all three to `public/og-option-{1,2,3}.jpg`, resized to exactly 1200×630.
-2. Show them to you.
-3. You pick one → I rename it to `public/og-image.jpg` (already referenced in `index.html`) and delete the other two.
-
-No `index.html` changes needed — meta tags from the previous step already point at `/og-image.jpg`.
+If `ordsamling.app` is still attached as the **Primary** custom domain in Project Settings → Domains, users who land on `ordsamling.app` will still see that URL in their address bar. To make `ordsamling.pages.dev` the only shared URL, also set `ordsamling.app` to non-primary or remove it from the project — but that's a settings change, not code, and I'll leave it alone unless you say so.
