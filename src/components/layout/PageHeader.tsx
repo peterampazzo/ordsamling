@@ -8,6 +8,8 @@ import { t } from "@/i18n";
 interface PageHeaderProps {
   /** If set, shows a back chevron linking to this route (left of the wordmark). */
   backTo?: string;
+  /** If set (and `backTo` is not), shows a back chevron that calls this handler. */
+  onBack?: () => void;
   /** Right-side action area (buttons, indicators). */
   actions?: ReactNode;
   /** Optional second row inside the same sticky header (search bar, progress, tabs). */
