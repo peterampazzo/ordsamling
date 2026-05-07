@@ -145,7 +145,7 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
   const suppressSettingsDirty = useRef(false);
 
   // ---------------------------------------------------------------------------
-  // Task 4.5 — retryDirtyQueue
+  // Retry dirty queue operations
   // ---------------------------------------------------------------------------
 
   const retryDirtyQueue = useCallback(async () => {
@@ -204,7 +204,7 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Task 4.2 — syncOnLoad
+  // Sync on load
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
@@ -291,7 +291,7 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Task 4.6 — online event listener
+  // Online event listener
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
@@ -302,7 +302,58 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
   }, [retryDirtyQueue]);
 
   // ---------------------------------------------------------------------------
-  // Task 4.7 — connect() + oauth-complete listener
+  // Settings sync — listen for "ordsamling:settings-dirty" events
+  // ---------------------------------------------------------------------------
+
+  const pushSettings = useCallback(async (extraLanguages: string[]) => {
+    if (!isCloudSyncEnabled()) return;
+    if (suppressSettingsDirty.current) return;
+
+    // Clear existing timer
+    if (settingsTimer.current !== null) {
+      clearTimeout(settingsTimer.current);
+    }
+
+    // Set new debounced timer (2 seconds)
+    settingsTimer.current = setTimeout(async () => {
+      settingsTimer.current = null;
+
+      const accessToken = await getValidAccessToken();
+      if (!accessToken) {
+        addToDirtyQueue({ type: 'settings', operation: 'update', payload: { extraLanguages } });
+        setSyncState((prev) => ({ ...prev, status: 'dirty' }));
+        return;
+      }
+
+      const currentConfig = getStorageConfig();
+      const spreadsheetId = currentConfig.spreadsheetId;
+      if (!spreadsheetId) return;
+
+      try {
+        await sheetsService.writeSettings(spreadsheetId, { extraLanguages }, accessToken);
+      } catch (err) {
+        console.error('pushSettings failed:', err);
+        addToDirtyQueue({ type: 'settings', operation: 'update', payload: { extraLanguages } });
+        setSyncState((prev) => ({ ...prev, status: 'dirty' }));
+      }
+    }, 2000);
+  }, []);
+
+  useEffect(() => {
+    function handleSettingsDirty(event: Event) {
+      const customEvent = event as CustomEvent<{ extraLanguages: string[] }>;
+      const extraLanguages = customEvent.detail?.extraLanguages ?? getExtraLanguages();
+      void pushSettings(extraLanguages);
+    }
+
+    window.addEventListener('ordsamling:settings-dirty', handleSettingsDirty);
+    return () => {
+      window.removeEventListener('ordsamling:settings-dirty', handleSettingsDirty);
+    };
+  }, [pushSettings]);
+
+  // ---------------------------------------------------------------------------
+  // OAuth complete listener
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
@@ -328,7 +379,7 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Task 4.8 — disconnect()
+  // Disconnect from Google Sheets
   // ---------------------------------------------------------------------------
 
   const disconnect = useCallback(async () => {
@@ -357,7 +408,7 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
   }, []);
 
   // ---------------------------------------------------------------------------
-  // syncNow — manual full sync
+  // Manual full sync
   // ---------------------------------------------------------------------------
 
   const syncNow = useCallback(async () => {
@@ -404,7 +455,7 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Task 4.3 + 4.9 — pushEntry (debounced per entry ID)
+  // Push lexicon entry (debounced per entry ID)
   // ---------------------------------------------------------------------------
 
   const pushEntry = useCallback(
@@ -452,7 +503,7 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
   );
 
   // ---------------------------------------------------------------------------
-  // Task 4.4 — pushQuizSession
+  // Push quiz session
   // ---------------------------------------------------------------------------
 
   const pushQuizSession = useCallback((session: QuizSessionRecord) => {
@@ -490,6 +541,12 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
         clearTimeout(timer);
       }
       debounceMap.current.clear();
+      
+      // Clear settings timer
+      if (settingsTimer.current !== null) {
+        clearTimeout(settingsTimer.current);
+        settingsTimer.current = null;
+      }
     };
   }, []);
 

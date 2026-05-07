@@ -6,11 +6,37 @@ const strings: Record<string, StringTree> = { da, en };
 
 const LANG_KEY = "ordsamling-lang";
 
+/**
+ * Extract language code from locale string.
+ * Examples: "en-US" → "en", "da-DK" → "da", "sv-SE" → "sv"
+ */
+function extractLanguageCode(locale: string): string {
+  return locale.split('-')[0].toLowerCase();
+}
+
 function detectInitialLang(): string {
   if (typeof window === "undefined") return "da";
+  
+  // Priority 1: Explicit user preference (stored in localStorage)
   const stored = localStorage.getItem(LANG_KEY);
   if (stored && strings[stored]) return stored;
-  return "da";
+  
+  // Priority 2: Device locale from navigator.language
+  if (navigator.language) {
+    const deviceLang = extractLanguageCode(navigator.language);
+    if (strings[deviceLang]) return deviceLang;
+  }
+  
+  // Priority 3: Check navigator.languages array
+  if (navigator.languages && navigator.languages.length > 0) {
+    for (const locale of navigator.languages) {
+      const langCode = extractLanguageCode(locale);
+      if (strings[langCode]) return langCode;
+    }
+  }
+  
+  // Priority 4: Universal fallback to English
+  return "en";
 }
 
 let currentLang = detectInitialLang();
