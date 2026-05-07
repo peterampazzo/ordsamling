@@ -32,12 +32,15 @@ const WIDTH_CLASSES = {
  */
 export const PageHeader = ({
   backTo,
+  onBack,
   actions,
   subRow,
   width = "app",
   pageLabel,
   className,
 }: PageHeaderProps) => {
+  const backClasses =
+    "p-1.5 -ml-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0";
   return (
     <header
       className={cn(
@@ -47,15 +50,15 @@ export const PageHeader = ({
     >
       <div className={cn("mx-auto", WIDTH_CLASSES[width])}>
         <div className="flex items-center gap-2 sm:gap-3 py-2.5 min-h-[52px]">
-          {backTo && (
-            <Link
-              to={backTo}
-              aria-label={t("common.back")}
-              className="p-1.5 -ml-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
-            >
+          {backTo ? (
+            <Link to={backTo} aria-label={t("common.back")} className={backClasses}>
               <ArrowLeft className="h-4 w-4" />
             </Link>
-          )}
+          ) : onBack ? (
+            <button type="button" onClick={onBack} aria-label={t("common.back")} className={backClasses}>
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+          ) : null}
           <div className="flex items-baseline gap-2 min-w-0 flex-1">
             <Wordmark size="sm" />
             {pageLabel && (
