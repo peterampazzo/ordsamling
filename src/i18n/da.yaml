@@ -227,6 +227,7 @@ directions:
 
 demo:
   banner: "Demo-tilstand — du udforsker eksempeldata. Dine egne ord er i sikkerhed på /app"
+  bannerShort: "Demo-tilstand — eksempeldata"
   disable: "Afslut demo"
   goToApp: "Til min ordbog"
   addDisabled: "Deaktiveret i demo-tilstand"

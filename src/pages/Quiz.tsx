@@ -103,7 +103,13 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 function normalize(s: string) {
-  return s.trim().toLowerCase();
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/^[\s¿¡]+|[\s?!.,;:]+$/g, "")
+    .replace(/\s+/g, " ");
 }
 
 /** Split an answer like "imagine/invent" or "to imagine / to invent" into alternatives. */
@@ -303,16 +309,49 @@ function buildQuestions(
     const isChoice = mode === "choice" || q.displayMode === "choice";
     if (!isChoice) continue;
     const dir = q.direction;
-    const answerPool =
-      q.questionType === "translate"
-        ? entries.map((e) => e[dir.to]).filter(isValid)
-        : entries
-            .flatMap((e) => (e.grammar ? Object.values(e.grammar).filter(isValid) : []))
-            .filter((v): v is string => typeof v === "string");
+
+    let answerPool: string[];
+    if (q.questionType === "translate") {
+      answerPool = entries.map((e) => e[dir.to]).filter(isValid);
+    } else {
+      // For grammar questions, draw from the SAME grammar slot across other entries
+      // of the same type. This avoids mixing verb conjugations with noun forms etc.
+      const slotKey = (() => {
+        const tenseLabels: Record<string, keyof EntryGrammar> = {
+          "Nutid": "present", "Datid": "past", "Perfektum": "perfect",
+          "Bestemt ental": "singularDefinite",
+          "Ubestemt flertal": "pluralIndefinite",
+          "Bestemt flertal": "pluralDefinite",
+        };
+        const hint = q.hint?.split(" af ")[0] ?? "";
+        return tenseLabels[hint];
+      })();
+      const sameSlot = slotKey
+        ? entries
+            .filter((e) => e.type === q.entry.type && e.id !== q.entry.id)
+            .map((e) => getGrammarValue(e, slotKey))
+            .filter((v): v is string => isValid(v))
+        : [];
+      if (sameSlot.length >= 3) {
+        answerPool = sameSlot;
+      } else {
+        const fallback = entries
+          .flatMap((e) => (e.grammar ? Object.values(e.grammar).filter(isValid) : []))
+          .filter((v): v is string => typeof v === "string");
+        answerPool = [...sameSlot, ...fallback];
+      }
+    }
 
     const unique = [...new Set(answerPool.map((a) => a.trim()))];
     const correctAlts = new Set(splitAlternatives(q.answer).map(normalize));
-    const wrong = shuffle(unique.filter((a) => !correctAlts.has(normalize(a)) && normalize(a) !== normalize(q.answer))).slice(0, 3);
+    let candidates = unique.filter(
+      (a) => !correctAlts.has(normalize(a)) && normalize(a) !== normalize(q.answer),
+    );
+    // Length-similarity filter when pool is rich enough, so option lengths don't telegraph
+    const targetLen = q.answer.length;
+    const similar = candidates.filter((a) => Math.abs(a.length - targetLen) <= Math.max(3, targetLen * 0.5));
+    if (similar.length >= 3) candidates = similar;
+    const wrong = shuffle(candidates).slice(0, 3);
     q.options = shuffle([q.answer, ...wrong]).filter(isValid);
   }
 
@@ -679,7 +718,7 @@ const Quiz = () => {
 
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <PageHeader pageLabel={t("quiz.result")} backTo="/quiz" />
+        <PageHeader pageLabel={t("quiz.result")} onBack={() => setState("setup")} />
 
         <main className="flex-1 px-4 py-6 sm:py-8">
           <div className="max-w-md mx-auto space-y-8">

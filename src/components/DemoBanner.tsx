@@ -12,7 +12,8 @@ export function DemoBanner() {
   return (
     <div className="sticky top-0 z-50 flex items-center justify-center gap-2 bg-primary px-3 py-1.5 text-primary-foreground text-xs">
       <FlaskConical className="h-3.5 w-3.5 shrink-0" aria-hidden />
-      <span className="truncate">{t("demo.banner")}</span>
+      <span className="truncate hidden sm:inline">{t("demo.banner")}</span>
+      <span className="truncate sm:hidden">{t("demo.bannerShort")}</span>
       <button
         type="button"
         onClick={() => navigate("/app")}
