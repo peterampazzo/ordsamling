@@ -679,7 +679,7 @@ const Quiz = () => {
 
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <PageHeader pageLabel={t("quiz.result")} backTo="/quiz" />
+        <PageHeader pageLabel={t("quiz.result")} onBack={() => setState("setup")} />
 
         <main className="flex-1 px-4 py-6 sm:py-8">
           <div className="max-w-md mx-auto space-y-8">
