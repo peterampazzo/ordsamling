@@ -103,7 +103,13 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 function normalize(s: string) {
-  return s.trim().toLowerCase();
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/^[\s¿¡]+|[\s?!.,;:]+$/g, "")
+    .replace(/\s+/g, " ");
 }
 
 /** Split an answer like "imagine/invent" or "to imagine / to invent" into alternatives. */
