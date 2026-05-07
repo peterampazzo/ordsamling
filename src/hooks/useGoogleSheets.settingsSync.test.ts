@@ -64,9 +64,6 @@ describe('Bug Condition Exploration: Settings Sync Failure', () => {
       spreadsheetId: 'test-sheet-id',
       connectedEmail: 'test@example.com',
       oauthTokenExpiry: null,
-      geminiApiKey: '',
-      geminiModel: 'gemini-1.5-flash',
-      dirtyQueue: [],
     });
 
     vi.mocked(storageConfig.isCloudSyncEnabled).mockReturnValue(true);
