@@ -227,6 +227,7 @@ directions:
 
 demo:
   banner: "Demo mode — you're exploring sample data. Your own words are safe at /app"
+  bannerShort: "Demo mode — sample data"
   disable: "Exit demo"
   goToApp: "To my dictionary"
   addDisabled: "Disabled in demo mode"
