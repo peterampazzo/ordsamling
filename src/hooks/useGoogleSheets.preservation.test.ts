@@ -69,9 +69,6 @@ describe('Preservation: Lexicon and Quiz Sync Behavior', () => {
       spreadsheetId: 'test-sheet-id',
       connectedEmail: 'test@example.com',
       oauthTokenExpiry: null,
-      geminiApiKey: '',
-      geminiModel: 'gemini-1.5-flash',
-      dirtyQueue: [],
     });
 
     vi.mocked(storageConfig.isCloudSyncEnabled).mockReturnValue(true);
