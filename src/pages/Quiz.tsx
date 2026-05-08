@@ -89,6 +89,22 @@ function isValid(s: string | undefined): boolean {
   return true;
 }
 
+/** Cheap bigram-overlap similarity in [0,1] used to find prompt-shaped distractors. */
+function bigramSimilarity(a: string, b: string): number {
+  const grams = (s: string): Set<string> => {
+    const out = new Set<string>();
+    const n = s.toLowerCase();
+    for (let i = 0; i < n.length - 1; i++) out.add(n.slice(i, i + 2));
+    return out;
+  };
+  const A = grams(a);
+  const B = grams(b);
+  if (A.size === 0 || B.size === 0) return 0;
+  let shared = 0;
+  for (const g of A) if (B.has(g)) shared++;
+  return shared / Math.max(A.size, B.size);
+}
+
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
@@ -347,12 +363,27 @@ function buildQuestions(
     let candidates = unique.filter(
       (a) => !correctAlts.has(normalize(a)) && normalize(a) !== normalize(q.answer),
     );
-    // Length-similarity filter when pool is rich enough, so option lengths don't telegraph
+    // Tighter length-similarity filter so distractor length doesn't telegraph the answer
     const targetLen = q.answer.length;
-    const similar = candidates.filter((a) => Math.abs(a.length - targetLen) <= Math.max(3, targetLen * 0.5));
+    const tolerance = Math.max(2, Math.round(targetLen * 0.25));
+    const similar = candidates.filter((a) => Math.abs(a.length - targetLen) <= tolerance);
     if (similar.length >= 3) candidates = similar;
+    // For translate questions, prefer distractors that look similar to the prompt
+    // (cognate-shaped) so obvious cognates like "Balkon → Balcony" aren't trivially picked.
+    if (q.questionType === "translate" && candidates.length > 3) {
+      const ranked = [...candidates]
+        .map((c) => ({ c, s: bigramSimilarity(c, q.prompt) }))
+        .sort((a, b) => b.s - a.s)
+        .slice(0, Math.max(8, 3))
+        .map((x) => x.c);
+      if (ranked.length >= 3) candidates = ranked;
+    }
     const wrong = shuffle(candidates).slice(0, 3);
     q.options = shuffle([q.answer, ...wrong]).filter(isValid);
+    if (!q.options.some((o) => normalize(o) === normalize(q.answer))) {
+      q.options[0] = q.answer;
+      q.options = shuffle(q.options);
+    }
   }
 
   return picked;
