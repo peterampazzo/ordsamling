@@ -89,6 +89,22 @@ function isValid(s: string | undefined): boolean {
   return true;
 }
 
+/** Cheap bigram-overlap similarity in [0,1] used to find prompt-shaped distractors. */
+function bigramSimilarity(a: string, b: string): number {
+  const grams = (s: string): Set<string> => {
+    const out = new Set<string>();
+    const n = s.toLowerCase();
+    for (let i = 0; i < n.length - 1; i++) out.add(n.slice(i, i + 2));
+    return out;
+  };
+  const A = grams(a);
+  const B = grams(b);
+  if (A.size === 0 || B.size === 0) return 0;
+  let shared = 0;
+  for (const g of A) if (B.has(g)) shared++;
+  return shared / Math.max(A.size, B.size);
+}
+
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
