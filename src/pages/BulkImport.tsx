@@ -14,6 +14,7 @@ import type { LexisEntryInput } from "@/lib/lexicon";
 import { getExtraLanguages, getLanguageLabel, getGeminiApiKey } from "@/lib/settings";
 import { processDocument, processDocumentDirect, processDocumentChunked, GeminiKeyMissingError, GeminiKeyInvalidError, GeminiRateLimitError } from "@/lib/gemini";
 import { t } from "@/i18n";
+import { ProcessingSteps } from "@/components/ProcessingSteps";
 
 // ---------------------------------------------------------------------------
 // CSV parsing
