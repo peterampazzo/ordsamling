@@ -810,7 +810,7 @@ export default function BulkImport() {
     <div className="min-h-screen bg-background">
       <PageHeader backTo="/app" pageLabel={t("bulkImport.title")} />
 
-      <main className="max-w-3xl mx-auto px-3 sm:px-4 py-6 sm:py-8 space-y-8">
+      <main id="main" className="max-w-3xl mx-auto px-3 sm:px-4 py-6 sm:py-8 space-y-8">
 
         {/* Direct processing mode toggle */}
         {hasGeminiKey && (
