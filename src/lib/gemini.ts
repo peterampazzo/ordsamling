@@ -699,11 +699,12 @@ Example entries:
 {"danish": "god morgen", "english": "good morning", "type": "expression", "notes": "common greeting"${translationExample}}`;
 
   try {
-    const responseText = await callGemini(prompt, { 
-      temperature: 0.2, 
+    const responseText = await callGemini(prompt, {
+      temperature: 0.2,
       maxOutputTokens: 8192,
       systemInstruction: "You are a Danish-English dictionary assistant. Extract and structure vocabulary data accurately. Return only valid JSON arrays."
     });
+    throwIfAborted(signal);
     
     const parsed = safeJsonParse<unknown>(responseText);
     
