@@ -45,6 +45,17 @@ export class GeminiUnavailableError extends Error {
   }
 }
 
+export class ProcessingCancelledError extends Error {
+  constructor() {
+    super("Processing was cancelled.");
+    this.name = "ProcessingCancelledError";
+  }
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw new ProcessingCancelledError();
+}
+
 // ---------------------------------------------------------------------------
 // SDK client factory (one instance per key)
 // ---------------------------------------------------------------------------
@@ -409,6 +420,23 @@ Examples:
   });
 }
 
+export interface FailedChunk {
+  /** 0-based index of the chunk within the original sequence. */
+  index: number;
+  /** Words sent to the AI for this chunk. */
+  words: string[];
+  /** Error message reported when the chunk failed. */
+  error: string;
+}
+
+export interface ChunkProgress {
+  index: number;
+  total: number;
+  status: "ok" | "error";
+  entries?: LexisEntryInput[];
+  error?: string;
+}
+
 export interface ProcessDocumentResult {
   entries: LexisEntryInput[];
   totalExtracted: number;
@@ -418,18 +446,35 @@ export interface ProcessDocumentResult {
   languages: string[];
   message?: string;
   error?: string;
+  /** Chunks that failed and can be retried via retryFailedChunks. */
+  failedChunks?: FailedChunk[];
+}
+
+export interface ProcessDocumentOptions {
+  onProgress?: (progress: { completed: number; total: number }) => void;
+  onChunk?: (chunk: ChunkProgress) => void;
+  signal?: AbortSignal;
 }
 
 export async function processDocument(
   text: string,
   languages: string[],
   existingWords: string[],
-  onProgress?: (progress: { completed: number; total: number }) => void,
+  optionsOrOnProgress?:
+    | ProcessDocumentOptions
+    | ((progress: { completed: number; total: number }) => void),
 ): Promise<ProcessDocumentResult> {
+  const options: ProcessDocumentOptions =
+    typeof optionsOrOnProgress === "function"
+      ? { onProgress: optionsOrOnProgress }
+      : optionsOrOnProgress ?? {};
+  const { onProgress, onChunk, signal } = options;
   const existingSet = new Set(existingWords.map((w) => w.toLowerCase()));
 
+  throwIfAborted(signal);
   onProgress?.({ completed: 0, total: 1 });
   const extractedWords = await extractWordsFromText(text);
+  throwIfAborted(signal);
   const newWords = extractedWords.filter((w) => !existingSet.has(w.toLowerCase()));
 
   if (newWords.length === 0) {
@@ -450,22 +495,29 @@ export async function processDocument(
   onProgress?.({ completed: 1, total: totalSteps });
 
   const entries: LexisEntryInput[] = [];
+  const failedChunks: FailedChunk[] = [];
   let firstError: Error | null = null;
 
   for (let i = 0; i < newWords.length; i += WORDS_PER_CHUNK) {
+    throwIfAborted(signal);
+    const chunkIndex = Math.floor(i / WORDS_PER_CHUNK);
     const chunk = newWords.slice(i, i + WORDS_PER_CHUNK);
     try {
       const chunkEntries = await processWordChunk(chunk, languages);
       entries.push(...chunkEntries);
+      onChunk?.({ index: chunkIndex, total: totalChunks, status: "ok", entries: chunkEntries });
     } catch (err) {
       if (
         err instanceof GeminiKeyMissingError ||
         err instanceof GeminiKeyInvalidError ||
         err instanceof GeminiRateLimitError
       ) throw err;
-      if (!firstError) firstError = err instanceof Error ? err : new Error(String(err));
+      const errMsg = err instanceof Error ? err.message : String(err);
+      failedChunks.push({ index: chunkIndex, words: chunk, error: errMsg });
+      onChunk?.({ index: chunkIndex, total: totalChunks, status: "error", error: errMsg });
+      if (!firstError) firstError = err instanceof Error ? err : new Error(errMsg);
     }
-    onProgress?.({ completed: 1 + Math.floor(i / WORDS_PER_CHUNK) + 1, total: totalSteps });
+    onProgress?.({ completed: 1 + chunkIndex + 1, total: totalSteps });
   }
 
   return {
@@ -475,8 +527,47 @@ export async function processDocument(
     processed: entries.length,
     truncated: false,
     languages,
+    ...(failedChunks.length > 0 ? { failedChunks } : {}),
     ...(firstError && entries.length === 0 ? { error: firstError.message } : {}),
   };
+}
+
+/**
+ * Re-runs only the chunks that previously failed. Returns new entries plus
+ * any chunks that failed again. Honours signal for cancellation.
+ */
+export async function retryFailedChunks(
+  failed: FailedChunk[],
+  languages: string[],
+  options: ProcessDocumentOptions = {},
+): Promise<{ entries: LexisEntryInput[]; failedChunks: FailedChunk[] }> {
+  const { onProgress, onChunk, signal } = options;
+  const entries: LexisEntryInput[] = [];
+  const stillFailed: FailedChunk[] = [];
+  const total = failed.length;
+  onProgress?.({ completed: 0, total });
+
+  for (let i = 0; i < failed.length; i++) {
+    throwIfAborted(signal);
+    const chunk = failed[i];
+    try {
+      const chunkEntries = await processWordChunk(chunk.words, languages);
+      entries.push(...chunkEntries);
+      onChunk?.({ index: chunk.index, total, status: "ok", entries: chunkEntries });
+    } catch (err) {
+      if (
+        err instanceof GeminiKeyMissingError ||
+        err instanceof GeminiKeyInvalidError ||
+        err instanceof GeminiRateLimitError
+      ) throw err;
+      const errMsg = err instanceof Error ? err.message : String(err);
+      stillFailed.push({ ...chunk, error: errMsg });
+      onChunk?.({ index: chunk.index, total, status: "error", error: errMsg });
+    }
+    onProgress?.({ completed: i + 1, total });
+  }
+
+  return { entries, failedChunks: stillFailed };
 }
 
 export async function processDocumentChunked(
