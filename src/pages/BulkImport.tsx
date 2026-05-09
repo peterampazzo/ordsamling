@@ -513,11 +513,38 @@ export default function BulkImport() {
 
   const [pasteAiText, setPasteAiText] = useState("");
 
+  const commitEntriesToReview = useCallback((entries: LexisEntryInput[], langs: string[]) => {
+    const rows: ParsedRow[] = entries.map((entry, i) => ({
+      rowIndex: i + 1,
+      raw: [],
+      entry,
+      errors: [],
+      warnings: [],
+    }));
+    const headers = ["danish", "english", "type", "notes"];
+    if (langs.length > 0) headers.push(...langs.map((c) => `translations.${c}`));
+    setRawText(JSON.stringify(entries, null, 2));
+    setParsed({ rows, headers });
+    setImportStatus("parsed");
+    setResults([]);
+    setSelectedRows(new Set(rows.map((row) => row.rowIndex)));
+  }, []);
+
+  const handleCancelProcessing = useCallback(() => {
+    abortRef.current?.abort();
+  }, []);
+
   const handleProcessDocument = useCallback(async (source: File | string) => {
     setIsProcessingDocument(true);
     setProcessedDocument(null);
     setDocumentError(null);
     setDocumentProgress(null);
+    setFailedChunks([]);
+    setPartialEntries([]);
+    setPartialMeta(null);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     try {
       let text: string;
@@ -570,48 +597,42 @@ export default function BulkImport() {
       }
 
       const extraLangs = getExtraLanguages();
+      const existing = allEntries.map((e) => e.danish);
 
       // Use direct processing or two-step mode based on user preference
       const result = useDirectProcessing
-        ? await processDocumentDirect(
-            text,
-            extraLangs,
-            allEntries.map((e) => e.danish),
-            (progress) => setDocumentProgress(progress),
-          )
-        : await processDocument(
-            text,
-            extraLangs,
-            allEntries.map((e) => e.danish),
-            (progress) => setDocumentProgress(progress),
-          );
+        ? await processDocumentDirect(text, extraLangs, existing, {
+            onProgress: (p) => setDocumentProgress(p),
+            signal: controller.signal,
+          })
+        : await processDocument(text, extraLangs, existing, {
+            onProgress: (p) => setDocumentProgress(p),
+            signal: controller.signal,
+          });
 
       setProcessedDocument(result);
 
-      // Feed processed entries directly into the preview (preserves translations/grammar)
-      if (result.entries && result.entries.length > 0) {
-        const rows: ParsedRow[] = result.entries.map((entry, i) => ({
-          rowIndex: i + 1,
-          raw: [],
-          entry,
-          errors: [],
-          warnings: [],
-        }));
-        const headers = ["danish", "english", "type", "notes"];
-        if (extraLangs.length > 0) {
-          headers.push(...extraLangs.map((c) => `translations.${c}`));
-        }
-        setRawText(JSON.stringify(result.entries, null, 2));
-        setParsed({ rows, headers });
-        setImportStatus("parsed");
-        setResults([]);
-        setSelectedRows(new Set(rows.map((row) => row.rowIndex)));
+      // Capture chunks that failed so we can offer Retry / Continue
+      if (result.failedChunks && result.failedChunks.length > 0) {
+        setFailedChunks(result.failedChunks);
+        setPartialEntries(result.entries);
+        setPartialMeta({
+          totalExtracted: result.totalExtracted,
+          newWords: result.newWords,
+        });
+      } else if (result.entries && result.entries.length > 0) {
+        commitEntriesToReview(result.entries, extraLangs);
       } else if (result.newWords > 0 && result.processed === 0) {
         setDocumentError(`${result.newWords} new words were found but could not be processed. Check your Gemini API key in Settings and try again.`);
       } else {
         setDocumentError(t("bulkImport.noEntriesExtracted"));
       }
     } catch (error) {
+      if (error instanceof ProcessingCancelledError) {
+        // Silent — user-initiated. Reset state.
+        setDocumentProgress(null);
+        return;
+      }
       console.error("Document processing failed:", error);
       if (error instanceof GeminiRateLimitError) {
         const msg = error.isDailyQuota
@@ -627,8 +648,69 @@ export default function BulkImport() {
       }
     } finally {
       setIsProcessingDocument(false);
+      abortRef.current = null;
     }
-  }, [allEntries, useDirectProcessing]);
+  }, [allEntries, useDirectProcessing, commitEntriesToReview]);
+
+  const handleRetryFailedChunks = useCallback(async () => {
+    if (failedChunks.length === 0) return;
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setIsRetryingChunks(true);
+    setDocumentError(null);
+    setDocumentProgress({ completed: 0, total: failedChunks.length });
+    try {
+      const langs = getExtraLanguages();
+      const { entries: retried, failedChunks: stillFailed } = await retryFailedChunks(
+        failedChunks,
+        langs,
+        {
+          onProgress: (p) => setDocumentProgress(p),
+          signal: controller.signal,
+        },
+      );
+      const merged = [...partialEntries, ...retried];
+      setPartialEntries(merged);
+      setFailedChunks(stillFailed);
+      if (stillFailed.length === 0) {
+        commitEntriesToReview(merged, langs);
+      }
+    } catch (err) {
+      if (err instanceof ProcessingCancelledError) {
+        setDocumentProgress(null);
+        return;
+      }
+      if (err instanceof GeminiRateLimitError) {
+        setDocumentError(err.isDailyQuota
+          ? "Gemini daily quota exhausted. Try again tomorrow."
+          : "Gemini rate limit hit. Please wait a minute and try again.");
+      } else if (err instanceof GeminiKeyMissingError || err instanceof GeminiKeyInvalidError) {
+        setDocumentError(err.message);
+      } else {
+        setDocumentError(err instanceof Error ? err.message : t("bulkImport.unknownError"));
+      }
+    } finally {
+      setIsRetryingChunks(false);
+      abortRef.current = null;
+    }
+  }, [failedChunks, partialEntries, commitEntriesToReview]);
+
+  const handleContinueWithPartial = useCallback(() => {
+    if (partialEntries.length === 0) {
+      setDocumentError(t("bulkImport.noEntriesExtracted"));
+      return;
+    }
+    commitEntriesToReview(partialEntries, getExtraLanguages());
+    setFailedChunks([]);
+  }, [partialEntries, commitEntriesToReview]);
+
+  const handleDiscardPartial = useCallback(() => {
+    setFailedChunks([]);
+    setPartialEntries([]);
+    setPartialMeta(null);
+    setProcessedDocument(null);
+    setDocumentProgress(null);
+  }, []);
 
   const handleParse = useCallback(async () => {
     // Yield to the browser so the button click registers before heavy parsing
