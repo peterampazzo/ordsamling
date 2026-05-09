@@ -54,40 +54,39 @@ export const PageHeader = ({
         {t("common.skipToContent")}
       </a>
       <h1 className="sr-only">{headingText}</h1>
-    "p-1.5 -ml-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0";
-  return (
-    <header
-      className={cn(
-        "sticky top-0 z-30 border-b border-border bg-card/90 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80",
-        className,
-      )}
-    >
-      <div className={cn("mx-auto", WIDTH_CLASSES[width])}>
-        <div className="flex items-center gap-2 sm:gap-3 py-2.5 min-h-[52px]">
-          {backTo ? (
-            <Link to={backTo} aria-label={t("common.back")} className={backClasses}>
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          ) : onBack ? (
-            <button type="button" onClick={onBack} aria-label={t("common.back")} className={backClasses}>
-              <ArrowLeft className="h-4 w-4" />
-            </button>
-          ) : null}
-          <div className="flex items-baseline gap-2 min-w-0 flex-1">
-            <Wordmark size="sm" />
-            {pageLabel && (
-              <span className="text-sm text-muted-foreground truncate">
-                <span className="text-muted-foreground/60 mx-1">/</span>
-                {pageLabel}
-              </span>
+      <header
+        className={cn(
+          "sticky top-0 z-30 border-b border-border bg-card/90 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80",
+          className,
+        )}
+      >
+        <div className={cn("mx-auto", WIDTH_CLASSES[width])}>
+          <div className="flex items-center gap-2 sm:gap-3 py-2.5 min-h-[52px]">
+            {backTo ? (
+              <Link to={backTo} aria-label={t("common.back")} className={backClasses}>
+                <ArrowLeft className="h-4 w-4" aria-hidden />
+              </Link>
+            ) : onBack ? (
+              <button type="button" onClick={onBack} aria-label={t("common.back")} className={backClasses}>
+                <ArrowLeft className="h-4 w-4" aria-hidden />
+              </button>
+            ) : null}
+            <div className="flex items-baseline gap-2 min-w-0 flex-1">
+              <Wordmark size="sm" />
+              {pageLabel && (
+                <span className="text-sm text-muted-foreground truncate" aria-hidden>
+                  <span className="text-muted-foreground/60 mx-1">/</span>
+                  {pageLabel}
+                </span>
+              )}
+            </div>
+            {actions && (
+              <div className="flex items-center gap-1 shrink-0">{actions}</div>
             )}
           </div>
-          {actions && (
-            <div className="flex items-center gap-1 shrink-0">{actions}</div>
-          )}
+          {subRow && <div className="pb-2.5">{subRow}</div>}
         </div>
-        {subRow && <div className="pb-2.5">{subRow}</div>}
-      </div>
-    </header>
+      </header>
+    </>
   );
 };
