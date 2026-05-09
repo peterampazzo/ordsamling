@@ -1070,7 +1070,7 @@ export default function BulkImport() {
           )}
 
           {/* Shared progress region */}
-          {isProcessingDocument && (
+          {(isProcessingDocument || isRetryingChunks) && (
             <div
               className="mt-4 rounded-xl border border-border bg-card p-4 sm:p-5"
               role="status"
@@ -1117,9 +1117,64 @@ export default function BulkImport() {
                   />
                 </div>
               )}
-              <p className="mt-3 text-xs text-muted-foreground text-center">
-                {t("bulkImport.aiBusy")}
-              </p>
+              <div className="mt-3 flex flex-col items-center gap-2">
+                <p className="text-xs text-muted-foreground text-center">
+                  {t("bulkImport.aiBusy")}
+                </p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCancelProcessing}
+                  aria-label={t("bulkImport.cancelProcessing")}
+                  className="gap-1.5"
+                >
+                  <XCircle className="h-3.5 w-3.5" aria-hidden />
+                  {t("bulkImport.cancelProcessing")}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Partial-failure recovery banner */}
+          {failedChunks.length > 0 && !isProcessingDocument && !isRetryingChunks && (
+            <div
+              className="mt-4 rounded-xl border border-amber-300/60 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700/50 p-4 sm:p-5 space-y-3"
+              role="alert"
+            >
+              <div className="flex items-start gap-2">
+                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-amber-700 dark:text-amber-300" aria-hidden />
+                <div className="flex-1 text-sm">
+                  <p className="font-medium text-amber-900 dark:text-amber-100">
+                    {t("bulkImport.chunksFailedSummary", {
+                      failed: failedChunks.length,
+                      total: failedChunks.length + (partialMeta ? Math.ceil(partialMeta.newWords / 50) - failedChunks.length : 0),
+                    })}
+                  </p>
+                  <p className="text-xs text-amber-800/80 dark:text-amber-200/80 mt-1">
+                    {t("bulkImport.chunksFailedHint", { ok: partialEntries.length })}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 justify-end">
+                <Button type="button" variant="ghost" size="sm" onClick={handleDiscardPartial}>
+                  {t("common.cancel")}
+                </Button>
+                {partialEntries.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleContinueWithPartial}
+                  >
+                    {t("bulkImport.continueAnyway")}
+                  </Button>
+                )}
+                <Button type="button" size="sm" onClick={handleRetryFailedChunks} className="gap-1.5">
+                  <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+                  {t("bulkImport.retryFailed")}
+                </Button>
+              </div>
             </div>
           )}
 
