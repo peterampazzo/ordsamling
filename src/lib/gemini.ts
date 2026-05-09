@@ -574,8 +574,16 @@ export async function processDocumentChunked(
   words: string[],
   languages: string[],
   existingWords: string[] = [],
-  onProgress?: (progress: { completed: number; total: number }) => void,
+  optionsOrOnProgress?:
+    | ProcessDocumentOptions
+    | ((progress: { completed: number; total: number }) => void),
 ): Promise<LexisEntryInput[]> {
+  const options: ProcessDocumentOptions =
+    typeof optionsOrOnProgress === "function"
+      ? { onProgress: optionsOrOnProgress }
+      : optionsOrOnProgress ?? {};
+  const { onProgress, onChunk, signal } = options;
+
   const existingSet = new Set(existingWords.map((w) => w.toLowerCase()));
   const cleaned = Array.from(
     new Set(
@@ -595,18 +603,27 @@ export async function processDocumentChunked(
 
   const entries: LexisEntryInput[] = [];
   for (let i = 0; i < cleaned.length; i += WORDS_PER_CHUNK) {
+    throwIfAborted(signal);
+    const chunkIndex = Math.floor(i / WORDS_PER_CHUNK);
     const chunk = cleaned.slice(i, i + WORDS_PER_CHUNK);
     try {
       const chunkEntries = await processWordChunk(chunk, languages);
       entries.push(...chunkEntries);
+      onChunk?.({ index: chunkIndex, total: totalChunks, status: "ok", entries: chunkEntries });
     } catch (err) {
       if (
         err instanceof GeminiKeyMissingError ||
         err instanceof GeminiKeyInvalidError ||
         err instanceof GeminiRateLimitError
       ) throw err;
+      onChunk?.({
+        index: chunkIndex,
+        total: totalChunks,
+        status: "error",
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
-    onProgress?.({ completed: Math.floor(i / WORDS_PER_CHUNK) + 1, total: totalChunks });
+    onProgress?.({ completed: chunkIndex + 1, total: totalChunks });
   }
   return entries;
 }
@@ -619,8 +636,15 @@ export async function processDocumentDirect(
   text: string,
   languages: string[],
   existingWords: string[],
-  onProgress?: (progress: { completed: number; total: number }) => void,
+  optionsOrOnProgress?:
+    | ProcessDocumentOptions
+    | ((progress: { completed: number; total: number }) => void),
 ): Promise<ProcessDocumentResult> {
+  const options: ProcessDocumentOptions =
+    typeof optionsOrOnProgress === "function"
+      ? { onProgress: optionsOrOnProgress }
+      : optionsOrOnProgress ?? {};
+  const { onProgress, signal } = options;
   const existingSet = new Set(existingWords.map((w) => w.toLowerCase()));
   
   // Truncate text to 6000 characters if longer
