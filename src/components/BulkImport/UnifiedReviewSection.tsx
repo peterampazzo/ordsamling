@@ -457,18 +457,18 @@ export function UnifiedReviewSection({
           )}
         </div>
 
-        {/* Results Summary — shown after import completes */}
+        {/* Results Summary — shown after import completes, replaces the import button */}
         {importStatus === 'done' && results.length > 0 && (
-          <div className="rounded-lg border border-border bg-card overflow-hidden">
-            <div className="px-4 py-3 border-b border-border bg-muted/30">
-              <h3 className="text-sm font-semibold flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
+          <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 overflow-hidden animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
+            <div className="px-4 py-3 border-b border-emerald-200 dark:border-emerald-800">
+              <h3 className="text-sm font-semibold flex items-center gap-2 text-emerald-800 dark:text-emerald-200">
+                <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
                 Import Complete
               </h3>
             </div>
             <div className="px-4 py-4 space-y-4">
-              {/* Count cards */}
-              <div className="flex flex-wrap gap-3">
+              {/* Count chips */}
+              <div className="flex flex-wrap gap-2">
                 {(() => {
                   const importedCount = results.filter((r) => r.status === 'imported').length;
                   const updatedCount = results.filter((r) => r.status === 'updated').length;
@@ -476,90 +476,66 @@ export function UnifiedReviewSection({
                   return (
                     <>
                       {importedCount > 0 && (
-                        <div className="flex items-center gap-2 rounded-md border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2">
-                          <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" aria-hidden />
-                          <div>
-                            <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300 tabular-nums">
-                              {importedCount}
-                            </p>
-                            <p className="text-[11px] text-emerald-600/80 dark:text-emerald-400/80">
-                              {importedCount === 1 ? 'imported' : 'imported'}
-                            </p>
-                          </div>
-                        </div>
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 px-3 py-1 text-sm font-semibold text-emerald-800 dark:text-emerald-200">
+                          <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+                          {importedCount} imported
+                        </span>
                       )}
                       {updatedCount > 0 && (
-                        <div className="flex items-center gap-2 rounded-md border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 px-3 py-2">
-                          <RefreshCw className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" aria-hidden />
-                          <div>
-                            <p className="text-sm font-semibold text-blue-700 dark:text-blue-300 tabular-nums">
-                              {updatedCount}
-                            </p>
-                            <p className="text-[11px] text-blue-600/80 dark:text-blue-400/80">
-                              {updatedCount === 1 ? 'updated' : 'updated'}
-                            </p>
-                          </div>
-                        </div>
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 dark:bg-blue-900/50 px-3 py-1 text-sm font-semibold text-blue-800 dark:text-blue-200">
+                          <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+                          {updatedCount} updated
+                        </span>
                       )}
                       {failedCount > 0 && (
-                        <div className="flex items-center gap-2 rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 px-3 py-2">
-                          <XCircle className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0" aria-hidden />
-                          <div>
-                            <p className="text-sm font-semibold text-red-700 dark:text-red-300 tabular-nums">
-                              {failedCount}
-                            </p>
-                            <p className="text-[11px] text-red-600/80 dark:text-red-400/80">
-                              {failedCount === 1 ? 'failed' : 'failed'}
-                            </p>
-                          </div>
-                        </div>
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 dark:bg-red-900/50 px-3 py-1 text-sm font-semibold text-red-800 dark:text-red-200">
+                          <XCircle className="h-3.5 w-3.5" aria-hidden />
+                          {failedCount} failed
+                        </span>
                       )}
                     </>
                   );
                 })()}
               </div>
 
-              {/* Action buttons */}
+              {/* Primary CTA: View Lexicon, secondary: Start New Import */}
               <div className="flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" onClick={onReset} className="gap-1.5">
-                  <RefreshCw className="h-3.5 w-3.5" aria-hidden />
-                  Start New Import
-                </Button>
                 {onViewLexicon && (
-                  <Button size="sm" onClick={onViewLexicon} className="gap-1.5">
-                    <BookOpen className="h-3.5 w-3.5" aria-hidden />
+                  <Button onClick={onViewLexicon} className="gap-1.5">
+                    <BookOpen className="h-4 w-4" aria-hidden />
                     View Lexicon
                   </Button>
                 )}
+                <Button variant="outline" onClick={onReset} className="gap-1.5">
+                  <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+                  Start New Import
+                </Button>
               </div>
             </div>
           </div>
         )}
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2">
-          <Button
-            onClick={onImport}
-            disabled={selectedRows.size === 0 || importStatus === 'importing'}
-            className="flex-1 gap-1.5"
-          >
-            {importStatus === 'importing' ? (
-              <>
-                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-                {importProgress
-                  ? `Importing ${importProgress.current} of ${importProgress.total}…`
-                  : 'Importing…'}
-              </>
-            ) : (
-              `Import Selected (${selectedRows.size} entries)`
-            )}
-          </Button>
-          {importStatus === 'done' && (
-            <Button variant="outline" onClick={onReset}>
-              Reset
+        {/* Import button — hidden once import is done */}
+        {importStatus !== 'done' && (
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={onImport}
+              disabled={selectedRows.size === 0 || importStatus === 'importing'}
+              className="flex-1 gap-1.5"
+            >
+              {importStatus === 'importing' ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                  {importProgress
+                    ? `Importing ${importProgress.current} of ${importProgress.total}…`
+                    : 'Importing…'}
+                </>
+              ) : (
+                `Import Selected (${selectedRows.size} entries)`
+              )}
             </Button>
-          )}
-        </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
