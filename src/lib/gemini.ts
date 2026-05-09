@@ -651,6 +651,7 @@ export async function processDocumentDirect(
   const truncated = text.slice(0, 6000);
   const wasTruncated = text.length > 6000;
 
+  throwIfAborted(signal);
   onProgress?.({ completed: 0, total: 1 });
 
   // Build translation instruction
