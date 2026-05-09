@@ -145,10 +145,17 @@ async function callGemini(
     });
 
     // response.text may be empty for thinking models — extract from parts directly
+    // IMPORTANT: Include ALL text parts, including from thought parts, to get complete responses
     const text = response.text
       ?? response.candidates?.[0]?.content?.parts
-          ?.filter((p: any) => !p.thought && p.text)
-          ?.map((p: any) => p.text)
+          ?.map((p: any) => {
+            // Extract text from both regular text parts and thought parts
+            if (p.text) return p.text;
+            if (p.thought && typeof p.thought === 'string') return p.thought;
+            if (p.thought && typeof p.thought === 'object' && p.thought.text) return p.thought.text;
+            return '';
+          })
+          ?.filter((t: string) => t.length > 0)
           ?.join("") 
       ?? "";
 
@@ -632,41 +639,36 @@ export async function processDocumentChunked(
 // Direct document processing (single-step extraction)
 // ---------------------------------------------------------------------------
 
-export async function processDocumentDirect(
+/**
+ * Builds the prompt for direct document processing without calling the API.
+ * Useful for previewing what will be sent to Gemini.
+ */
+export function buildDirectProcessingPrompt(
   text: string,
-  languages: string[],
-  existingWords: string[],
-  optionsOrOnProgress?:
-    | ProcessDocumentOptions
-    | ((progress: { completed: number; total: number }) => void),
-): Promise<ProcessDocumentResult> {
-  const options: ProcessDocumentOptions =
-    typeof optionsOrOnProgress === "function"
-      ? { onProgress: optionsOrOnProgress }
-      : optionsOrOnProgress ?? {};
-  const { onProgress, signal } = options;
-  const existingSet = new Set(existingWords.map((w) => w.toLowerCase()));
-  
-  // Truncate text to 6000 characters if longer
+  languages: string[]
+): string {
   const truncated = text.slice(0, 6000);
-  const wasTruncated = text.length > 6000;
-
-  throwIfAborted(signal);
-  onProgress?.({ completed: 0, total: 1 });
-
-  // Build translation instruction
+  
   const translationInstruction = languages.length > 0
     ? `\n- "translations": object with keys ${languages.map((c) => `"${c}"`).join(", ")} (${languages.map((c) => LANGUAGE_NAMES[c] ?? c.toUpperCase()).join(", ")} translations)`
     : "";
 
   const translationExample = languages.length > 0
-    ? `, "translations": { ${languages.map((c) => `"${c}": "..."`).join(", ")} }`
+    ? `,"translations":{${languages.map((c) => `"${c}":"..."`).join(",")}}`
     : "";
 
-  // Build comprehensive prompt for direct processing
-  const prompt = `Extract ALL Danish words, phrases, and expressions from the following document. Parse mixed Danish/English content, grammar notes, and usage examples.
+  return `You are a JSON-only API. You must respond with valid JSON and nothing else.
 
-For each Danish entry, return a JSON array where each element has:
+Extract ALL Danish words, phrases, and expressions from the following document. Parse mixed Danish/English content, grammar notes, and usage examples.
+
+CRITICAL FORMATTING RULES:
+- Your response must be a valid JSON array starting with [ and ending with ]
+- Use COMPACT JSON with NO whitespace, NO newlines, NO indentation (minified format)
+- Do not include any text before or after the JSON array
+- Do not use markdown code fences
+- Do not add explanations
+
+For each Danish entry, create a JSON object with these fields:
 - "danish": the Danish word or phrase (strip leading "at " for verbs)
 - "english": English translation (strip leading "to " for verbs)
 - "type": one of "noun", "verb", "adjective", "expression", or "word"
@@ -690,26 +692,128 @@ IMPORTANT INSTRUCTIONS:
 Document text:
 ${truncated}
 
-Return ONLY a JSON array, no markdown, no explanation.
+RESPONSE FORMAT: Return ONLY compact JSON with no whitespace. Start with [ and end with ]. No newlines, no indentation, no spaces except inside string values.
 
-Example entries:
-{"danish": "hus", "english": "house", "type": "noun", "notes": "", "grammar": {"article": "et", "singularDefinite": "huset", "pluralIndefinite": "huse", "pluralDefinite": "husene"}${translationExample}}
-{"danish": "løbe", "english": "run", "type": "verb", "notes": "common verb", "grammar": {"present": "løber", "past": "løb", "perfect": "har løbet"}${translationExample}}
-{"danish": "stor", "english": "big", "type": "adjective", "notes": "", "grammar": {"neuter": "stort", "definite": "store", "plural": "store", "comparative": "større", "superlative": "størst"}${translationExample}}
-{"danish": "god morgen", "english": "good morning", "type": "expression", "notes": "common greeting"${translationExample}}`;
+Example response format (compact, single line):
+[{"danish":"hus","english":"house","type":"noun","notes":"","grammar":{"article":"et","singularDefinite":"huset","pluralIndefinite":"huse","pluralDefinite":"husene"}${translationExample}},{"danish":"løbe","english":"run","type":"verb","notes":"common verb","grammar":{"present":"løber","past":"løb","perfect":"har løbet"}${translationExample}},{"danish":"stor","english":"big","type":"adjective","notes":"","grammar":{"neuter":"stort","definite":"store","plural":"store","comparative":"større","superlative":"størst"}${translationExample}},{"danish":"god morgen","english":"good morning","type":"expression","notes":"common greeting"${translationExample}}]`;
+}
+
+export async function processDocumentDirect(
+  text: string,
+  languages: string[],
+  existingWords: string[],
+  optionsOrOnProgress?:
+    | ProcessDocumentOptions
+    | ((progress: { completed: number; total: number }) => void),
+): Promise<ProcessDocumentResult> {
+  const options: ProcessDocumentOptions =
+    typeof optionsOrOnProgress === "function"
+      ? { onProgress: optionsOrOnProgress }
+      : optionsOrOnProgress ?? {};
+  const { onProgress, signal } = options;
+  const existingSet = new Set(existingWords.map((w) => w.toLowerCase()));
+  
+  // Truncate text to 6000 characters if longer
+  const truncated = text.slice(0, 6000);
+  const wasTruncated = text.length > 6000;
+
+  throwIfAborted(signal);
+  onProgress?.({ completed: 0, total: 1 });
+
+  // Build the prompt using the helper function
+  const prompt = buildDirectProcessingPrompt(truncated, languages);
 
   try {
     const responseText = await callGemini(prompt, {
       temperature: 0.2,
-      maxOutputTokens: 8192,
-      systemInstruction: "You are a Danish-English dictionary assistant. Extract and structure vocabulary data accurately. Return only valid JSON arrays."
+      maxOutputTokens: 16384, // Increased from 8192 to handle longer responses
+      systemInstruction: "You are a JSON-only API. Return compact JSON with no whitespace (minified format). Never use markdown code fences. Never add explanations or text before/after the JSON. Your entire response must be parseable by JSON.parse()."
     });
     throwIfAborted(signal);
     
-    const parsed = safeJsonParse<unknown>(responseText);
+    // Log the actual response length for debugging
+    console.log("Direct processing: received response of length", responseText.length);
     
-    if (!Array.isArray(parsed)) {
-      console.error("Direct processing: AI did not return a JSON array");
+    // Check if response looks truncated (ends mid-JSON)
+    const trimmedResponse = responseText.trim();
+    const endsWithIncompleteJson = 
+      trimmedResponse.endsWith(',') || 
+      trimmedResponse.endsWith(':"') || 
+      trimmedResponse.endsWith('":') ||
+      trimmedResponse.endsWith('{"') ||
+      trimmedResponse.endsWith(',"') ||
+      trimmedResponse.endsWith('",') ||
+      /[,{]\s*"[^"]*"\s*:\s*"[^"]*$/.test(trimmedResponse) || // ends with incomplete key-value pair
+      /,\s*\{\s*"[^"]*"\s*:\s*"[^"]*$/.test(trimmedResponse) || // ends with incomplete object start
+      /"\s*:\s*"[^"]*$/.test(trimmedResponse); // ends with incomplete value
+    
+    if (endsWithIncompleteJson) {
+      console.warn("Direct processing: Response appears to be truncated (ends mid-JSON)");
+      console.warn("Response ends with:", trimmedResponse.slice(-100));
+      
+      // Try to salvage partial data by attempting to parse what we have
+      const lastCompleteObject = trimmedResponse.lastIndexOf('}');
+      if (lastCompleteObject > 0) {
+        const salvageAttempt = trimmedResponse.slice(0, lastCompleteObject + 1) + ']';
+        const salvaged = safeJsonParse<unknown>(salvageAttempt);
+        if (Array.isArray(salvaged) && salvaged.length > 0) {
+          console.log(`Salvaged ${salvaged.length} complete entries from truncated response`);
+          // Continue processing with salvaged data instead of returning error
+          // Fall through to normal parsing with salvageAttempt
+          const parsed = salvaged;
+          
+          // Process salvaged entries
+          const allEntries: LexisEntryInput[] = (parsed as unknown[]).flatMap((item) => {
+            if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+            const obj = item as Record<string, unknown>;
+            const danish = typeof obj.danish === "string" ? obj.danish.trim() : "";
+            if (!danish) return [];
+
+            const translations: Record<string, string> = {};
+            if (obj.translations && typeof obj.translations === "object") {
+              for (const code of languages) {
+                const v = (obj.translations as Record<string, unknown>)[code];
+                if (typeof v === "string" && v.trim()) translations[code] = v.trim();
+              }
+            }
+
+            const grammarRaw =
+              obj.grammar && typeof obj.grammar === "object" && !Array.isArray(obj.grammar)
+                ? (obj.grammar as Record<string, unknown>)
+                : {};
+            const grammar: Record<string, string> = {};
+            for (const [k, v] of Object.entries(grammarRaw)) {
+              if (typeof v === "string" && v.trim()) grammar[k] = v.trim();
+            }
+
+            return [{
+              danish,
+              english: typeof obj.english === "string" ? obj.english : "",
+              notes: typeof obj.notes === "string" ? obj.notes : "",
+              type: normalizeEntryTypeLocal(obj.type),
+              ...(Object.keys(translations).length > 0 ? { translations } : {}),
+              ...(Object.keys(grammar).length > 0 ? { grammar } : {}),
+            }];
+          });
+
+          const newEntries = allEntries.filter(
+            (entry) => !existingSet.has(entry.danish.toLowerCase())
+          );
+
+          onProgress?.({ completed: 1, total: 1 });
+          return {
+            entries: newEntries,
+            totalExtracted: allEntries.length,
+            newWords: newEntries.length,
+            processed: newEntries.length,
+            truncated: true,
+            languages,
+            message: `⚠️ Response was truncated. Successfully imported ${newEntries.length} entries, but some may be missing. Try processing a shorter text for complete results.`,
+          };
+        }
+      }
+      
+      // If salvage failed, return error
       onProgress?.({ completed: 1, total: 1 });
       return {
         entries: [],
@@ -718,7 +822,76 @@ Example entries:
         processed: 0,
         truncated: wasTruncated,
         languages,
-        error: "Could not parse AI response as JSON array",
+        error: "The AI response was cut off mid-response, likely because it exceeded the token limit. Try processing a shorter text, or uncheck 'Direct processing' to use chunked mode.",
+      };
+    }
+    
+    const parsed = safeJsonParse<unknown>(responseText);
+    
+    // Enhanced logging and defensive type checking
+    if (parsed === null || parsed === undefined) {
+      console.error("Direct processing: safeJsonParse returned null/undefined");
+      console.error("Response length:", responseText.length);
+      console.error("Response starts with:", responseText.slice(0, 50));
+      console.error("Response ends with:", responseText.slice(-50));
+      console.error("Full response:", responseText);
+      console.error("Response preview (first 500 chars):", responseText.slice(0, 500));
+      console.error("Response preview (last 200 chars):", responseText.slice(-200));
+      
+      // Try to copy to clipboard for debugging
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        navigator.clipboard.writeText(responseText).then(() => {
+          console.log("✓ Full response copied to clipboard for debugging");
+        }).catch(() => {
+          console.log("To see full response, click the 'Full response:' log above or run: copy(arguments[0])", responseText);
+        });
+      }
+      
+      // Check if response looks like incomplete JSON
+      const trimmed = responseText.trim();
+      const startsWithJson = trimmed.startsWith('[') || trimmed.startsWith('{');
+      const endsWithJson = trimmed.endsWith(']') || trimmed.endsWith('}');
+      
+      if (startsWithJson && !endsWithJson) {
+        onProgress?.({ completed: 1, total: 1 });
+        return {
+          entries: [],
+          totalExtracted: 0,
+          newWords: 0,
+          processed: 0,
+          truncated: wasTruncated,
+          languages,
+          error: "The AI response was incomplete (JSON was cut off mid-response). This may be due to the response being too long. Try processing a shorter text, or use the two-step processing mode (uncheck 'Direct processing').",
+        };
+      }
+      
+      onProgress?.({ completed: 1, total: 1 });
+      return {
+        entries: [],
+        totalExtracted: 0,
+        newWords: 0,
+        processed: 0,
+        truncated: wasTruncated,
+        languages,
+        error: "Could not parse AI response as JSON array. The AI may have returned text in an unexpected format. Check the Gemini API response format in your browser console.",
+      };
+    }
+    
+    if (!Array.isArray(parsed)) {
+      console.error("Direct processing: AI did not return a JSON array");
+      console.error("Parsed result type:", typeof parsed);
+      console.error("Parsed result:", parsed);
+      console.error("Response length:", responseText.length);
+      console.error("Response preview (first 500 chars):", responseText.slice(0, 500));
+      onProgress?.({ completed: 1, total: 1 });
+      return {
+        entries: [],
+        totalExtracted: 0,
+        newWords: 0,
+        processed: 0,
+        truncated: wasTruncated,
+        languages,
+        error: `Could not parse AI response as JSON array. The AI returned a ${typeof parsed} instead. Check the Gemini API response format in your browser console.`,
       };
     }
 

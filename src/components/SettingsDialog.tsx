@@ -484,6 +484,9 @@ export function SettingsDialog({
             <Sparkles className="h-4 w-4 text-muted-foreground" />
             <h3 className="text-sm font-semibold">AI Engine</h3>
           </div>
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            The Gemini API key is used for quiz features (AI-generated distractors, auto-fill) and optional direct document processing. Bulk import works without a key.
+          </p>
 
           {/* Model selector */}
           <div className="space-y-2">
