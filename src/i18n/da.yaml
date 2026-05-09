@@ -1,6 +1,7 @@
 common:
   save: "Gem"
   saving: "Gemmer…"
+  skipToContent: "Spring til hovedindhold"
   cancel: "Annuller"
   delete: "Slet"
   deleting: "Sletter…"
