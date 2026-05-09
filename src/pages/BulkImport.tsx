@@ -744,33 +744,29 @@ export default function BulkImport() {
     setIsProcessingDocument(true);
     setDocumentError(null);
     setDocumentProgress(null);
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
       const langs = getExtraLanguages();
       const entries = await processDocumentChunked(
         words,
         langs,
         allEntries.map((e) => e.danish),
-        (p) => setDocumentProgress(p),
+        {
+          onProgress: (p) => setDocumentProgress(p),
+          signal: controller.signal,
+        },
       );
       if (entries.length === 0) {
         setDocumentError("No new words to fill — they may already exist.");
         return;
       }
-      const rows: ParsedRow[] = entries.map((entry, i) => ({
-        rowIndex: i + 1,
-        raw: [],
-        entry,
-        errors: [],
-        warnings: [],
-      }));
-      const headers = ["danish", "english", "type", "notes"];
-      if (langs.length > 0) headers.push(...langs.map((c) => `translations.${c}`));
-      setRawText(JSON.stringify(entries, null, 2));
-      setParsed({ rows, headers });
-      setImportStatus("parsed");
-      setResults([]);
-      setSelectedRows(new Set(rows.map((r) => r.rowIndex)));
+      commitEntriesToReview(entries, langs);
     } catch (err) {
+      if (err instanceof ProcessingCancelledError) {
+        setDocumentProgress(null);
+        return;
+      }
       console.error("Magic Fill failed", err);
       if (err instanceof GeminiRateLimitError) {
         setDocumentError(err.isDailyQuota
@@ -783,8 +779,9 @@ export default function BulkImport() {
       }
     } finally {
       setIsProcessingDocument(false);
+      abortRef.current = null;
     }
-  }, [rawText, allEntries]);
+  }, [rawText, allEntries, commitEntriesToReview]);
 
   const validRows = parsed?.rows.filter((r) => r.entry !== null) ?? [];
   const errorRows = parsed?.rows.filter((r) => r.entry === null) ?? [];
