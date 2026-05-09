@@ -41,6 +41,8 @@ index:
   addWord: "Add a new word"
   noWordsYet: "No words yet"
   noWordsHint: "Tap «Add» above to get started"
+  addFirstWord: "Add your first word"
+  orImportList: "…or import a list"
   loadingWords: "Loading words…"
   sortNewest: "Newest"
   sortNewestDesc: "Most recently added first"

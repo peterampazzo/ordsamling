@@ -351,11 +351,42 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
         ) : sorted.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground">
             {allEntries.length === 0 ? (
-              <>
-                <BookOpen className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              <div className="flex flex-col items-center">
+                <BookOpen className="h-10 w-10 mb-3 opacity-30" aria-hidden />
                 <p className="text-base">{t("index.noWordsYet")}</p>
-                <p className="text-sm mt-1">{t("index.noWordsHint")}</p>
-              </>
+                {demo ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="mt-4 inline-block">
+                        <Button type="button" size="lg" className="gap-2 opacity-50" disabled>
+                          <Plus className="h-4 w-4" />
+                          {t("index.addFirstWord")}
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>{t("demo.addDisabled")}</TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <Button
+                    type="button"
+                    size="lg"
+                    className="mt-4 gap-2"
+                    onClick={() => setAddFormOpen(true)}
+                    aria-haspopup="dialog"
+                  >
+                    <Plus className="h-4 w-4" />
+                    {t("index.addFirstWord")}
+                  </Button>
+                )}
+                {!demo && (
+                  <Link
+                    to="/import"
+                    className="mt-3 text-sm text-muted-foreground hover:text-foreground underline-offset-4 hover:underline"
+                  >
+                    {t("index.orImportList")}
+                  </Link>
+                )}
+              </div>
             ) : (
               <p>{t("common.noResults", { query: search || (typeFilters.size > 0 ? [...typeFilters].map(entryTypeLabel).join(", ") : "") })}</p>
             )}
