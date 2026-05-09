@@ -8,7 +8,7 @@ const Privacy = () => {
     <div className="min-h-screen bg-background text-foreground">
       <PageHeader backTo="/" pageLabel="Privacy" />
 
-      <main className="max-w-3xl mx-auto px-3 sm:px-4 py-12 sm:py-16">
+      <main id="main" className="max-w-3xl mx-auto px-3 sm:px-4 py-12 sm:py-16">
         <div className="mb-10">
           <SerifHeading level="xl" className="mb-2">
             Privacy Policy

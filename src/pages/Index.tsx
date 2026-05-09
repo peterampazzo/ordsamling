@@ -118,6 +118,7 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
   return (
     <div className="min-h-screen bg-background">
       <PageHeader
+        srHeading={t("index.title")}
         actions={
           <>
             <span className="text-xs text-muted-foreground tabular-nums mr-1" title={t("common.wordCount", { count: allEntries.length })}>
@@ -342,7 +343,7 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
           </div>
         </div>
       )}
-      <main className="max-w-3xl mx-auto px-3 sm:px-4 py-6 sm:py-8">
+      <main id="main" className="max-w-3xl mx-auto px-3 sm:px-4 py-6 sm:py-8">
         {isLoading ? (
           <div className="text-center py-16 text-muted-foreground">
             <p className="text-base">{t("index.loadingWords")}</p>

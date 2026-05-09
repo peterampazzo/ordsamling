@@ -18,6 +18,8 @@ interface PageHeaderProps {
   width?: "app" | "wide";
   /** Optional small page label rendered after the wordmark, separated by a slash. */
   pageLabel?: string;
+  /** Visually-hidden page H1 for screen readers and SEO. Defaults to pageLabel or "Ordsamling". */
+  srHeading?: string;
   className?: string;
 }
 
@@ -37,43 +39,54 @@ export const PageHeader = ({
   subRow,
   width = "app",
   pageLabel,
+  srHeading,
   className,
 }: PageHeaderProps) => {
+  const headingText = srHeading ?? pageLabel;
   const backClasses =
     "p-1.5 -ml-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0";
   return (
-    <header
-      className={cn(
-        "sticky top-0 z-30 border-b border-border bg-card/90 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80",
-        className,
-      )}
-    >
-      <div className={cn("mx-auto", WIDTH_CLASSES[width])}>
-        <div className="flex items-center gap-2 sm:gap-3 py-2.5 min-h-[52px]">
-          {backTo ? (
-            <Link to={backTo} aria-label={t("common.back")} className={backClasses}>
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          ) : onBack ? (
-            <button type="button" onClick={onBack} aria-label={t("common.back")} className={backClasses}>
-              <ArrowLeft className="h-4 w-4" />
-            </button>
-          ) : null}
-          <div className="flex items-baseline gap-2 min-w-0 flex-1">
-            <Wordmark size="sm" />
-            {pageLabel && (
-              <span className="text-sm text-muted-foreground truncate">
-                <span className="text-muted-foreground/60 mx-1">/</span>
-                {pageLabel}
-              </span>
+    <>
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:px-3 focus:py-2 focus:rounded-md focus:bg-primary focus:text-primary-foreground focus:shadow-lg"
+      >
+        {t("common.skipToContent")}
+      </a>
+      {headingText && <h1 className="sr-only">{headingText}</h1>}
+      <header
+        className={cn(
+          "sticky top-0 z-30 border-b border-border bg-card/90 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80",
+          className,
+        )}
+      >
+        <div className={cn("mx-auto", WIDTH_CLASSES[width])}>
+          <div className="flex items-center gap-2 sm:gap-3 py-2.5 min-h-[52px]">
+            {backTo ? (
+              <Link to={backTo} aria-label={t("common.back")} className={backClasses}>
+                <ArrowLeft className="h-4 w-4" aria-hidden />
+              </Link>
+            ) : onBack ? (
+              <button type="button" onClick={onBack} aria-label={t("common.back")} className={backClasses}>
+                <ArrowLeft className="h-4 w-4" aria-hidden />
+              </button>
+            ) : null}
+            <div className="flex items-baseline gap-2 min-w-0 flex-1">
+              <Wordmark size="sm" />
+              {pageLabel && (
+                <span className="text-sm text-muted-foreground truncate" aria-hidden>
+                  <span className="text-muted-foreground/60 mx-1">/</span>
+                  {pageLabel}
+                </span>
+              )}
+            </div>
+            {actions && (
+              <div className="flex items-center gap-1 shrink-0">{actions}</div>
             )}
           </div>
-          {actions && (
-            <div className="flex items-center gap-1 shrink-0">{actions}</div>
-          )}
+          {subRow && <div className="pb-2.5">{subRow}</div>}
         </div>
-        {subRow && <div className="pb-2.5">{subRow}</div>}
-      </div>
-    </header>
+      </header>
+    </>
   );
 };

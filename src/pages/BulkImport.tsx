@@ -14,6 +14,7 @@ import type { LexisEntryInput } from "@/lib/lexicon";
 import { getExtraLanguages, getLanguageLabel, getGeminiApiKey } from "@/lib/settings";
 import { processDocument, processDocumentDirect, processDocumentChunked, GeminiKeyMissingError, GeminiKeyInvalidError, GeminiRateLimitError } from "@/lib/gemini";
 import { t } from "@/i18n";
+import { ProcessingSteps } from "@/components/ProcessingSteps";
 
 // ---------------------------------------------------------------------------
 // CSV parsing
@@ -505,50 +506,66 @@ export default function BulkImport() {
     return () => window.removeEventListener("ordsamling:settings-changed", refresh);
   }, []);
 
-  const handleProcessDocument = useCallback(async (file: File) => {
+  const [pasteAiText, setPasteAiText] = useState("");
+
+  const handleProcessDocument = useCallback(async (source: File | string) => {
     setIsProcessingDocument(true);
     setProcessedDocument(null);
     setDocumentError(null);
     setDocumentProgress(null);
 
     try {
-      const name = file.name.toLowerCase();
       let text: string;
 
-      if (name.endsWith(".docx")) {
-        try {
-          const mammoth = await import("mammoth/mammoth.browser");
-          const arrayBuffer = await file.arrayBuffer();
-          const result = await mammoth.extractRawText({ arrayBuffer });
-          text = result.value ?? "";
-        } catch (err) {
-          console.error("docx parse failed", err);
-          alert(t("bulkImport.documentReadError"));
+      if (typeof source === "string") {
+        text = source;
+      } else {
+        const file = source;
+        const name = file.name.toLowerCase();
+
+        if (name.endsWith(".docx")) {
+          try {
+            const mammoth = await import("mammoth/mammoth.browser");
+            const arrayBuffer = await file.arrayBuffer();
+            const result = await Promise.race([
+              mammoth.extractRawText({ arrayBuffer }),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error("timeout")), 30000),
+              ),
+            ]);
+            text = result.value ?? "";
+          } catch (err) {
+            console.error("docx parse failed", err);
+            const msg = err instanceof Error && err.message === "timeout"
+              ? t("bulkImport.documentReadTimeout")
+              : t("bulkImport.documentReadError");
+            setDocumentError(msg);
+            return;
+          }
+        } else if (name.endsWith(".doc")) {
+          setDocumentError(t("bulkImport.documentUnsupported"));
+          return;
+        } else if (name.endsWith(".txt") || name.endsWith(".md") || file.type.startsWith("text/")) {
+          text = await file.text();
+        } else {
+          setDocumentError(t("bulkImport.documentUnsupported"));
           return;
         }
-      } else if (name.endsWith(".doc")) {
-        alert(t("bulkImport.documentUnsupported"));
-        return;
-      } else if (name.endsWith(".txt") || name.endsWith(".md") || file.type.startsWith("text/")) {
-        text = await file.text();
-      } else {
-        alert(t("bulkImport.documentUnsupported"));
-        return;
       }
 
       if (!text.trim()) {
-        alert(t("bulkImport.documentEmpty"));
+        setDocumentError(t("bulkImport.documentEmpty"));
         return;
       }
 
       const geminiKey = getGeminiApiKey();
       if (!geminiKey) {
-        alert("Add a Gemini API key in Settings to use document processing.");
+        setDocumentError(t("bulkImport.keyMissingBody"));
         return;
       }
 
       const extraLangs = getExtraLanguages();
-      
+
       // Use direct processing or two-step mode based on user preference
       const result = useDirectProcessing
         ? await processDocumentDirect(
@@ -563,7 +580,7 @@ export default function BulkImport() {
             allEntries.map((e) => e.danish),
             (progress) => setDocumentProgress(progress),
           );
-      
+
       setProcessedDocument(result);
 
       // Feed processed entries directly into the preview (preserves translations/grammar)
@@ -586,6 +603,8 @@ export default function BulkImport() {
         setSelectedRows(new Set(rows.map((row) => row.rowIndex)));
       } else if (result.newWords > 0 && result.processed === 0) {
         setDocumentError(`${result.newWords} new words were found but could not be processed. Check your Gemini API key in Settings and try again.`);
+      } else {
+        setDocumentError(t("bulkImport.noEntriesExtracted"));
       }
     } catch (error) {
       console.error("Document processing failed:", error);
@@ -810,7 +829,7 @@ export default function BulkImport() {
     <div className="min-h-screen bg-background">
       <PageHeader backTo="/app" pageLabel={t("bulkImport.title")} />
 
-      <main className="max-w-3xl mx-auto px-3 sm:px-4 py-6 sm:py-8 space-y-8">
+      <main id="main" className="max-w-3xl mx-auto px-3 sm:px-4 py-6 sm:py-8 space-y-8">
 
         {/* Direct processing mode toggle */}
         {hasGeminiKey && (
@@ -832,101 +851,125 @@ export default function BulkImport() {
           </div>
         )}
 
-        {/* Document upload — hero */}
-        <section className="relative">
+        {/* Document upload + paste — hero */}
+        <section className="relative" aria-busy={isProcessingDocument}>
           {hasGeminiKey ? (
-            <div
-              onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setDragActive(true); }}
-              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragActive(true); }}
-              onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDragActive(false); }}
-              onDrop={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setDragActive(false);
-                const file = e.dataTransfer.files?.[0];
-                if (file && !isProcessingDocument) handleProcessDocument(file);
-              }}
-              onClick={() => !isProcessingDocument && fileInputRef.current?.click()}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if ((e.key === "Enter" || e.key === " ") && !isProcessingDocument) {
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* Card 1: Upload file */}
+              <div
+                onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setDragActive(true); }}
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragActive(true); }}
+                onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDragActive(false); }}
+                onDrop={(e) => {
                   e.preventDefault();
-                  fileInputRef.current?.click();
-                }
-              }}
-              className={[
-                "group relative cursor-pointer rounded-2xl border-2 border-dashed bg-card px-6 py-10 sm:py-12 text-center transition-all",
-                dragActive
-                  ? "border-primary bg-primary/5 scale-[1.01]"
-                  : "border-border hover:border-primary/60 hover:bg-muted/40",
-                isProcessingDocument ? "cursor-wait opacity-90" : "",
-              ].join(" ")}
-              aria-label={t("bulkImport.documentUpload")}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".txt,.md,.docx,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleProcessDocument(file);
-                  e.target.value = "";
+                  e.stopPropagation();
+                  setDragActive(false);
+                  const file = e.dataTransfer.files?.[0];
+                  if (file && !isProcessingDocument) handleProcessDocument(file);
                 }}
-                disabled={isProcessingDocument}
-                className="sr-only"
-              />
-              <div className="flex flex-col items-center gap-3">
-                <div className={[
-                  "flex h-14 w-14 items-center justify-center rounded-full transition-colors",
-                  dragActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary",
-                ].join(" ")}>
-                  {isProcessingDocument ? (
-                    <Loader2 className="h-6 w-6 animate-spin" />
-                  ) : (
-                    <FileUp className="h-6 w-6" />
-                  )}
-                </div>
-                <div className="space-y-1">
-                  <p className="font-serif text-lg sm:text-xl tracking-tight">
-                    {isProcessingDocument ? t("bulkImport.uploadProcessing") : t("bulkImport.uploadIntro")}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {t("bulkImport.uploadHint")}
-                  </p>
-                </div>
-                {!isProcessingDocument && (
+                onClick={() => !isProcessingDocument && fileInputRef.current?.click()}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if ((e.key === "Enter" || e.key === " ") && !isProcessingDocument) {
+                    e.preventDefault();
+                    fileInputRef.current?.click();
+                  }
+                }}
+                className={[
+                  "group relative cursor-pointer rounded-2xl border-2 border-dashed bg-card px-5 py-8 text-center transition-all flex flex-col items-center justify-center min-h-[220px]",
+                  dragActive
+                    ? "border-primary bg-primary/5 scale-[1.01]"
+                    : "border-border hover:border-primary/60 hover:bg-muted/40",
+                  isProcessingDocument ? "cursor-wait opacity-60 pointer-events-none" : "",
+                ].join(" ")}
+                aria-label={t("bulkImport.aiUploadCardTitle")}
+                aria-disabled={isProcessingDocument}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".txt,.md,.docx,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleProcessDocument(file);
+                    e.target.value = "";
+                  }}
+                  disabled={isProcessingDocument}
+                  className="sr-only"
+                  aria-label={t("bulkImport.aiUploadCardTitle")}
+                />
+                <div className="flex flex-col items-center gap-3">
+                  <div className={[
+                    "flex h-12 w-12 items-center justify-center rounded-full transition-colors",
+                    dragActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary",
+                  ].join(" ")}>
+                    <FileUp className="h-5 w-5" aria-hidden />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="font-serif text-base sm:text-lg tracking-tight">
+                      {t("bulkImport.aiUploadCardTitle")}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {t("bulkImport.aiUploadCardHint")}
+                    </p>
+                  </div>
                   <Button type="button" size="sm" variant="outline" tabIndex={-1} className="mt-1 pointer-events-none">
                     {t("bulkImport.uploadChooseFile")}
                   </Button>
-                )}
+                </div>
               </div>
 
-              {isProcessingDocument && documentProgress && (
-                <div className="mt-6 space-y-1.5 text-left max-w-sm mx-auto">
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>
-                      {documentProgress.completed === 0
-                        ? "Extracting words…"
-                        : documentProgress.completed === documentProgress.total
-                        ? "Done"
-                        : `Processing chunk ${documentProgress.completed} of ${documentProgress.total - 1}…`}
-                    </span>
-                    <span>{Math.round((documentProgress.completed / documentProgress.total) * 100)}%</span>
+              {/* Card 2: Paste text */}
+              <div
+                className={[
+                  "rounded-2xl border-2 border-dashed bg-card px-5 py-5 flex flex-col gap-3 min-h-[220px]",
+                  isProcessingDocument ? "opacity-60 pointer-events-none" : "border-border",
+                ].join(" ")}
+              >
+                <div className="flex items-center gap-2">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                    <FileText className="h-4 w-4" aria-hidden />
                   </div>
-                  <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-primary transition-all duration-300"
-                      style={{ width: `${(documentProgress.completed / documentProgress.total) * 100}%` }}
-                    />
+                  <div className="min-w-0">
+                    <p className="font-serif text-base sm:text-lg tracking-tight leading-tight">
+                      {t("bulkImport.aiPasteCardTitle")}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
+                      {t("bulkImport.aiPasteCardHint")}
+                    </p>
                   </div>
                 </div>
-              )}
+                <Textarea
+                  value={pasteAiText}
+                  onChange={(e) => setPasteAiText(e.target.value)}
+                  placeholder={t("bulkImport.aiPastePlaceholder")}
+                  rows={5}
+                  disabled={isProcessingDocument}
+                  className="text-xs flex-1 resize-none"
+                  aria-label={t("bulkImport.aiPasteCardTitle")}
+                />
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-muted-foreground tabular-nums">
+                    {pasteAiText.length > 0 ? `${pasteAiText.length} / 6000` : ""}
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => handleProcessDocument(pasteAiText)}
+                    disabled={isProcessingDocument || pasteAiText.trim().length < 3}
+                    className="gap-1.5"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" aria-hidden />
+                    {t("bulkImport.aiPasteCta")}
+                  </Button>
+                </div>
+              </div>
             </div>
           ) : (
             <div className="flex items-center gap-4 rounded-xl border border-border bg-muted/40 px-4 py-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <Lock className="h-4 w-4" />
+                <Lock className="h-4 w-4" aria-hidden />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium leading-tight">
@@ -942,8 +985,62 @@ export default function BulkImport() {
             </div>
           )}
 
-          {processedDocument && (
-            <div className="mt-3 text-sm space-y-1">
+          {/* Shared progress region */}
+          {isProcessingDocument && (
+            <div
+              className="mt-4 rounded-xl border border-border bg-card p-4 sm:p-5"
+              role="status"
+              aria-live="polite"
+            >
+              <ProcessingSteps
+                steps={(() => {
+                  const total = documentProgress?.total ?? 1;
+                  const completed = documentProgress?.completed ?? 0;
+                  const isReadingPhase = completed === 0;
+                  const isAiPhase = completed > 0 && completed < total;
+                  const isDone = completed >= total && total > 0;
+                  return [
+                    {
+                      id: "read",
+                      label: t("bulkImport.stepReadFile"),
+                      state: isReadingPhase ? "active" : "complete",
+                    },
+                    {
+                      id: "ai",
+                      label: t("bulkImport.stepAi"),
+                      sub: isAiPhase
+                        ? (total > 2
+                            ? t("bulkImport.stepAiSub", { current: completed, total: total - 1 })
+                            : t("bulkImport.stepAiSubSingle"))
+                        : undefined,
+                      state: isReadingPhase ? "pending" : isDone ? "complete" : "active",
+                    },
+                    {
+                      id: "done",
+                      label: t("bulkImport.stepDone"),
+                      state: isDone ? "complete" : "pending",
+                    },
+                  ];
+                })()}
+              />
+              {documentProgress && (
+                <div className="mt-4 h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all duration-300"
+                    style={{
+                      width: `${Math.round((documentProgress.completed / Math.max(documentProgress.total, 1)) * 100)}%`,
+                    }}
+                  />
+                </div>
+              )}
+              <p className="mt-3 text-xs text-muted-foreground text-center">
+                {t("bulkImport.aiBusy")}
+              </p>
+            </div>
+          )}
+
+          {processedDocument && !isProcessingDocument && (
+            <div className="mt-3 text-sm space-y-1" role="status">
               <p className="text-muted-foreground">
                 {t("bulkImport.documentProcessed", {
                   extracted: processedDocument.totalExtracted,
@@ -957,16 +1054,19 @@ export default function BulkImport() {
             </div>
           )}
           {documentError && (
-            <div className="mt-3 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <div
+              className="mt-3 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+              role="alert"
+            >
               <XCircle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden />
               <span className="flex-1">{documentError}</span>
               <button
                 type="button"
                 onClick={() => setDocumentError(null)}
                 className="shrink-0 opacity-60 hover:opacity-100 transition-opacity"
-                aria-label="Dismiss"
+                aria-label={t("bulkImport.errorDismiss")}
               >
-                <XCircle className="h-3.5 w-3.5" />
+                <XCircle className="h-3.5 w-3.5" aria-hidden />
               </button>
             </div>
           )}

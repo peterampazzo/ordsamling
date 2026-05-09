@@ -146,7 +146,7 @@ const QuizHistory = () => {
           </button>
         </div>
 
-        <main className="py-4 space-y-3">
+        <main id="main" className="py-4 space-y-3">
           {loading ? (
             <div className="text-center py-16 text-muted-foreground">
               <History className="h-10 w-10 mx-auto mb-3 opacity-30" />

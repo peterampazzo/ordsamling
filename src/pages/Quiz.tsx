@@ -652,7 +652,7 @@ const Quiz = () => {
           }
         />
 
-        <main className="flex-1 max-w-md mx-auto w-full px-4 py-6 sm:py-8 space-y-8">
+        <main id="main" className="flex-1 max-w-md mx-auto w-full px-4 py-6 sm:py-8 space-y-8">
           {allEntries.length < 4 ? (
             <div className="text-center py-12 text-muted-foreground space-y-2">
               <Brain className="h-10 w-10 mx-auto opacity-30" />
@@ -751,7 +751,7 @@ const Quiz = () => {
       <div className="min-h-screen bg-background flex flex-col">
         <PageHeader pageLabel={t("quiz.result")} onBack={() => setState("setup")} />
 
-        <main className="flex-1 px-4 py-6 sm:py-8">
+        <main id="main" className="flex-1 px-4 py-6 sm:py-8">
           <div className="max-w-md mx-auto space-y-8">
             <div className="text-center space-y-3">
               <div className={cn("text-6xl font-bold", pct >= 80 ? "text-primary" : pct >= 50 ? "text-accent-foreground" : "text-destructive")}>{pct}%</div>
@@ -834,7 +834,7 @@ const Quiz = () => {
         }
       />
 
-      <main className="flex-1 flex items-center justify-center px-4 py-8">
+      <main id="main" className="flex-1 flex items-center justify-center px-4 py-8">
         {current && (
           <div className="max-w-md w-full space-y-8">
             {/* Question prompt */}
