@@ -1,6 +1,7 @@
 common:
   save: "Save"
   saving: "Saving…"
+  skipToContent: "Skip to main content"
   cancel: "Cancel"
   delete: "Delete"
   deleting: "Deleting…"
