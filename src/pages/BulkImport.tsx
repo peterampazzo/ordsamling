@@ -483,6 +483,11 @@ export default function BulkImport() {
   const [processedDocument, setProcessedDocument] = useState<ProcessedDocument | null>(null);
   const [documentError, setDocumentError] = useState<string | null>(null);
   const [documentProgress, setDocumentProgress] = useState<{ completed: number; total: number } | null>(null);
+  const [failedChunks, setFailedChunks] = useState<FailedChunk[]>([]);
+  const [partialEntries, setPartialEntries] = useState<LexisEntryInput[]>([]);
+  const [partialMeta, setPartialMeta] = useState<{ totalExtracted: number; newWords: number } | null>(null);
+  const [isRetryingChunks, setIsRetryingChunks] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   // Enabled extra languages + Gemini key presence (re-read on settings-changed event)
   const [extraLangs, setExtraLangs] = useState<string[]>(() => getExtraLanguages());
