@@ -42,7 +42,7 @@ export const PageHeader = ({
   srHeading,
   className,
 }: PageHeaderProps) => {
-  const headingText = srHeading ?? (pageLabel ? `Ordsamling — ${pageLabel}` : "Ordsamling");
+  const headingText = srHeading ?? pageLabel;
   const backClasses =
     "p-1.5 -ml-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0";
   return (
@@ -53,7 +53,7 @@ export const PageHeader = ({
       >
         {t("common.skipToContent")}
       </a>
-      <h1 className="sr-only">{headingText}</h1>
+      {headingText && <h1 className="sr-only">{headingText}</h1>}
       <header
         className={cn(
           "sticky top-0 z-30 border-b border-border bg-card/90 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80",
