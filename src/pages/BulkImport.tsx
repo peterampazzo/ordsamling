@@ -505,50 +505,66 @@ export default function BulkImport() {
     return () => window.removeEventListener("ordsamling:settings-changed", refresh);
   }, []);
 
-  const handleProcessDocument = useCallback(async (file: File) => {
+  const [pasteAiText, setPasteAiText] = useState("");
+
+  const handleProcessDocument = useCallback(async (source: File | string) => {
     setIsProcessingDocument(true);
     setProcessedDocument(null);
     setDocumentError(null);
     setDocumentProgress(null);
 
     try {
-      const name = file.name.toLowerCase();
       let text: string;
 
-      if (name.endsWith(".docx")) {
-        try {
-          const mammoth = await import("mammoth/mammoth.browser");
-          const arrayBuffer = await file.arrayBuffer();
-          const result = await mammoth.extractRawText({ arrayBuffer });
-          text = result.value ?? "";
-        } catch (err) {
-          console.error("docx parse failed", err);
-          alert(t("bulkImport.documentReadError"));
+      if (typeof source === "string") {
+        text = source;
+      } else {
+        const file = source;
+        const name = file.name.toLowerCase();
+
+        if (name.endsWith(".docx")) {
+          try {
+            const mammoth = await import("mammoth/mammoth.browser");
+            const arrayBuffer = await file.arrayBuffer();
+            const result = await Promise.race([
+              mammoth.extractRawText({ arrayBuffer }),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error("timeout")), 30000),
+              ),
+            ]);
+            text = result.value ?? "";
+          } catch (err) {
+            console.error("docx parse failed", err);
+            const msg = err instanceof Error && err.message === "timeout"
+              ? t("bulkImport.documentReadTimeout")
+              : t("bulkImport.documentReadError");
+            setDocumentError(msg);
+            return;
+          }
+        } else if (name.endsWith(".doc")) {
+          setDocumentError(t("bulkImport.documentUnsupported"));
+          return;
+        } else if (name.endsWith(".txt") || name.endsWith(".md") || file.type.startsWith("text/")) {
+          text = await file.text();
+        } else {
+          setDocumentError(t("bulkImport.documentUnsupported"));
           return;
         }
-      } else if (name.endsWith(".doc")) {
-        alert(t("bulkImport.documentUnsupported"));
-        return;
-      } else if (name.endsWith(".txt") || name.endsWith(".md") || file.type.startsWith("text/")) {
-        text = await file.text();
-      } else {
-        alert(t("bulkImport.documentUnsupported"));
-        return;
       }
 
       if (!text.trim()) {
-        alert(t("bulkImport.documentEmpty"));
+        setDocumentError(t("bulkImport.documentEmpty"));
         return;
       }
 
       const geminiKey = getGeminiApiKey();
       if (!geminiKey) {
-        alert("Add a Gemini API key in Settings to use document processing.");
+        setDocumentError(t("bulkImport.keyMissingBody"));
         return;
       }
 
       const extraLangs = getExtraLanguages();
-      
+
       // Use direct processing or two-step mode based on user preference
       const result = useDirectProcessing
         ? await processDocumentDirect(
@@ -563,7 +579,7 @@ export default function BulkImport() {
             allEntries.map((e) => e.danish),
             (progress) => setDocumentProgress(progress),
           );
-      
+
       setProcessedDocument(result);
 
       // Feed processed entries directly into the preview (preserves translations/grammar)
@@ -586,6 +602,8 @@ export default function BulkImport() {
         setSelectedRows(new Set(rows.map((row) => row.rowIndex)));
       } else if (result.newWords > 0 && result.processed === 0) {
         setDocumentError(`${result.newWords} new words were found but could not be processed. Check your Gemini API key in Settings and try again.`);
+      } else {
+        setDocumentError(t("bulkImport.noEntriesExtracted"));
       }
     } catch (error) {
       console.error("Document processing failed:", error);
