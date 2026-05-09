@@ -24,7 +24,8 @@ All colors MUST be HSL.
     --secondary-foreground: 220 40% 13%;
 
     --muted: 40 15% 92%;
-    --muted-foreground: 220 10% 46%;
+    /* Bumped from 46% → 38% lightness to meet WCAG AA contrast on cream bg. */
+    --muted-foreground: 220 14% 38%;
 
     --accent: 180 25% 90%;
     --accent-foreground: 180 30% 25%;
@@ -112,5 +113,17 @@ All colors MUST be HSL.
   h1, h2, h3, h4 {
     font-family: Georgia, 'Times New Roman', serif;
     letter-spacing: -0.02em;
+  }
+
+  /* Respect users who prefer reduced motion across the whole app. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }

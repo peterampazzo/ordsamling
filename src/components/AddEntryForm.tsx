@@ -152,14 +152,15 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
       </div>
 
       <div className="space-y-1 min-w-0">
-        <span className="sr-only">{t("directions.danish")}</span>
+        <label htmlFor="add-entry-danish" className="sr-only">{t("directions.danish")}</label>
         <div className="relative">
           {type === "verb" && (
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base font-medium text-muted-foreground italic">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base font-medium text-muted-foreground italic" aria-hidden>
               at
             </span>
           )}
           <Input
+            id="add-entry-danish"
             value={danish}
             onChange={(e) => setDanish(stripInfinitiveMarker(e.target.value, "da"))}
             placeholder={type === "verb" ? "spise, gå, lære…" : t("addEntry.danishPlaceholder")}

@@ -6,7 +6,7 @@ const GITHUB_URL = "https://github.com/peterampazzo/ordsamling/";
 const Privacy = () => {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <PageHeader backTo="/" pageLabel="Privacy" />
+      <PageHeader backTo="/" pageLabel="Privacy" srHeading="Privacy Policy" />
 
       <main id="main" className="max-w-3xl mx-auto px-3 sm:px-4 py-12 sm:py-16">
         <div className="mb-10">

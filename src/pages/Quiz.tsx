@@ -793,6 +793,7 @@ const Quiz = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <PageHeader
+        srHeading={t("quiz.title")}
         actions={
           <>
             {aiActive && (

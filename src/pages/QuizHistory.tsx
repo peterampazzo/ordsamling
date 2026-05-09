@@ -122,10 +122,11 @@ const QuizHistory = () => {
       <PageHeader
         backTo="/quiz"
         pageLabel={t("quizHistory.title")}
+        srHeading={t("quizHistory.title")}
         actions={
           history.length > 0 ? (
-            <Button variant="ghost" size="sm" onClick={handleClear} className="text-muted-foreground hover:text-destructive">
-              <Trash2 className="h-4 w-4" />
+            <Button variant="ghost" size="sm" onClick={handleClear} aria-label={t("common.confirmDeleteAll")} className="text-muted-foreground hover:text-destructive">
+              <Trash2 className="h-4 w-4" aria-hidden />
             </Button>
           ) : undefined
         }
@@ -133,20 +134,20 @@ const QuizHistory = () => {
 
       <div className="max-w-3xl mx-auto px-3 sm:px-4">
         {/* Tabs */}
-        <div className="flex gap-1.5 py-3 border-b border-border">
-          <button type="button" onClick={() => setTab("sessions")}
+        <div role="tablist" aria-label={t("quizHistory.title")} className="flex gap-1.5 py-3 border-b border-border">
+          <button type="button" role="tab" aria-selected={tab === "sessions"} aria-controls="quiz-history-panel" onClick={() => setTab("sessions")}
             className={cn("px-3 py-1.5 text-xs rounded-full border transition-colors",
               tab === "sessions" ? "bg-primary text-primary-foreground border-primary" : "bg-secondary/80 text-secondary-foreground border-border hover:border-primary/40")}>
             {t("quizHistory.sessions")} ({history.length})
           </button>
-          <button type="button" onClick={() => setTab("words")}
+          <button type="button" role="tab" aria-selected={tab === "words"} aria-controls="quiz-history-panel" onClick={() => setTab("words")}
             className={cn("px-3 py-1.5 text-xs rounded-full border transition-colors flex items-center gap-1",
               tab === "words" ? "bg-primary text-primary-foreground border-primary" : "bg-secondary/80 text-secondary-foreground border-border hover:border-primary/40")}>
-            <TrendingDown className="h-3 w-3" /> {t("quizHistory.weakestWords")}
+            <TrendingDown className="h-3 w-3" aria-hidden /> {t("quizHistory.weakestWords")}
           </button>
         </div>
 
-        <main id="main" className="py-4 space-y-3">
+        <main id="main" role="tabpanel" aria-labelledby="quiz-history-panel" className="py-4 space-y-3">
           {loading ? (
             <div className="text-center py-16 text-muted-foreground">
               <History className="h-10 w-10 mx-auto mb-3 opacity-30" />
