@@ -18,6 +18,8 @@ interface PageHeaderProps {
   width?: "app" | "wide";
   /** Optional small page label rendered after the wordmark, separated by a slash. */
   pageLabel?: string;
+  /** Visually-hidden page H1 for screen readers and SEO. Defaults to pageLabel or "Ordsamling". */
+  srHeading?: string;
   className?: string;
 }
 
