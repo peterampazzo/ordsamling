@@ -12,7 +12,7 @@ import { useLexicon } from "@/hooks/useLexicon";
 import { ENTRY_TYPES, entryTypeLabel, normalizeEntryType, type EntryType } from "@/lib/lexicon";
 import type { LexisEntryInput } from "@/lib/lexicon";
 import { getExtraLanguages, getLanguageLabel, getGeminiApiKey } from "@/lib/settings";
-import { processDocument, processDocumentDirect, processDocumentChunked, GeminiKeyMissingError, GeminiKeyInvalidError, GeminiRateLimitError } from "@/lib/gemini";
+import { processDocument, processDocumentDirect, processDocumentChunked, retryFailedChunks, GeminiKeyMissingError, GeminiKeyInvalidError, GeminiRateLimitError, ProcessingCancelledError, type FailedChunk } from "@/lib/gemini";
 import { t } from "@/i18n";
 import { ProcessingSteps } from "@/components/ProcessingSteps";
 
