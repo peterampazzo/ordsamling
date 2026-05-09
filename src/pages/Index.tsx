@@ -118,6 +118,7 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
   return (
     <div className="min-h-screen bg-background">
       <PageHeader
+        srHeading={t("index.title")}
         actions={
           <>
             <span className="text-xs text-muted-foreground tabular-nums mr-1" title={t("common.wordCount", { count: allEntries.length })}>
