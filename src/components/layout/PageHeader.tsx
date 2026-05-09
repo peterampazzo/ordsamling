@@ -39,9 +39,21 @@ export const PageHeader = ({
   subRow,
   width = "app",
   pageLabel,
+  srHeading,
   className,
 }: PageHeaderProps) => {
+  const headingText = srHeading ?? (pageLabel ? `Ordsamling — ${pageLabel}` : "Ordsamling");
   const backClasses =
+    "p-1.5 -ml-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0";
+  return (
+    <>
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:px-3 focus:py-2 focus:rounded-md focus:bg-primary focus:text-primary-foreground focus:shadow-lg"
+      >
+        {t("common.skipToContent")}
+      </a>
+      <h1 className="sr-only">{headingText}</h1>
     "p-1.5 -ml-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0";
   return (
     <header
