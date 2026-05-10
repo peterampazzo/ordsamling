@@ -61,7 +61,10 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [addFormOpen, setAddFormOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Focus management for the Add Entry dialog
+  const addTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [sort, setSort] = useState<SortMode>("alpha");
+  const [filterOpen, setFilterOpen] = useState(false);
   const [typeFilters, setTypeFilters] = useState<Set<EntryType>>(new Set());
   // demo prop is the source of truth — no sessionStorage flag needed
 
@@ -69,6 +72,22 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
   useEffect(() => {
     if (!demo) registerPushQuizSession(pushQuizSession);
   }, [demo, pushQuizSession]);
+
+  // Task 7.1 — focus management for the Add Entry dialog
+  // On open: move focus to the first input; on close: return focus to the trigger button
+  useEffect(() => {
+    if (addFormOpen) {
+      // Use requestAnimationFrame to ensure the dialog is rendered before focusing
+      const raf = requestAnimationFrame(() => {
+        const input = document.getElementById("add-entry-danish") as HTMLInputElement | null;
+        input?.focus();
+      });
+      return () => cancelAnimationFrame(raf);
+    } else {
+      // Return focus to the trigger button that opened the dialog
+      addTriggerRef.current?.focus();
+    }
+  }, [addFormOpen]);
 
   const toggleTypeFilter = (type: EntryType) => {
     setTypeFilters((prev) => {
@@ -231,6 +250,7 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
                 </Tooltip>
               ) : (
                 <Button
+                  ref={addTriggerRef}
                   type="button"
                   size="sm"
                   className="shrink-0 gap-1.5 h-9 px-3"
@@ -270,10 +290,12 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
                 ))}
               </div>
 
-              <Popover>
+              <Popover open={filterOpen} onOpenChange={setFilterOpen}>
                 <PopoverTrigger asChild>
                   <button
                     type="button"
+                    aria-haspopup="true"
+                    aria-expanded={filterOpen}
                     className={`flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-full border transition-colors ${
                       typeFilters.size > 0
                         ? "bg-primary text-primary-foreground border-primary shadow-sm"
@@ -371,7 +393,10 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
                     type="button"
                     size="lg"
                     className="mt-4 gap-2"
-                    onClick={() => setAddFormOpen(true)}
+                    onClick={() => {
+                      addTriggerRef.current = null; // no specific trigger for empty-state button
+                      setAddFormOpen(true);
+                    }}
                     aria-haspopup="dialog"
                   >
                     <Plus className="h-4 w-4" />

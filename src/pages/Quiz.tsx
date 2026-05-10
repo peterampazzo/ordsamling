@@ -256,7 +256,7 @@ function buildQuestions(
   mode: QuizMode,
   directions: LangDirection[] = DIRECTIONS,
 ): QuizQuestion[] {
-  let pool: QuizQuestion[] = [];
+  const pool: QuizQuestion[] = [];
 
   for (const dir of directions) {
     const eligible = entries.filter((e) => isValid(e[dir.from]) && isValid(e[dir.to]));
@@ -644,9 +644,9 @@ const Quiz = () => {
           pageLabel={t("quiz.title")}
           actions={
             <Button variant="outline" size="sm" className="gap-1.5" asChild>
-              <Link to="/quiz/history">
-                <History className="h-4 w-4" />
-                <span className="hidden sm:inline">{t("quiz.history")}</span>
+              <Link to="/quiz/history" aria-label={t("quiz.history")}>
+                <History className="h-4 w-4" aria-hidden />
+                <span className="hidden sm:inline" aria-hidden="true">{t("quiz.history")}</span>
               </Link>
             </Button>
           }
@@ -672,6 +672,7 @@ const Quiz = () => {
                       key={d.value}
                       type="button"
                       onClick={() => setDifficulty(d.value)}
+                      aria-pressed={difficulty === d.value}
                       className={cn(
                         "px-3 py-3 rounded-lg border text-sm transition-colors text-left",
                         difficulty === d.value
@@ -690,25 +691,25 @@ const Quiz = () => {
               <section className="space-y-3">
                 <h2 className="text-sm font-medium text-foreground">{t("quiz.mode")}</h2>
                 <div className="grid grid-cols-4 gap-2">
-                  <button type="button" onClick={() => setMode("mixed")}
+                  <button type="button" onClick={() => setMode("mixed")} aria-pressed={mode === "mixed"}
                     className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
                       mode === "mixed" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
                     <Shuffle className="h-4 w-4" />
                     <span className="text-xs">{t("quiz.modeMixed")}</span>
                   </button>
-                  <button type="button" onClick={() => setMode("choice")}
+                  <button type="button" onClick={() => setMode("choice")} aria-pressed={mode === "choice"}
                     className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
                       mode === "choice" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
                     <LayoutGrid className="h-4 w-4" />
                     <span className="text-xs">{t("quiz.modeChoice")}</span>
                   </button>
-                  <button type="button" onClick={() => setMode("type")}
+                  <button type="button" onClick={() => setMode("type")} aria-pressed={mode === "type"}
                     className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
                       mode === "type" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
                     <Keyboard className="h-4 w-4" />
                     <span className="text-xs">{t("quiz.modeType")}</span>
                   </button>
-                  <button type="button" onClick={() => setMode("completion")}
+                  <button type="button" onClick={() => setMode("completion")} aria-pressed={mode === "completion"}
                     className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
                       mode === "completion" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
                     <PenLine className="h-4 w-4" />
@@ -723,6 +724,7 @@ const Quiz = () => {
                 <div className="flex gap-2">
                   {[5, 10, 20, 50].map((n) => (
                     <button key={n} type="button" onClick={() => setQuestionCount(n)}
+                      aria-pressed={questionCount === n}
                       className={cn("px-3 py-2 rounded-lg border text-sm transition-colors min-w-[3rem]",
                         questionCount === n ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
                       {n}
@@ -905,6 +907,7 @@ const Quiz = () => {
                 </p>
                 <form onSubmit={(e) => { e.preventDefault(); if (!showResult && typedAnswer.trim()) submitAnswer(typedAnswer); }} className="flex gap-2">
                   <Input ref={inputRef} value={typedAnswer} onChange={(e) => setTypedAnswer(e.target.value)}
+                    aria-label={t("quiz.yourAnswerPlaceholder")}
                     disabled={showResult} placeholder={t("quiz.yourAnswerPlaceholder")} className="flex-1" autoComplete="off" spellCheck={false} />
                   <Button type="submit" disabled={showResult || !typedAnswer.trim()} size="sm">{t("common.answer")}</Button>
                 </form>

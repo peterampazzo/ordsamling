@@ -7,7 +7,7 @@
  * - Tracks dirty state and retries on reconnect
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { LexisEntry } from '@/lib/lexicon';
 import type { QuizSessionRecord } from '@/lib/quizHistory';
 import { getEntriesStorageKey } from '@/lib/demo';
@@ -51,10 +51,11 @@ export interface UseGoogleSheetsReturn {
 }
 
 // ---------------------------------------------------------------------------
-// Module-level singleton service
+// Module-level singleton service (lazy — replaced in tests via vi.mock)
 // ---------------------------------------------------------------------------
 
-const sheetsService = new GoogleSheetsService();
+// NOTE: Instantiated inside the hook (see below) so that vi.mock() in tests
+// can replace the constructor before the first render.
 
 // ---------------------------------------------------------------------------
 // Pure merge algorithm (exported for testing)
@@ -125,6 +126,12 @@ function addToDirtyQueue(op: Omit<DirtyOperation, 'id' | 'timestamp'>): void {
 // ---------------------------------------------------------------------------
 
 export function useGoogleSheets(): UseGoogleSheetsReturn {
+  // Instantiate service inside the hook so vi.mock() in tests can replace the
+  // constructor before the first render. useMemo ensures a single instance per
+  // hook lifecycle (not recreated on every render).
+   
+  const sheetsService = useMemo(() => new GoogleSheetsService(), []);
+
   // Initialize state from StorageConfig
   const config = getStorageConfig();
   const initialStatus =
@@ -247,10 +254,13 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
         // Notify React Query to invalidate
         window.dispatchEvent(new CustomEvent('ordsamling:entries-synced'));
 
-        // Pull settings from sheet (extraLanguages) — sheet wins on load
+        // Pull settings from sheet (extraLanguages) — sheet wins on load,
+        // but only if the sheet has a non-empty list. An empty sheet list
+        // likely means the sheet was created before settings sync was added,
+        // so we preserve the user's local settings in that case.
         try {
           const sheetSettings = await sheetsService.readSettings(spreadsheetId!, accessToken);
-          if (Array.isArray(sheetSettings.extraLanguages)) {
+          if (Array.isArray(sheetSettings.extraLanguages) && sheetSettings.extraLanguages.length > 0) {
             const local = getExtraLanguages();
             const sameOrder =
               local.length === sheetSettings.extraLanguages.length &&

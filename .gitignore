@@ -44,3 +44,7 @@ terraform.tfstate.d/
 # Crash log
 crash.log
 crash.*.log
+
+# Test results
+test-results/
+playwright-report/

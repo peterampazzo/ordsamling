@@ -127,3 +127,82 @@ All colors MUST be HSL.
     }
   }
 }
+
+/*
+ * ============================================================================
+ * APCA Lc REFERENCE TABLE — Design Token Contrast Audit
+ * ============================================================================
+ * All values computed by src/test/contrast-tokens.test.ts using the APCA
+ * SA98G algorithm (WCAG 3.0 draft) and WCAG 2.x relative-luminance formula.
+ *
+ * Thresholds:
+ *   Body text      → WCAG ≥ 4.5:1  |  APCA |Lc| ≥ 75
+ *   Large text     → WCAG ≥ 3.0:1  |  APCA |Lc| ≥ 60
+ *   UI components  → WCAG ≥ 3.0:1
+ *   Muted / badge  → WCAG ≥ 4.5:1  |  APCA |Lc| ≥ 45
+ *
+ * Positive Lc = dark text on light background (BoW)
+ * Negative Lc = light text on dark background (WoB) — shown as absolute value
+ *
+ * ── LIGHT THEME ─────────────────────────────────────────────────────────────
+ *
+ * BODY TEXT
+ *   foreground on background              WCAG 15.91:1  |Lc|  99.7
+ *   card-foreground on card               WCAG 16.57:1  |Lc| 102.5
+ *   secondary-foreground on secondary     WCAG 14.59:1  |Lc|  93.9
+ *   popover-foreground on popover         WCAG 16.57:1  |Lc| 102.5
+ *
+ * LARGE TEXT / HEADINGS
+ *   foreground on background              WCAG 15.91:1  |Lc|  99.7
+ *   primary on background                 WCAG  5.01:1  |Lc|  72.2
+ *   accent-foreground on accent           WCAG  7.01:1  |Lc|  76.3
+ *
+ * UI COMPONENTS (icons, borders, focus rings)
+ *   primary on background                 WCAG  5.01:1  |Lc|  72.2
+ *   primary-foreground on primary         WCAG  5.01:1  |Lc|  77.2
+ *   destructive on background             WCAG  4.77:1  |Lc|  69.2
+ *   ring on background (focus indicator)  WCAG  5.01:1  |Lc|  72.2
+ *
+ * MUTED / SUPPLEMENTARY LABELS
+ *   muted-foreground on background        WCAG  6.34:1  |Lc|  79.1
+ *   muted-foreground on card              WCAG  6.60:1  |Lc|  81.9
+ *   muted-foreground on muted             WCAG  5.70:1  |Lc|  72.0
+ *   muted-foreground on secondary         WCAG  5.81:1  |Lc|  73.3
+ *
+ * STATUS BADGES
+ *   emerald badge text on emerald bg      WCAG  5.68:1  |Lc|  68.3
+ *   amber badge text on amber bg          WCAG  8.19:1  |Lc|  78.8
+ *   blue badge text on blue bg            WCAG 10.18:1  |Lc|  78.1
+ *   red badge text on red bg              WCAG  6.99:1  |Lc|  60.5
+ *
+ * ── DARK THEME ──────────────────────────────────────────────────────────────
+ *
+ * BODY TEXT
+ *   foreground on background              WCAG 19.12:1  |Lc| 104.3
+ *   card-foreground on card               WCAG 19.12:1  |Lc| 104.3
+ *   secondary-foreground on secondary     WCAG 13.98:1  |Lc| 100.8
+ *   popover-foreground on popover         WCAG 19.12:1  |Lc| 104.3
+ *   accent-foreground on accent           WCAG 13.98:1  |Lc| 100.8
+ *
+ * LARGE TEXT / HEADINGS
+ *   foreground on background              WCAG 19.12:1  |Lc| 104.3
+ *   primary on background                 WCAG 19.12:1  |Lc| 104.3
+ *
+ * UI COMPONENTS (icons, borders, focus rings)
+ *   primary-foreground on primary         WCAG 17.06:1  |Lc| 101.4
+ *   ring on background (focus indicator)  WCAG 13.47:1  |Lc|  80.3
+ *   destructive-foreground on destructive WCAG  9.58:1  |Lc|  92.8
+ *
+ * MUTED / SUPPLEMENTARY LABELS
+ *   muted-foreground on background        WCAG  7.80:1  |Lc|  51.6
+ *   muted-foreground on card              WCAG  7.80:1  |Lc|  51.6
+ *   muted-foreground on muted             WCAG  5.71:1  |Lc|  48.1
+ *
+ * STATUS BADGES
+ *   emerald badge text on emerald bg      WCAG  5.68:1  |Lc|  71.6
+ *   amber badge text on amber bg          WCAG  8.19:1  |Lc|  81.5
+ *   blue badge text on blue bg            WCAG 10.18:1  |Lc|  79.0
+ *   red badge text on red bg              WCAG  6.99:1  |Lc|  60.7
+ *
+ * ============================================================================
+ */

@@ -42,9 +42,9 @@ export async function fetchAvailableModels(apiKey: string): Promise<GeminiModelI
   const data = await response.json();
 
   const results: GeminiModelInfo[] = (data.models ?? [])
-    .filter((m: any) => {
-      if (!m.supportedGenerationMethods?.includes("generateContent")) return false;
-      const id: string = m.name?.replace("models/", "") ?? "";
+    .filter((m: Record<string, unknown>) => {
+      if (!Array.isArray(m.supportedGenerationMethods) || !m.supportedGenerationMethods.includes("generateContent")) return false;
+      const id: string = typeof m.name === "string" ? m.name.replace("models/", "") : "";
       if (!id.startsWith("gemini-")) return false;
       const excluded = [
         "-tts", "-image", "-audio", "-native-audio", "-live",
@@ -52,11 +52,11 @@ export async function fetchAvailableModels(apiKey: string): Promise<GeminiModelI
       ];
       return !excluded.some((s) => id.includes(s));
     })
-    .map((m: any) => ({
-      id: m.name?.replace("models/", "") ?? "",
-      label: m.displayName ?? m.name?.replace("models/", "") ?? "",
-      description: m.description ?? "",
-      displayName: m.displayName,
+    .map((m: Record<string, unknown>) => ({
+      id: typeof m.name === "string" ? m.name.replace("models/", "") : "",
+      label: typeof m.displayName === "string" ? m.displayName : (typeof m.name === "string" ? m.name.replace("models/", "") : ""),
+      description: typeof m.description === "string" ? m.description : "",
+      displayName: typeof m.displayName === "string" ? m.displayName : undefined,
     }))
     .filter((m: GeminiModelInfo) => m.id);
 

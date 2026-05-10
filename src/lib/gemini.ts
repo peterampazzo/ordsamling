@@ -148,7 +148,7 @@ async function callGemini(
     // IMPORTANT: Include ALL text parts, including from thought parts, to get complete responses
     const text = response.text
       ?? response.candidates?.[0]?.content?.parts
-          ?.map((p: any) => {
+          ?.map((p: { text?: string; thought?: string | { text?: string } }) => {
             // Extract text from both regular text parts and thought parts
             if (p.text) return p.text;
             if (p.thought && typeof p.thought === 'string') return p.thought;
@@ -172,10 +172,10 @@ async function callGemini(
 function safeJsonParse<T = unknown>(raw: string): T | null {
   if (!raw) return null;
   // Strip markdown fences
-  let s = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/g, "").trim();
+  const s = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/g, "").trim();
   try { return JSON.parse(s) as T; } catch { /* fallthrough */ }
   // Extract first JSON object or array
-  const firstBrace = s.search(/[\[{]/);
+  const firstBrace = s.search(/[[{]/);
   const lastBrace = Math.max(s.lastIndexOf("]"), s.lastIndexOf("}"));
   if (firstBrace >= 0 && lastBrace > firstBrace) {
     try { return JSON.parse(s.slice(firstBrace, lastBrace + 1)) as T; } catch { /* fallthrough */ }

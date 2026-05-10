@@ -39,11 +39,17 @@ function detectInitialLang(): string {
   return "en";
 }
 
-let currentLang = detectInitialLang();
+let currentLang = "en";
+
+// Initialize language and sync document.documentElement.lang on startup
+setLang(detectInitialLang());
 
 export function setLang(lang: string) {
   if (!strings[lang]) return;
   currentLang = lang;
+  if (typeof document !== "undefined") {
+    document.documentElement.lang = lang;
+  }
   try {
     localStorage.setItem(LANG_KEY, lang);
     window.dispatchEvent(new CustomEvent("ordsamling:lang-changed"));

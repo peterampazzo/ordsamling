@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { DemoBanner } from "@/components/DemoBanner";
+import { RouteAnnouncer } from "@/components/RouteAnnouncer";
 import Landing from "./pages/Landing.tsx";
 import Index from "./pages/Index.tsx";
 import BulkImport from "./pages/BulkImport.tsx";
@@ -22,6 +23,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <RouteAnnouncer />
         <DemoBanner />
         <Routes>
           <Route path="/" element={<Landing />} />

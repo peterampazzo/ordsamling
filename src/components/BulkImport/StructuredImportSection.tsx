@@ -400,6 +400,7 @@ export function StructuredImportSection({
             type="file"
             accept={ALLOWED_FILE_TYPES.join(',')}
             className="hidden"
+            aria-label="Upload structured data file"
             onChange={handleFileUpload}
           />
         </div>
@@ -434,8 +435,9 @@ export function StructuredImportSection({
 
         {/* Text Area for Manual Paste */}
         <div className="space-y-2">
-          <label className="text-sm font-medium">Or paste your data directly:</label>
+          <label htmlFor="structured-import-paste" className="text-sm font-medium">Or paste your data directly:</label>
           <Textarea
+            id="structured-import-paste"
             value={state.rawInput}
             onChange={(e) => handleInputChange(e.target.value)}
             placeholder="danish,english,type,notes&#10;hus,house,noun,&#10;gå,to go,verb,"

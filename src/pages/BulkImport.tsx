@@ -380,6 +380,7 @@ export default function BulkImport() {
         {/* ── Active workflow (expands after selection) ──────────────────── */}
         <div
           ref={workflowRef}
+          role="region"
           aria-live="polite"
           aria-label={t("bulkImport.wizardWorkflowRegion")}
           className={method ? "space-y-6" : ""}

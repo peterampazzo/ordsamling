@@ -195,6 +195,7 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
                 </span>
               )}
               <Input
+                aria-label={t("directions.english")}
                 value={english}
                 onChange={(e) => setEnglish(stripInfinitiveMarker(e.target.value, "en"))}
                 placeholder={type === "verb" ? "eat, go, learn…" : t("addEntry.englishPlaceholder")}
@@ -207,6 +208,7 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
             <div key={code} className="min-w-0">
               <span className="text-[10px] font-medium text-lang-it uppercase tracking-wider">{getLanguageLabel(code)}</span>
               <Input
+                aria-label={getLanguageLabel(code)}
                 value={translations[code] ?? ""}
                 onChange={(e) =>
                   setTranslations((prev) => ({ ...prev, [code]: e.target.value }))
@@ -248,6 +250,7 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
       )}
 
       <Textarea
+        aria-label={t("addEntry.notesPlaceholder")}
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
         placeholder={t("addEntry.notesPlaceholder")}

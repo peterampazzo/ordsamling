@@ -26,8 +26,9 @@ export function GrammarFields({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 min-w-0">
         {fields.map(({ key, label, placeholder }) => (
           <div key={key} className="min-w-0">
-            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{label}</span>
+            <label htmlFor={`grammar-${key}`} className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{label}</label>
             <Input
+              id={`grammar-${key}`}
               value={value[key] ?? ""}
               onChange={(e) => setKey(key, e.target.value)}
               placeholder={placeholder}
