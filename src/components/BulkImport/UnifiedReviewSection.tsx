@@ -60,6 +60,12 @@ function statusBadge(status: RowStatus) {
           <XCircle className="h-3.5 w-3.5" aria-hidden /> {t('common.failed')}
         </span>
       );
+    case 'skipped':
+      return (
+        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium">
+          <SkipForward className="h-3.5 w-3.5" aria-hidden /> {t('bulkImport.skipped')}
+        </span>
+      );
   }
 }
 
