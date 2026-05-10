@@ -88,6 +88,8 @@ export function UnifiedReviewSection({
   onSettingsChange,
   onImport,
   onReset,
+  onEditRow,
+  onRemoveRow,
   onViewLexicon,
 }: UnifiedReviewSectionProps) {
   const [showSettings, setShowSettings] = React.useState(false);
