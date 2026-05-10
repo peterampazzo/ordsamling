@@ -301,11 +301,14 @@ export function UnifiedReviewSection({
                     {code.toUpperCase()}
                   </th>
                 ))}
-                <th className="text-left px-3 py-2 font-medium text-muted-foreground">
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground w-28">
                   {t('bulkImport.tableType')}
                 </th>
                 <th className="text-left px-3 py-2 font-medium text-muted-foreground">
                   {t('bulkImport.tableStatus')}
+                </th>
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground w-10">
+                  <span className="sr-only">{t('common.actions')}</span>
                 </th>
               </tr>
             </thead>
