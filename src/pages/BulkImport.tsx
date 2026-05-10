@@ -293,6 +293,12 @@ export default function BulkImport() {
       const row = rowsToImport[i];
       if (!row.entry) continue;
       const existingEntry = existingEntriesMap.get(row.entry.danish.toLowerCase()) ?? null;
+      // Skip duplicates entirely when updateDuplicates is off
+      if (existingEntry && !importSettings.updateDuplicates) {
+        newResults.push({ rowIndex: row.rowIndex, status: "skipped" });
+        setImportProgress({ current: i + 1, total: rowsToImport.length });
+        continue;
+      }
       const shouldUpdate = importSettings.updateDuplicates && existingEntry;
       let success = false;
       let lastError: string | undefined;
