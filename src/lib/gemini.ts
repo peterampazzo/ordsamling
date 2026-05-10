@@ -151,8 +151,10 @@ async function callGemini(
           ?.map((p: { text?: string; thought?: unknown }) => {
             // Extract text from both regular text parts and thought parts
             if (p.text) return p.text;
-            if (p.thought && typeof p.thought === 'string') return p.thought;
-            if (p.thought && typeof p.thought === 'object' && p.thought.text) return p.thought.text;
+            if (typeof p.thought === 'string') return p.thought;
+            if (p.thought && typeof p.thought === 'object' && 'text' in p.thought && typeof (p.thought as { text?: unknown }).text === 'string') {
+              return (p.thought as { text: string }).text;
+            }
             return '';
           })
           ?.filter((t: string) => t.length > 0)
