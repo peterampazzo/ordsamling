@@ -525,6 +525,8 @@ export default function BulkImport() {
               onSettingsChange={setImportSettings}
               onImport={handleImport}
               onReset={handleReset}
+              onEditRow={handleEditRow}
+              onRemoveRow={handleRemoveRow}
               onViewLexicon={handleViewLexicon}
             />
           </div>
