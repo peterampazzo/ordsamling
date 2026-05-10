@@ -93,6 +93,10 @@ export interface UnifiedReviewSectionProps {
   onSettingsChange: (settings: ImportSettings) => void;
   onImport: () => Promise<void>;
   onReset: () => void;
+  /** Inline-edit a parsed row before commit. Partial merge into entry. */
+  onEditRow: (rowIndex: number, patch: Partial<LexisEntryInput>) => void;
+  /** Remove a parsed row from the import set. */
+  onRemoveRow: (rowIndex: number) => void;
   /** Optional navigation callback for "View Lexicon" button after import */
   onViewLexicon?: () => void;
 }
@@ -122,7 +126,7 @@ export interface ParsedRow {
 
 export interface RowResult {
   rowIndex: number;
-  status: "imported" | "updated" | "failed";
+  status: "imported" | "updated" | "failed" | "skipped";
   error?: string;
   retryCount?: number;
 }
