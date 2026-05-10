@@ -1,5 +1,6 @@
 export interface SheetSettings {
   extraLanguages: string[];
+  uiLang?: string;
 }
 
 export const LEXICON_HEADERS = ['ID', 'Danish', 'English', 'Translations', 'Type', 'Grammar', 'Notes', 'CreatedAt'] as const;

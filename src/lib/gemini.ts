@@ -148,7 +148,7 @@ async function callGemini(
     // IMPORTANT: Include ALL text parts, including from thought parts, to get complete responses
     const text = response.text
       ?? response.candidates?.[0]?.content?.parts
-          ?.map((p: { text?: string; thought?: string | { text?: string } }) => {
+          ?.map((p: { text?: string; thought?: unknown }) => {
             // Extract text from both regular text parts and thought parts
             if (p.text) return p.text;
             if (p.thought && typeof p.thought === 'string') return p.thought;
