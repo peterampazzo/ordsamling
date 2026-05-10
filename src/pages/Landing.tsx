@@ -114,7 +114,7 @@ const Landing = () => {
         <div
           aria-hidden="true"
           role="presentation"
-          className="pointer-events-none absolute -top-24 -right-16 select-none font-serif text-[18rem] leading-none text-primary/5"
+          className="pointer-events-none absolute -top-24 -right-16 select-none font-serif text-[18rem] leading-none text-muted-foreground/70"
         >
           Aa
         </div>
