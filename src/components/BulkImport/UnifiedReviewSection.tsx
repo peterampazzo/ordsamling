@@ -181,9 +181,57 @@ export function UnifiedReviewSection({
           )}
         </div>
 
+        {/* Duplicate preview banner — surfaces the Skip/Update choice to the main flow */}
+        {duplicateRows.length > 0 && importStatus !== 'done' && (
+          <div
+            className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/60 dark:bg-blue-950/30 px-4 py-3"
+            role="region"
+            aria-live="polite"
+            aria-label={t('bulkImport.duplicatePreviewSummary', { count: duplicateRows.length, total: validRows.length })}
+          >
+            <p className="text-sm text-foreground">
+              {t('bulkImport.duplicatePreviewSummary', { count: duplicateRows.length, total: validRows.length })}
+            </p>
+            <fieldset className="mt-2.5 flex flex-wrap gap-2 border-0 p-0 m-0">
+              <legend className="sr-only">{t('bulkImport.duplicatePreviewLegend')}</legend>
+              <label className={[
+                'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs cursor-pointer transition-colors',
+                !settings.updateDuplicates
+                  ? 'border-primary bg-primary/10 text-foreground font-medium'
+                  : 'border-border bg-background text-muted-foreground hover:bg-muted/40',
+              ].join(' ')}>
+                <input
+                  type="radio"
+                  name="duplicate-strategy"
+                  className="sr-only"
+                  checked={!settings.updateDuplicates}
+                  onChange={() => onSettingsChange({ ...settings, updateDuplicates: false })}
+                  disabled={importStatus === 'importing'}
+                />
+                {t('bulkImport.skipDuplicates')}
+              </label>
+              <label className={[
+                'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs cursor-pointer transition-colors',
+                settings.updateDuplicates
+                  ? 'border-primary bg-primary/10 text-foreground font-medium'
+                  : 'border-border bg-background text-muted-foreground hover:bg-muted/40',
+              ].join(' ')}>
+                <input
+                  type="radio"
+                  name="duplicate-strategy"
+                  className="sr-only"
+                  checked={settings.updateDuplicates}
+                  onChange={() => onSettingsChange({ ...settings, updateDuplicates: true })}
+                  disabled={importStatus === 'importing'}
+                />
+                {t('bulkImport.updateDuplicatesShort')}
+              </label>
+            </fieldset>
+          </div>
+        )}
+
         <Separator />
 
-        {/* Row Selection Controls */}
         <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
