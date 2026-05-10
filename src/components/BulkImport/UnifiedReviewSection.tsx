@@ -1,10 +1,12 @@
 import React, { useMemo } from 'react';
-import { CheckCircle2, XCircle, AlertCircle, RefreshCw, Loader2, BookOpen } from 'lucide-react';
+import { CheckCircle2, XCircle, AlertCircle, RefreshCw, Loader2, BookOpen, Trash2, SkipForward } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
-import { entryTypeLabel } from '@/lib/lexicon';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ENTRY_TYPES, entryTypeLabel, type EntryType } from '@/lib/lexicon';
 import { t } from '@/i18n';
 import type { UnifiedReviewSectionProps, ParsedRow } from './types';
 
@@ -12,7 +14,7 @@ import type { UnifiedReviewSectionProps, ParsedRow } from './types';
 // Status badge helpers
 // ---------------------------------------------------------------------------
 
-type RowStatus = 'valid' | 'warning' | 'error' | 'duplicate' | 'imported' | 'updated' | 'failed';
+type RowStatus = 'valid' | 'warning' | 'error' | 'duplicate' | 'imported' | 'updated' | 'failed' | 'skipped';
 
 function statusBadge(status: RowStatus) {
   switch (status) {
