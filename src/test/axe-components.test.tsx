@@ -4,9 +4,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
 import React from "react";
 import { axe } from "vitest-axe";
-import { toHaveNoViolations } from "vitest-axe/matchers";
-
-expect.extend(toHaveNoViolations);
+import "vitest-axe/extend-expect";
 
 // ─── Mocks (same as lang-sync.test.tsx) ──────────────────────────────────────
 

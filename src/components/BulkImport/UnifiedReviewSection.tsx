@@ -1,10 +1,12 @@
 import React, { useMemo } from 'react';
-import { CheckCircle2, XCircle, AlertCircle, RefreshCw, Loader2, BookOpen } from 'lucide-react';
+import { CheckCircle2, XCircle, AlertCircle, RefreshCw, Loader2, BookOpen, Trash2, SkipForward } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
-import { entryTypeLabel } from '@/lib/lexicon';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ENTRY_TYPES, entryTypeLabel, type EntryType } from '@/lib/lexicon';
 import { t } from '@/i18n';
 import type { UnifiedReviewSectionProps, ParsedRow } from './types';
 
@@ -12,7 +14,7 @@ import type { UnifiedReviewSectionProps, ParsedRow } from './types';
 // Status badge helpers
 // ---------------------------------------------------------------------------
 
-type RowStatus = 'valid' | 'warning' | 'error' | 'duplicate' | 'imported' | 'updated' | 'failed';
+type RowStatus = 'valid' | 'warning' | 'error' | 'duplicate' | 'imported' | 'updated' | 'failed' | 'skipped';
 
 function statusBadge(status: RowStatus) {
   switch (status) {
@@ -58,6 +60,12 @@ function statusBadge(status: RowStatus) {
           <XCircle className="h-3.5 w-3.5" aria-hidden /> {t('common.failed')}
         </span>
       );
+    case 'skipped':
+      return (
+        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium">
+          <SkipForward className="h-3.5 w-3.5" aria-hidden /> {t('bulkImport.skipped')}
+        </span>
+      );
   }
 }
 
@@ -80,6 +88,8 @@ export function UnifiedReviewSection({
   onSettingsChange,
   onImport,
   onReset,
+  onEditRow,
+  onRemoveRow,
   onViewLexicon,
 }: UnifiedReviewSectionProps) {
   const [showSettings, setShowSettings] = React.useState(false);
@@ -171,9 +181,57 @@ export function UnifiedReviewSection({
           )}
         </div>
 
+        {/* Duplicate preview banner — surfaces the Skip/Update choice to the main flow */}
+        {duplicateRows.length > 0 && importStatus !== 'done' && (
+          <div
+            className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/60 dark:bg-blue-950/30 px-4 py-3"
+            role="region"
+            aria-live="polite"
+            aria-label={t('bulkImport.duplicatePreviewSummary', { count: duplicateRows.length, total: validRows.length })}
+          >
+            <p className="text-sm text-foreground">
+              {t('bulkImport.duplicatePreviewSummary', { count: duplicateRows.length, total: validRows.length })}
+            </p>
+            <fieldset className="mt-2.5 flex flex-wrap gap-2 border-0 p-0 m-0">
+              <legend className="sr-only">{t('bulkImport.duplicatePreviewLegend')}</legend>
+              <label className={[
+                'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs cursor-pointer transition-colors',
+                !settings.updateDuplicates
+                  ? 'border-primary bg-primary/10 text-foreground font-medium'
+                  : 'border-border bg-background text-muted-foreground hover:bg-muted/40',
+              ].join(' ')}>
+                <input
+                  type="radio"
+                  name="duplicate-strategy"
+                  className="sr-only"
+                  checked={!settings.updateDuplicates}
+                  onChange={() => onSettingsChange({ ...settings, updateDuplicates: false })}
+                  disabled={importStatus === 'importing'}
+                />
+                {t('bulkImport.skipDuplicates')}
+              </label>
+              <label className={[
+                'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs cursor-pointer transition-colors',
+                settings.updateDuplicates
+                  ? 'border-primary bg-primary/10 text-foreground font-medium'
+                  : 'border-border bg-background text-muted-foreground hover:bg-muted/40',
+              ].join(' ')}>
+                <input
+                  type="radio"
+                  name="duplicate-strategy"
+                  className="sr-only"
+                  checked={settings.updateDuplicates}
+                  onChange={() => onSettingsChange({ ...settings, updateDuplicates: true })}
+                  disabled={importStatus === 'importing'}
+                />
+                {t('bulkImport.updateDuplicatesShort')}
+              </label>
+            </fieldset>
+          </div>
+        )}
+
         <Separator />
 
-        {/* Row Selection Controls */}
         <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
@@ -243,11 +301,14 @@ export function UnifiedReviewSection({
                     {code.toUpperCase()}
                   </th>
                 ))}
-                <th className="text-left px-3 py-2 font-medium text-muted-foreground">
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground w-28">
                   {t('bulkImport.tableType')}
                 </th>
                 <th className="text-left px-3 py-2 font-medium text-muted-foreground">
                   {t('bulkImport.tableStatus')}
+                </th>
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground w-10">
+                  <span className="sr-only">{t('common.actions')}</span>
                 </th>
               </tr>
             </thead>
@@ -272,6 +333,7 @@ export function UnifiedReviewSection({
 
                 const isSelectable = row.entry !== null && !hasError;
                 const isChecked = selectedRows.has(row.rowIndex);
+                const isEditable = row.entry !== null && importStatus !== 'importing' && importStatus !== 'done';
 
                 return (
                   <tr
@@ -310,28 +372,85 @@ export function UnifiedReviewSection({
                     <td className="px-3 py-2 text-muted-foreground tabular-nums">
                       {row.rowIndex}
                     </td>
-                    {/* Danish */}
-                    <td className="px-3 py-2 font-medium max-w-[140px] truncate">
-                      {row.entry?.danish || (
-                        <span className="text-muted-foreground/50 italic">—</span>
+                    {/* Danish (editable) */}
+                    <td className="px-2 py-1.5 max-w-[160px]">
+                      {isEditable ? (
+                        <Input
+                          value={row.entry?.danish ?? ''}
+                          onChange={(e) => onEditRow(row.rowIndex, { danish: e.target.value })}
+                          className="h-8 text-xs"
+                          aria-label={t('bulkImport.editDanishAria', { row: row.rowIndex })}
+                        />
+                      ) : (
+                        <span className="font-medium truncate block">
+                          {row.entry?.danish || (
+                            <span className="text-muted-foreground/50 italic">—</span>
+                          )}
+                        </span>
                       )}
                     </td>
-                    {/* English */}
-                    <td className="px-3 py-2 text-muted-foreground max-w-[120px] truncate">
-                      {row.entry?.english || '—'}
+                    {/* English (editable) */}
+                    <td className="px-2 py-1.5 max-w-[160px]">
+                      {isEditable ? (
+                        <Input
+                          value={row.entry?.english ?? ''}
+                          onChange={(e) => onEditRow(row.rowIndex, { english: e.target.value })}
+                          className="h-8 text-xs"
+                          aria-label={t('bulkImport.editEnglishAria', { row: row.rowIndex })}
+                        />
+                      ) : (
+                        <span className="text-muted-foreground truncate block">
+                          {row.entry?.english || '—'}
+                        </span>
+                      )}
                     </td>
                     {/* Extra language columns */}
                     {extraLangCodes.map((code) => (
                       <td
                         key={code}
-                        className="px-3 py-2 text-muted-foreground max-w-[120px] truncate"
+                        className="px-2 py-1.5 max-w-[140px]"
                       >
-                        {row.entry?.translations?.[code] || '—'}
+                        {isEditable ? (
+                          <Input
+                            value={row.entry?.translations?.[code] ?? ''}
+                            onChange={(e) => {
+                              const next = { ...(row.entry?.translations ?? {}) };
+                              if (e.target.value.trim()) next[code] = e.target.value;
+                              else delete next[code];
+                              onEditRow(row.rowIndex, { translations: next });
+                            }}
+                            className="h-8 text-xs"
+                            aria-label={t('bulkImport.editTranslationAria', { row: row.rowIndex, lang: code })}
+                          />
+                        ) : (
+                          <span className="text-muted-foreground truncate block">
+                            {row.entry?.translations?.[code] || '—'}
+                          </span>
+                        )}
                       </td>
                     ))}
-                    {/* Type */}
-                    <td className="px-3 py-2">
-                      {row.entry ? (
+                    {/* Type (editable) */}
+                    <td className="px-2 py-1.5">
+                      {isEditable && row.entry ? (
+                        <Select
+                          value={row.entry.type}
+                          onValueChange={(v) => onEditRow(row.rowIndex, { type: v as EntryType })}
+                        >
+                          <SelectTrigger
+                            className="h-8 text-xs"
+                            aria-label={t('bulkImport.editTypeAria', { row: row.rowIndex })}
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ENTRY_TYPES.map((tp) => (
+                              <SelectItem key={tp} value={tp} className="text-xs">
+                                {entryTypeLabel(tp)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : row.entry ? (
                         <span className="text-muted-foreground">
                           {entryTypeLabel(row.entry.type)}
                         </span>
@@ -362,6 +481,22 @@ export function UnifiedReviewSection({
                           </div>
                         )}
                       </div>
+                    </td>
+                    {/* Remove row */}
+                    <td className="px-2 py-1.5">
+                      {importStatus !== 'done' && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                          onClick={() => onRemoveRow(row.rowIndex)}
+                          disabled={importStatus === 'importing'}
+                          aria-label={t('bulkImport.removeRowAria', { row: row.rowIndex })}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 );
