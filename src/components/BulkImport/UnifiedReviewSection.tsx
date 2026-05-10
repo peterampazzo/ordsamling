@@ -333,6 +333,7 @@ export function UnifiedReviewSection({
 
                 const isSelectable = row.entry !== null && !hasError;
                 const isChecked = selectedRows.has(row.rowIndex);
+                const isEditable = row.entry !== null && importStatus !== 'importing' && importStatus !== 'done';
 
                 return (
                   <tr
