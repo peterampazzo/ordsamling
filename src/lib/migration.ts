@@ -12,6 +12,7 @@ import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { getStoredEmail } from '@/lib/googleOAuth';
 import { setStorageConfig } from '@/lib/storageConfig';
 import { getExtraLanguages } from '@/lib/settings';
+import { getLang } from '@/i18n';
 
 // ---------------------------------------------------------------------------
 // Drive file search
@@ -96,9 +97,10 @@ export async function runMigration(
     await sheetsService.batchWriteQuizHistory(spreadsheetId, history, accessToken);
   }
 
-  // Step 7: Write current settings (only extraLanguages — other prefs are device-local)
+  // Step 7: Write current settings (extraLanguages + uiLang)
   await sheetsService.writeSettings(spreadsheetId, {
     extraLanguages: getExtraLanguages(),
+    uiLang: getLang(),
   }, accessToken);
 
   // *** ATOMIC CUT-OVER (only reached if all above succeeded) ***

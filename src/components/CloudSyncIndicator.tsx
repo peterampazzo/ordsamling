@@ -60,18 +60,22 @@ export function CloudSyncIndicator({ status, lastSyncAt, onClick }: CloudSyncInd
   }
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          onClick={onClick}
-          aria-label={tooltipText}
-          className="h-8 w-8 inline-flex items-center justify-center rounded-full hover:bg-accent transition-colors"
-        >
-          {icon}
-        </button>
-      </TooltipTrigger>
-      <TooltipContent>{tooltipText}</TooltipContent>
-    </Tooltip>
+    <>
+      {/* Visually-hidden live region so screen readers announce status changes */}
+      <span aria-live="polite" className="sr-only">{tooltipText}</span>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={onClick}
+            aria-label={tooltipText}
+            className="h-8 w-8 inline-flex items-center justify-center rounded-full hover:bg-accent transition-colors"
+          >
+            {icon}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>{tooltipText}</TooltipContent>
+      </Tooltip>
+    </>
   );
 }

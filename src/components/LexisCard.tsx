@@ -237,7 +237,7 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
       <div>
         <span className="text-[10px] font-medium text-lang-en uppercase tracking-wider">{t("lexisCard.english")}</span>
-        <p className="text-muted-foreground leading-snug break-words">{displayEnglish(entry) || "—"}</p>
+        <p lang="en" className="text-muted-foreground leading-snug break-words">{displayEnglish(entry) || "—"}</p>
       </div>
       {extraLangs.map((code) => (
         <div key={code}>
@@ -322,7 +322,7 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
         <div className="min-w-0" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
           <details className="group/detailsCard block w-full min-w-0 min-h-0">
             <summary className="list-none cursor-pointer select-none px-3 py-1.5 sm:pr-11 flex flex-nowrap items-center gap-2 min-w-0 rounded-none hover:bg-muted/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background max-sm:min-h-11 [&::-webkit-details-marker]:hidden">
-              <span className="min-w-0 flex-1 text-left text-base sm:text-lg font-semibold text-foreground leading-tight tracking-tight truncate">
+              <span lang="da" className="min-w-0 flex-1 text-left text-base sm:text-lg font-semibold text-foreground leading-tight tracking-tight truncate">
                 {displayDanish(entry) || "—"}
               </span>
               <span

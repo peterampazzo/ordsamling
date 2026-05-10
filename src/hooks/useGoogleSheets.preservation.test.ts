@@ -238,9 +238,9 @@ describe('Preservation: Lexicon and Quiz Sync Behavior', () => {
 
       const { result } = renderHook(() => useGoogleSheets());
 
-      await waitFor(() => {
-        expect(mockReadLexicon).toHaveBeenCalled();
-      });
+      // When token is null, syncOnLoad exits early without calling readLexicon.
+      // Wait a short time for the hook to mount and the sync attempt to settle.
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       const testEntry: LexisEntry = {
         id: 'offline-id',
@@ -265,9 +265,8 @@ describe('Preservation: Lexicon and Quiz Sync Behavior', () => {
 
       const { result } = renderHook(() => useGoogleSheets());
 
-      await waitFor(() => {
-        expect(mockReadLexicon).toHaveBeenCalled();
-      });
+      // When token is null, syncOnLoad exits early without calling readLexicon.
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       const testSession: QuizSessionRecord = {
         id: 'quiz-offline',

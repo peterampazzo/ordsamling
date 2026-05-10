@@ -1,9 +1,10 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react-swc";
+import ViteYaml from "@modyfi/vite-plugin-yaml";
 import path from "path";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), ViteYaml()],
   test: {
     environment: "jsdom",
     globals: true,
