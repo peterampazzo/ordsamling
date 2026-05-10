@@ -247,6 +247,34 @@ export default function BulkImport() {
     setImportProgress(undefined);
   }, []);
 
+  // Inline-edit a parsed row before commit. Re-validates the row.
+  const handleEditRow = useCallback(
+    (rowIndex: number, patch: Partial<LexisEntryInput>) => {
+      setReviewRows((prev) =>
+        prev.map((r) => {
+          if (r.rowIndex !== rowIndex || !r.entry) return r;
+          const nextEntry = { ...r.entry, ...patch } as LexisEntryInput;
+          // Re-validate: at least danish or english must be filled
+          const errors: string[] = [];
+          if (!nextEntry.danish?.trim() && !nextEntry.english?.trim()) {
+            errors.push(t("bulkImport.rowValidationError"));
+          }
+          return { ...r, entry: nextEntry, errors };
+        }),
+      );
+    },
+    [],
+  );
+
+  const handleRemoveRow = useCallback((rowIndex: number) => {
+    setReviewRows((prev) => prev.filter((r) => r.rowIndex !== rowIndex));
+    setSelectedRows((prev) => {
+      const next = new Set(prev);
+      next.delete(rowIndex);
+      return next;
+    });
+  }, []);
+
   const existingEntriesMap = useMemo(
     () => new Map(allEntries.map((e) => [e.danish.toLowerCase(), e])),
     [allEntries],
