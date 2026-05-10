@@ -84,16 +84,17 @@ export function UnifiedReviewSection({
 }: UnifiedReviewSectionProps) {
   const [showSettings, setShowSettings] = React.useState(false);
 
-  // Component should only render when rows.length > 0
-  if (rows.length === 0) {
-    return null;
-  }
-
   // Build a set of existing Danish words for duplicate detection
+  // Must be called unconditionally (before any early return) to satisfy Rules of Hooks
   const existingDanishKeys = useMemo(
     () => new Set(existingEntries.map((e) => e.danish.toLowerCase())),
     [existingEntries],
   );
+
+  // Component should only render when rows.length > 0
+  if (rows.length === 0) {
+    return null;
+  }
 
   function isDuplicate(row: ParsedRow): boolean {
     if (!row.entry) return false;

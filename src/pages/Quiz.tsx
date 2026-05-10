@@ -256,7 +256,7 @@ function buildQuestions(
   mode: QuizMode,
   directions: LangDirection[] = DIRECTIONS,
 ): QuizQuestion[] {
-  let pool: QuizQuestion[] = [];
+  const pool: QuizQuestion[] = [];
 
   for (const dir of directions) {
     const eligible = entries.filter((e) => isValid(e[dir.from]) && isValid(e[dir.to]));

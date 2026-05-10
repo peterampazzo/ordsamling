@@ -60,7 +60,7 @@ describe('Preservation: Lexicon and Quiz Sync Behavior', () => {
       readSettings: mockReadSettings,
       readLexicon: mockReadLexicon,
       writeSettings: vi.fn(),
-    } as any));
+    } as unknown as GoogleSheetsService));
 
     vi.mocked(googleOAuth.getValidAccessToken).mockResolvedValue('mock-token');
     

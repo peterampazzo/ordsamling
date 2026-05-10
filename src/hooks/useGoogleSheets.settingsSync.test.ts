@@ -55,7 +55,7 @@ describe('Bug Condition Exploration: Settings Sync Failure', () => {
       updateLexiconRow: vi.fn(),
       deleteLexiconRow: vi.fn(),
       appendQuizSession: vi.fn(),
-    } as any));
+    } as unknown as GoogleSheetsService));
 
     vi.mocked(googleOAuth.getValidAccessToken).mockResolvedValue('mock-token');
     

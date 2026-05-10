@@ -129,7 +129,7 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
   // Instantiate service inside the hook so vi.mock() in tests can replace the
   // constructor before the first render. useMemo ensures a single instance per
   // hook lifecycle (not recreated on every render).
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   const sheetsService = useMemo(() => new GoogleSheetsService(), []);
 
   // Initialize state from StorageConfig

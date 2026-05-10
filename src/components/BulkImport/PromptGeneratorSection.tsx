@@ -46,8 +46,9 @@ function parseJsonObjects(items: unknown[]): LexisEntryInput[] {
     if (!danish && !english) continue;
 
     const rawType = normalizeJsonValue(obj.type).toLowerCase();
-    const type = rawType && ENTRY_TYPES.includes(normalizeEntryType(rawType) as any)
-      ? normalizeEntryType(rawType)
+    const normalizedType = normalizeEntryType(rawType);
+    const type = rawType && ENTRY_TYPES.includes(normalizedType)
+      ? normalizedType
       : 'word';
 
     const translationFields: Record<string, string> = {};
@@ -114,7 +115,7 @@ function parseAIResponse(text: string): LexisEntryInput[] | null {
     }
   } catch {
     // Try to extract a JSON array or object from within the text
-    const firstBrace = stripped.search(/[\[{]/);
+    const firstBrace = stripped.search(/[[{]/);
     const lastBrace = Math.max(stripped.lastIndexOf(']'), stripped.lastIndexOf('}'));
     if (firstBrace >= 0 && lastBrace > firstBrace) {
       try {
