@@ -351,9 +351,9 @@ export function StructuredImportSection({
         {/* Drag-and-Drop Zone */}
         <div
           className={`
-            relative border-2 border-dashed rounded-lg p-6 transition-all duration-200
+            relative border-2 border-dashed rounded-lg p-6 motion-safe:transition-all motion-safe:duration-200 motion-reduce:transition-none
             ${isDragging
-              ? 'border-primary bg-primary/5 scale-[1.02]'
+              ? 'border-primary bg-primary/5 motion-safe:scale-[1.02] motion-reduce:scale-100'
               : 'border-muted-foreground/25 hover:border-muted-foreground/50'
             }
             ${isLoading ? 'opacity-50 pointer-events-none' : ''}

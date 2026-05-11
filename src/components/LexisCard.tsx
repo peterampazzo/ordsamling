@@ -281,7 +281,7 @@ export function LexisCard({ entry, onUpdate, onDelete, linkedWords, startEditing
   );
 
   return (
-    <div className="group/card relative rounded-lg border border-border bg-card shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+    <div className="group/card relative rounded-lg border border-border bg-card shadow-sm hover:shadow-md transition-shadow overflow-hidden" aria-busy={isSubmitting || isDeleting || disabled}>
       <div className="absolute top-1.5 right-1.5 z-40 hidden sm:block opacity-0 pointer-events-none group-hover/card:opacity-100 group-hover/card:pointer-events-auto group-focus-within/card:opacity-100 group-focus-within/card:pointer-events-auto transition-opacity">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

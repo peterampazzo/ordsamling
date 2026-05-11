@@ -146,6 +146,29 @@ const LIGHT_PAIRS: ContrastTokenPair[] = [
     theme: "light",
   },
 
+  // --- Language accent labels (light, on cream bg) ---
+  {
+    name: "lang-da on background — language label (light)",
+    foreground: "210 60% 45%",
+    background: "40 33% 97%",
+    usage: "muted",
+    theme: "light",
+  },
+  {
+    name: "lang-en on background — language label (light)",
+    foreground: "350 55% 48%",
+    background: "40 33% 97%",
+    usage: "muted",
+    theme: "light",
+  },
+  {
+    name: "lang-it on background — language label (light)",
+    foreground: "140 40% 34%",
+    background: "40 33% 97%",
+    usage: "muted",
+    theme: "light",
+  },
+
   // --- Status badge pairs (light) ---
   // Emerald badge: text on badge background
   {

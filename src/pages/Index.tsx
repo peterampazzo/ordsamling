@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { Search, BookOpen, ArrowDownAZ, Clock, Plus, Upload, Brain, X, Filter, Settings as SettingsIcon } from "lucide-react";
 import { CloudSyncIndicator } from "@/components/CloudSyncIndicator";
@@ -106,6 +106,27 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
   const sorted = useMemo(() => sortEntries(filtered, sort), [filtered, sort]);
 
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
+  // Property: focus restoration after LexisCard delete (WCAG 2.4.3)
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const handleDelete = useCallback(
+    async (id: string) => {
+      const currentIds = sorted.map((e) => e.id);
+      const idx = currentIds.indexOf(id);
+      const fallbackId =
+        idx >= 0 ? (currentIds[idx + 1] ?? currentIds[idx - 1] ?? null) : null;
+      await deleteEntry(id);
+      // Defer to next frame so the deleted card has unmounted.
+      requestAnimationFrame(() => {
+        if (fallbackId && cardRefs.current[fallbackId]) {
+          cardRefs.current[fallbackId]?.focus();
+        } else {
+          addTriggerRef.current?.focus();
+        }
+      });
+    },
+    [sorted, deleteEntry],
+  );
 
   const groups = useMemo(() => {
     if (sort !== "alpha") return null;
@@ -457,16 +478,22 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
                   </h2>
                   <div className="space-y-3">
                     {items.map((entry) => (
-                      <LexisCard
+                      <div
                         key={entry.id}
-                        entry={entry}
-                        onUpdate={updateEntry}
-                        onDelete={deleteEntry}
-                        linkedWords={findLinkedWords(entry)}
-                        startEditing={editingId === entry.id}
-                        onEditingDone={() => setEditingId(null)}
-                        disabled={isSaving}
-                      />
+                        ref={(el) => { cardRefs.current[entry.id] = el; }}
+                        tabIndex={-1}
+                        className="outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-lg"
+                      >
+                        <LexisCard
+                          entry={entry}
+                          onUpdate={updateEntry}
+                          onDelete={handleDelete}
+                          linkedWords={findLinkedWords(entry)}
+                          startEditing={editingId === entry.id}
+                          onEditingDone={() => setEditingId(null)}
+                          disabled={isSaving}
+                        />
+                      </div>
                     ))}
                   </div>
                 </section>
@@ -476,16 +503,22 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
         ) : (
           <div className="space-y-3">
             {sorted.map((entry) => (
-              <LexisCard
+              <div
                 key={entry.id}
-                entry={entry}
-                onUpdate={updateEntry}
-                onDelete={deleteEntry}
-                linkedWords={findLinkedWords(entry)}
-                startEditing={editingId === entry.id}
-                onEditingDone={() => setEditingId(null)}
-                disabled={isSaving}
-              />
+                ref={(el) => { cardRefs.current[entry.id] = el; }}
+                tabIndex={-1}
+                className="outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-lg"
+              >
+                <LexisCard
+                  entry={entry}
+                  onUpdate={updateEntry}
+                  onDelete={handleDelete}
+                  linkedWords={findLinkedWords(entry)}
+                  startEditing={editingId === entry.id}
+                  onEditingDone={() => setEditingId(null)}
+                  disabled={isSaving}
+                />
+              </div>
             ))}
           </div>
         )}
