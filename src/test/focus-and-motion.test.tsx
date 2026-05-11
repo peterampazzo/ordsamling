@@ -3,7 +3,7 @@
 // Validates: WCAG 2.4.3 (Focus Order), 2.3.3 (Animation from Interactions), 4.1.2 (Name, Role, Value)
 
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React, { useCallback, useRef, useState } from "react";
 
 // ─── i18n + helper mocks (mirror axe-components.test.tsx) ────────────────────
