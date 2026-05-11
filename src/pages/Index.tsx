@@ -106,6 +106,27 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
   const sorted = useMemo(() => sortEntries(filtered, sort), [filtered, sort]);
 
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
+  // Property: focus restoration after LexisCard delete (WCAG 2.4.3)
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const handleDelete = useCallback(
+    async (id: string) => {
+      const currentIds = sorted.map((e) => e.id);
+      const idx = currentIds.indexOf(id);
+      const fallbackId =
+        idx >= 0 ? (currentIds[idx + 1] ?? currentIds[idx - 1] ?? null) : null;
+      await deleteEntry(id);
+      // Defer to next frame so the deleted card has unmounted.
+      requestAnimationFrame(() => {
+        if (fallbackId && cardRefs.current[fallbackId]) {
+          cardRefs.current[fallbackId]?.focus();
+        } else {
+          addTriggerRef.current?.focus();
+        }
+      });
+    },
+    [sorted, deleteEntry],
+  );
 
   const groups = useMemo(() => {
     if (sort !== "alpha") return null;
