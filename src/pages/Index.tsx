@@ -478,16 +478,22 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
                   </h2>
                   <div className="space-y-3">
                     {items.map((entry) => (
-                      <LexisCard
+                      <div
                         key={entry.id}
-                        entry={entry}
-                        onUpdate={updateEntry}
-                        onDelete={deleteEntry}
-                        linkedWords={findLinkedWords(entry)}
-                        startEditing={editingId === entry.id}
-                        onEditingDone={() => setEditingId(null)}
-                        disabled={isSaving}
-                      />
+                        ref={(el) => { cardRefs.current[entry.id] = el; }}
+                        tabIndex={-1}
+                        className="outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-lg"
+                      >
+                        <LexisCard
+                          entry={entry}
+                          onUpdate={updateEntry}
+                          onDelete={handleDelete}
+                          linkedWords={findLinkedWords(entry)}
+                          startEditing={editingId === entry.id}
+                          onEditingDone={() => setEditingId(null)}
+                          disabled={isSaving}
+                        />
+                      </div>
                     ))}
                   </div>
                 </section>
@@ -497,16 +503,22 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
         ) : (
           <div className="space-y-3">
             {sorted.map((entry) => (
-              <LexisCard
+              <div
                 key={entry.id}
-                entry={entry}
-                onUpdate={updateEntry}
-                onDelete={deleteEntry}
-                linkedWords={findLinkedWords(entry)}
-                startEditing={editingId === entry.id}
-                onEditingDone={() => setEditingId(null)}
-                disabled={isSaving}
-              />
+                ref={(el) => { cardRefs.current[entry.id] = el; }}
+                tabIndex={-1}
+                className="outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-lg"
+              >
+                <LexisCard
+                  entry={entry}
+                  onUpdate={updateEntry}
+                  onDelete={handleDelete}
+                  linkedWords={findLinkedWords(entry)}
+                  startEditing={editingId === entry.id}
+                  onEditingDone={() => setEditingId(null)}
+                  disabled={isSaving}
+                />
+              </div>
             ))}
           </div>
         )}
