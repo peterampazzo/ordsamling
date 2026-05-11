@@ -49,46 +49,6 @@ const mkEntry = (id: string, danish: string): LexisEntry => ({
   createdAt: 0,
 });
 
-// Mirrors the pattern in src/pages/Index.tsx: ref map + handleDelete that
-// restores focus to the next sibling after the card unmounts.
-function ListHarness({ initial }: { initial: LexisEntry[] }) {
-  const [entries, setEntries] = useState(initial);
-  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
-
-  const handleDelete = useCallback(
-    async (id: string) => {
-      const ids = entries.map((e) => e.id);
-      const idx = ids.indexOf(id);
-      const fallback = ids[idx + 1] ?? ids[idx - 1] ?? null;
-      setEntries((curr) => curr.filter((e) => e.id !== id));
-      requestAnimationFrame(() => {
-        if (fallback) cardRefs.current[fallback]?.focus();
-      });
-    },
-    [entries],
-  );
-
-  return (
-    <div>
-      {entries.map((entry) => (
-        <div
-          key={entry.id}
-          ref={(el) => { cardRefs.current[entry.id] = el; }}
-          tabIndex={-1}
-          data-testid={`wrap-${entry.id}`}
-        >
-          <LexisCard
-            entry={entry}
-            onUpdate={async () => {}}
-            onDelete={handleDelete}
-            linkedWords={[]}
-          />
-        </div>
-      ))}
-    </div>
-  );
-}
-
 describe("Property 11 — focus restoration after LexisCard delete", () => {
   it("moves focus to the next card wrapper after delete (WCAG 2.4.3)", async () => {
     // Pure-logic harness mirroring src/pages/Index.tsx handleDelete:
