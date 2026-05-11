@@ -40,9 +40,10 @@ All colors MUST be HSL.
     --radius: 0.5rem;
     --warning: 38 92% 50%;
 
+    /* Language accent labels — verified WCAG AA on cream background. See contrast-tokens.ts */
     --lang-da: 210 60% 45%;
     --lang-en: 350 55% 48%;
-    --lang-it: 140 40% 38%;
+    --lang-it: 140 40% 34%;
 
     --sidebar-background: 0 0% 98%;
 
