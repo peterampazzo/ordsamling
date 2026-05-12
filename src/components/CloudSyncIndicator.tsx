@@ -53,6 +53,10 @@ export function CloudSyncIndicator({ status, lastSyncAt, onClick }: CloudSyncInd
       tooltipText = "Changes pending sync";
       icon = <CloudOff className="h-4 w-4 text-amber-500" aria-hidden />;
       break;
+    case "conflict":
+      tooltipText = "Sync conflict — click to resolve";
+      icon = <AlertTriangle className="h-4 w-4 text-[hsl(var(--warning))]" aria-hidden />;
+      break;
     case "error":
       tooltipText = "Sync error — click to reconnect";
       icon = <CloudOff className="h-4 w-4 text-destructive" aria-hidden />;
