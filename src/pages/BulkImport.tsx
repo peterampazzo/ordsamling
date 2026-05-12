@@ -158,7 +158,7 @@ function MethodCard({
 export default function BulkImport() {
   const navigate = useNavigate();
   const { addEntry, updateEntry, allEntries } = useLexicon();
-  const { syncState, connect, disconnect } = useGoogleSheets();
+  const { syncState, connect, disconnect, syncNow } = useGoogleSheets();
 
   const [extraLangs, setExtraLangs] = useState<string[]>(() => getExtraLanguages());
   const [hasGeminiKey, setHasGeminiKey] = useState<boolean>(() => !!getGeminiApiKey());

@@ -57,7 +57,7 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
     isLoading,
     isSaving,
   } = useLexicon({ demo });
-  const { syncState, connect, disconnect, pushQuizSession } = useGoogleSheets();
+  const { syncState, connect, disconnect, syncNow, pushQuizSession } = useGoogleSheets();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [addFormOpen, setAddFormOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
