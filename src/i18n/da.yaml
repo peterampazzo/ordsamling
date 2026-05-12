@@ -121,6 +121,8 @@ quiz:
     noun_form: "Substantiv"
     fill_blank: "Udfyld"
   dirMixed: "Blandet"
+  smartPractice: "Smart træning"
+  smartPracticeDesc: "Fokusér på ord, der er klar til repetition (spaced repetition)"
 
 quizHistory:
   title: "Quizhistorik"

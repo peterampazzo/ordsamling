@@ -121,6 +121,8 @@ quiz:
     noun_form: "Noun"
     fill_blank: "Fill in"
   dirMixed: "Mixed"
+  smartPractice: "Smart practice"
+  smartPracticeDesc: "Focus on words that are due for review (spaced repetition)"
 
 quizHistory:
   title: "Quiz history"

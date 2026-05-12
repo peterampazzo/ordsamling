@@ -24,7 +24,7 @@ import { useLexicon } from "@/hooks/useLexicon";
 import { fetchDistractors, GeminiKeyMissingError } from "@/lib/gemini";import { toast } from "@/components/ui/sonner";
 import type { LexisEntry } from "@/hooks/useLexicon";
 import { entryTypeLabel, type EntryGrammar } from "@/lib/lexicon";
-import { saveSession, type QuizAnswerRecord } from "@/lib/quizHistory";
+import { saveSession, recordReview, loadBoxStates, pickDue, type QuizAnswerRecord } from "@/lib/quizHistory";
 import { useVisibleLanguages } from "@/hooks/useVisibleLanguages";
 import { t } from "@/i18n";
 
@@ -449,6 +449,7 @@ const Quiz = () => {
   const [mode, setMode] = useState<QuizMode>("mixed");
   const [difficulty, setDifficulty] = useState<Difficulty>("beginner");
   const [questionCount, setQuestionCount] = useState(10);
+  const [smartPractice, setSmartPractice] = useState(false);
 
   const [state, setState] = useState<QuizState>("setup");
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
@@ -550,7 +551,14 @@ const Quiz = () => {
   }, [currentIdx, state]);
 
   const startQuiz = useCallback(() => {
-    const q = buildQuestions(allEntries, questionCount, difficulty, mode, activeDirections.length > 0 ? activeDirections : DIRECTIONS);
+    let pool = allEntries;
+    if (smartPractice) {
+      const dueIds = new Set(pickDue(loadBoxStates(), allEntries.map((e) => e.id)));
+      const dueEntries = allEntries.filter((e) => dueIds.has(e.id));
+      // Fall back to full pool if there isn't enough due material to build a quiz.
+      if (dueEntries.length >= 4) pool = dueEntries;
+    }
+    const q = buildQuestions(pool, questionCount, difficulty, mode, activeDirections.length > 0 ? activeDirections : DIRECTIONS);
     if (q.length < 2) return;
     setQuestions(q);
     setCurrentIdx(0);
@@ -562,7 +570,7 @@ const Quiz = () => {
     setTimeLeft(TIMER_SECONDS[difficulty]);
     setTimerActive(true);
     setState("playing");
-  }, [allEntries, questionCount, difficulty, mode, activeDirections]);
+  }, [allEntries, questionCount, difficulty, mode, activeDirections, smartPractice]);
 
   const submitAnswer = useCallback(
     (answer: string) => {
@@ -584,6 +592,10 @@ const Quiz = () => {
         toLang: current.direction.to,
         entryId: current.entry.id,
       });
+      // Spaced-repetition: only count attempted answers; skips/timeouts don't shift the box.
+      if (!skipped && !timedOut) {
+        recordReview(current.entry.id, correct);
+      }
     },
     [current, showResult],
   );
@@ -718,7 +730,24 @@ const Quiz = () => {
                 </div>
               </section>
 
-              {/* Count */}
+              {/* Smart practice (spaced repetition) */}
+              <section className="space-y-2">
+                <label className="flex items-start gap-3 px-3 py-3 rounded-lg border border-border bg-card cursor-pointer hover:border-primary/40 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={smartPractice}
+                    onChange={(e) => setSmartPractice(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-2 focus:ring-ring"
+                    aria-describedby="smart-practice-desc"
+                  />
+                  <span className="flex-1 min-w-0">
+                    <span className="text-sm font-medium text-foreground">{t("quiz.smartPractice")}</span>
+                    <span id="smart-practice-desc" className="block text-xs text-muted-foreground mt-0.5">
+                      {t("quiz.smartPracticeDesc")}
+                    </span>
+                  </span>
+                </label>
+              </section>
               <section className="space-y-3">
                 <h2 className="text-sm font-medium text-foreground">{t("quiz.questionCount")}</h2>
                 <div className="flex gap-2">
