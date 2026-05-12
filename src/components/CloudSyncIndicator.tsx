@@ -1,4 +1,4 @@
-import { Cloud, CloudOff, RefreshCw } from "lucide-react";
+import { AlertTriangle, Cloud, CloudOff, RefreshCw } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { SyncState } from "@/hooks/useGoogleSheets";
 
