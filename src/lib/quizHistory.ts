@@ -1,3 +1,7 @@
+import { GoogleSheetsService } from '@/services/GoogleSheetsService';
+import { getValidAccessToken } from '@/lib/googleOAuth';
+import { getStorageConfig, isCloudSyncEnabled } from '@/lib/storageConfig';
+
 const STORAGE_KEY = "lexikon-quiz-history";
 
 export interface QuizAnswerRecord {
@@ -49,6 +53,23 @@ function saveLocalHistory(history: QuizSessionRecord[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
 }
 
+function mergeHistory(
+  localHistory: QuizSessionRecord[],
+  remoteHistory: QuizSessionRecord[],
+): QuizSessionRecord[] {
+  const merged = new Map<string, QuizSessionRecord>();
+
+  for (const session of localHistory) {
+    merged.set(session.id, session);
+  }
+
+  for (const session of remoteHistory) {
+    merged.set(session.id, session);
+  }
+
+  return [...merged.values()].sort((a, b) => b.date - a.date);
+}
+
 // ---------------------------------------------------------------------------
 // Task 9.2 — Always use localStorage (no isLocalStorageMode branch)
 // ---------------------------------------------------------------------------
@@ -58,7 +79,30 @@ export function loadHistory(): QuizSessionRecord[] {
 }
 
 export async function fetchHistory(): Promise<QuizSessionRecord[]> {
-  return getLocalHistory();
+  const localHistory = getLocalHistory();
+
+  if (!isCloudSyncEnabled()) {
+    return localHistory;
+  }
+
+  const config = getStorageConfig();
+  if (!config.spreadsheetId) {
+    return localHistory;
+  }
+
+  const accessToken = await getValidAccessToken();
+  if (!accessToken) {
+    return localHistory;
+  }
+
+  try {
+    const sheetsService = new GoogleSheetsService();
+    const remoteHistory = await sheetsService.readQuizHistory(config.spreadsheetId, accessToken);
+    return mergeHistory(localHistory, remoteHistory);
+  } catch (err) {
+    console.warn('fetchHistory remote failed, falling back to local history:', err);
+    return localHistory;
+  }
 }
 
 export async function saveSession(session: QuizSessionRecord): Promise<void> {
