@@ -1,6 +1,6 @@
 ## Plan status + a11y / testing alignment
 
-Verified via grep + test runs: items #1–#5, #8 are implemented. Items #6, #7, #9, #10 are still pending. For every remaining item we follow the existing testing + WCAG conventions you've already established:
+Verified via grep + test runs: items #1–#6, #8 are implemented. Items #7, #9, #10 are still pending. For every remaining item we follow the existing testing + WCAG conventions you've already established:
 
 ### Existing conventions to preserve (apply to every remaining item)
 
