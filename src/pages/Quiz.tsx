@@ -592,6 +592,10 @@ const Quiz = () => {
         toLang: current.direction.to,
         entryId: current.entry.id,
       });
+      // Spaced-repetition: only count attempted answers; skips/timeouts don't shift the box.
+      if (!skipped && !timedOut) {
+        recordReview(current.entry.id, correct);
+      }
     },
     [current, showResult],
   );
