@@ -542,6 +542,7 @@ export default function BulkImport() {
         syncState={syncState}
         onConnect={connect}
         onDisconnect={disconnect}
+        onRetrySync={syncNow}
       />
     </div>
   );

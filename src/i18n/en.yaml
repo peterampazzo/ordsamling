@@ -343,6 +343,8 @@ settings:
   storageGoogleAccountAside: "to request access (you'll need a Google account 😉)."
   storageOpenSpreadsheet: "Open Spreadsheet"
   storageConnect: "Connect Google Drive"
+  storageRetrySync: "Retry sync"
+  storageRetrySyncHelp: "Try syncing again to recover from an error state."
   storageDisconnect: "Disconnect"
   storageDisconnectTitle: "Disconnect from Google Drive?"
   storageDisconnectBody: "Your data will remain in the cloud but the app will switch to local-only mode."

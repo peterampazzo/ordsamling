@@ -459,6 +459,7 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
     }
 
     try {
+      await retryDirtyQueue();
       const sheetEntries = await sheetsService.readLexicon(spreadsheetId, accessToken);
       const localRaw = localStorage.getItem(getEntriesStorageKey());
       const localEntries: LexisEntry[] = localRaw ? (JSON.parse(localRaw) as LexisEntry[]) : [];
@@ -480,7 +481,7 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
         errorMessage: err instanceof Error ? err.message : 'Sync failed',
       }));
     }
-  }, []);
+  }, [retryDirtyQueue, sheetsService]);
 
   // ---------------------------------------------------------------------------
   // Push lexicon entry (debounced per entry ID)

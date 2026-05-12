@@ -530,6 +530,7 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
         syncState={syncState}
         onConnect={connect}
         onDisconnect={disconnect}
+        onRetrySync={syncNow}
       />
 
       <PageFooter />

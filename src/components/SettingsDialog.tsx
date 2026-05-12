@@ -83,6 +83,7 @@ interface SettingsDialogProps {
   syncState: SyncState;
   onConnect: () => void;
   onDisconnect: () => Promise<void>;
+  onRetrySync: () => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -105,6 +106,15 @@ export function SettingsDialog({
 }: SettingsDialogProps) {
   const navigate = useNavigate();
 
+  const handleRetrySync = async () => {
+    setRetryingSync(true);
+    try {
+      await onRetrySync();
+    } finally {
+      setRetryingSync(false);
+    }
+  };
+
   // Extra languages
   const [extras, setExtras] = useState<string[]>(getExtraLanguages());
   const [pendingAdd, setPendingAdd] = useState<string>("");
@@ -116,8 +126,7 @@ export function SettingsDialog({
   const [showKey, setShowKey] = useState(false);
   const [keyValidation, setKeyValidation] = useState<KeyValidationStatus>("missing");
   const [availableModels, setAvailableModels] = useState<GeminiModelInfo[]>([]);
-  const [loadingModels, setLoadingModels] = useState(false);
-
+  const [loadingModels, setLoadingModels] = useState(false);  const [retryingSync, setRetryingSync] = useState(false);
   // Troubleshooting state
   const [troubleshootingOpen, setTroubleshootingOpen] = useState(false);
   const [promptCopied, setPromptCopied] = useState(false);
@@ -280,7 +289,18 @@ export function SettingsDialog({
                     variant="default"
                     role="status"
                     aria-label="Storage status: cloud sync active"
-                    className="bg-green-600 text-white text-xs hover:bg-green-600"
+                    className={
+                      "text-xs " +
+                      (syncState.status === "idle"
+                        ? "bg-green-600 text-white hover:bg-green-600"
+                        : syncState.status === "dirty"
+                        ? "bg-amber-500 text-white hover:bg-amber-500"
+                        : syncState.status === "error"
+                        ? "bg-destructive text-white hover:bg-destructive"
+                        : syncState.status === "conflict"
+                        ? "bg-warning text-foreground hover:bg-warning"
+                        : "bg-green-600 text-white hover:bg-green-600")
+                    }
                   >
                     {t("settings.storageCloudBadge")}
                   </Badge>
@@ -303,6 +323,41 @@ export function SettingsDialog({
                 </>
               )}
             </div>
+            {(syncState.status === "dirty" || syncState.status === "error" || syncState.status === "conflict") && (
+              <div className="rounded-md border border-border bg-background/80 p-3 mt-3 text-sm">
+                <p
+                  className={
+                    "mb-2 " +
+                    (syncState.status === "error"
+                      ? "text-destructive"
+                      : syncState.status === "dirty"
+                      ? "text-amber-700"
+                      : "text-warning")
+                  }
+                >
+                  {syncState.status === "dirty"
+                    ? t("settings.storageSyncPending")
+                    : syncState.status === "error"
+                    ? t("settings.storageSyncError")
+                    : t("settings.storageSyncConflict")}
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handleRetrySync}
+                  disabled={retryingSync}
+                  className="gap-2"
+                >
+                  {retryingSync ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <RotateCcw className="h-3.5 w-3.5" />
+                  )}
+                  {t("settings.storageRetrySync")}
+                </Button>
+              </div>
+            )}
 
             {/* Connect / Disconnect */}
             {!isConnected ? (
