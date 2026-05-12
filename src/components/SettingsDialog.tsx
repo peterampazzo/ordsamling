@@ -103,6 +103,7 @@ export function SettingsDialog({
   syncState,
   onConnect,
   onDisconnect,
+  onRetrySync,
 }: SettingsDialogProps) {
   const navigate = useNavigate();
 
