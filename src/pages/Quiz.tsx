@@ -730,7 +730,24 @@ const Quiz = () => {
                 </div>
               </section>
 
-              {/* Count */}
+              {/* Smart practice (spaced repetition) */}
+              <section className="space-y-2">
+                <label className="flex items-start gap-3 px-3 py-3 rounded-lg border border-border bg-card cursor-pointer hover:border-primary/40 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={smartPractice}
+                    onChange={(e) => setSmartPractice(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-2 focus:ring-ring"
+                    aria-describedby="smart-practice-desc"
+                  />
+                  <span className="flex-1 min-w-0">
+                    <span className="text-sm font-medium text-foreground">{t("quiz.smartPractice")}</span>
+                    <span id="smart-practice-desc" className="block text-xs text-muted-foreground mt-0.5">
+                      {t("quiz.smartPracticeDesc")}
+                    </span>
+                  </span>
+                </label>
+              </section>
               <section className="space-y-3">
                 <h2 className="text-sm font-medium text-foreground">{t("quiz.questionCount")}</h2>
                 <div className="flex gap-2">
