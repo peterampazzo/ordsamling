@@ -449,6 +449,7 @@ const Quiz = () => {
   const [mode, setMode] = useState<QuizMode>("mixed");
   const [difficulty, setDifficulty] = useState<Difficulty>("beginner");
   const [questionCount, setQuestionCount] = useState(10);
+  const [smartPractice, setSmartPractice] = useState(false);
 
   const [state, setState] = useState<QuizState>("setup");
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
