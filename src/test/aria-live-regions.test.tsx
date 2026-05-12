@@ -50,4 +50,25 @@ describe("Property 12 — aria-live regions pre-exist content injection", () => 
     expect(liveRegion?.getAttribute("aria-live")).toBe("polite");
     expect(liveRegion?.tagName.toLowerCase()).toBe("span");
   });
+
+  // Task 8.2 (extended): conflict variant must also keep the live region present and update its text in place.
+  it("CloudSyncIndicator keeps the same aria-live span when status switches to 'conflict'", () => {
+    const { container, rerender } = render(
+      <TooltipProvider>
+        <CloudSyncIndicator status="idle" lastSyncAt={null} onClick={() => {}} />
+      </TooltipProvider>
+    );
+    const before = container.querySelector('[aria-live]');
+    expect(before).not.toBeNull();
+
+    rerender(
+      <TooltipProvider>
+        <CloudSyncIndicator status="conflict" lastSyncAt={null} onClick={() => {}} />
+      </TooltipProvider>
+    );
+    const after = container.querySelector('[aria-live]');
+    expect(after).not.toBeNull();
+    expect(after?.getAttribute("aria-live")).toBe("polite");
+    expect(after?.textContent).toMatch(/conflict/i);
+  });
 });

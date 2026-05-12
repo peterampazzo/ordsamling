@@ -34,11 +34,29 @@ import type { SheetSettings } from '@/lib/sheetTypes';
 // ---------------------------------------------------------------------------
 
 export interface SyncState {
-  status: 'idle' | 'syncing' | 'dirty' | 'error' | 'disconnected';
+  status: 'idle' | 'syncing' | 'dirty' | 'error' | 'conflict' | 'disconnected';
   lastSyncAt: number | null;
   spreadsheetId: string | null;
   connectedEmail: string | null;
   errorMessage: string | null;
+}
+
+/**
+ * Pure conflict detection. A conflict exists when we have unsynced local
+ * changes (`localDirty`) AND the remote sheet was updated after we last
+ * pulled from it (`remoteUpdatedAt > lastSyncAt`). If we have never synced
+ * (`lastSyncAt === null`) we cannot prove the remote is newer, so no conflict.
+ *
+ * Pure function — no side effects, fully unit-testable.
+ */
+export function detectConflict(
+  localDirty: boolean,
+  remoteUpdatedAt: number | null,
+  lastSyncAt: number | null,
+): boolean {
+  if (!localDirty) return false;
+  if (remoteUpdatedAt == null || lastSyncAt == null) return false;
+  return remoteUpdatedAt > lastSyncAt;
 }
 
 export interface UseGoogleSheetsReturn {

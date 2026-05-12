@@ -97,4 +97,17 @@ describe("Property 10 — axe-core zero critical/serious violations", () => {
     const blocking = criticalOrSerious(results.violations);
     expect(blocking).toHaveLength(0);
   });
+
+  it("CloudSyncIndicator (conflict variant) has no critical or serious WCAG 2.x violations", async () => {
+    // Feature: wcag-3-accessibility, Property 10
+    const { container } = render(
+      <TooltipProvider>
+        <CloudSyncIndicator status="conflict" lastSyncAt={null} onClick={() => {}} />
+      </TooltipProvider>,
+    );
+
+    const results = await axe(container, WCAG_TAGS);
+    const blocking = criticalOrSerious(results.violations);
+    expect(blocking).toHaveLength(0);
+  });
 });
