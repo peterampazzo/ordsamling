@@ -77,6 +77,41 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
     }
   };
 
+  const handleFillVerbForms = async () => {
+    const seed = stripInfinitiveMarker(danish, "da").trim();
+    if (!seed) {
+      toast.error(t("grammar.aiFillVerbEmpty"));
+      return;
+    }
+    if (!getGeminiApiKey()) {
+      toast.error(t("addEntry.aiAutofillNoKey"));
+      return;
+    }
+    setIsFillingVerbForms(true);
+    try {
+      const forms = await autocompleteVerbForms(seed);
+      setGrammar((prev) => ({
+        ...prev,
+        present: forms.present || prev.present || "",
+        past: forms.past || prev.past || "",
+        perfect: forms.perfect || prev.perfect || "",
+      }));
+    } catch (err) {
+      console.error("AI verb-form fill failed", err);
+      if (err instanceof GeminiRateLimitError) {
+        toast.error(err.isDailyQuota
+          ? "Gemini daily quota exhausted. Try again tomorrow or enable billing in Google AI Studio."
+          : err.retryAfterSeconds
+          ? `Gemini rate limit hit. Try again in ${err.retryAfterSeconds}s.`
+          : "Gemini rate limit hit. Try again in a moment.");
+      } else {
+        toast.error(t("grammar.aiFillVerbError"));
+      }
+    } finally {
+      setIsFillingVerbForms(false);
+    }
+  };
+
   const activeQuery =
     danish || english || Object.values(translations).find(Boolean) || "";
   const matches = useMemo(() => findMatches(activeQuery), [findMatches, activeQuery]);
