@@ -10,7 +10,7 @@ import { GrammarFields } from "@/components/EntryGrammar";
 import { t } from "@/i18n";
 import { useExtraLanguages } from "@/hooks/useVisibleLanguages";
 import { getLanguageLabel, getGeminiApiKey } from "@/lib/settings";
-import { autocompleteSingleWord, GeminiRateLimitError, GeminiUnavailableError } from "@/lib/gemini";
+import { autocompleteSingleWord, autocompleteVerbForms, GeminiRateLimitError, GeminiUnavailableError } from "@/lib/gemini";
 
 interface Props {
   onAdd: (entry: Omit<LexisEntry, "id" | "createdAt">) => Promise<void>;
