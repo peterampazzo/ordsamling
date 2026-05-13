@@ -217,7 +217,15 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
         </div>
       </div>
 
-      <GrammarFields type={type} value={grammar} onChange={setGrammar} disabled={disabled || isSubmitting} />
+      <GrammarFields
+        type={type}
+        value={grammar}
+        onChange={setGrammar}
+        disabled={disabled || isSubmitting}
+        onAiFill={handleFillVerbForms}
+        isAiFilling={isFillingVerbForms}
+        aiFillDisabled={!stripInfinitiveMarker(danish, "da").trim() || isAutofilling}
+      />
 
       <div className="rounded-md border border-border bg-muted/25 p-2.5 space-y-2 min-w-0">
         <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t("addEntry.translations")}</p>
