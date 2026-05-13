@@ -29,6 +29,7 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
   const [grammar, setGrammar] = useState<EntryGrammar>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAutofilling, setIsAutofilling] = useState(false);
+  const [isFillingVerbForms, setIsFillingVerbForms] = useState(false);
   const extraLangs = useExtraLanguages();
 
   const reset = () => {
