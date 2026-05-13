@@ -1,3 +1,4 @@
+import { Loader2, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { GRAMMAR_FIELD_CONFIG, grammarHasContent, type EntryGrammar, type EntryType } from "@/lib/lexicon";
 import { t } from "@/i18n";
@@ -7,11 +8,18 @@ export function GrammarFields({
   value,
   onChange,
   disabled,
+  onAiFill,
+  isAiFilling = false,
+  aiFillDisabled = false,
 }: {
   type: EntryType;
   value: EntryGrammar;
   onChange: (next: EntryGrammar) => void;
   disabled?: boolean;
+  /** When provided AND type === "verb", renders an AI fill button in the section header. */
+  onAiFill?: () => void;
+  isAiFilling?: boolean;
+  aiFillDisabled?: boolean;
 }) {
   const fields = GRAMMAR_FIELD_CONFIG[type];
   if (!fields) return null;
@@ -20,9 +28,24 @@ export function GrammarFields({
     onChange({ ...value, [key]: v });
   };
 
+  const showAiFill = type === "verb" && typeof onAiFill === "function";
+
   return (
     <div className="rounded-md border border-border bg-muted/25 p-2.5 space-y-2 min-w-0">
-      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t("grammar.sectionTitle")}</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t("grammar.sectionTitle")}</p>
+        {showAiFill && (
+          <button
+            type="button"
+            onClick={onAiFill}
+            disabled={disabled || isAiFilling || aiFillDisabled}
+            className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider rounded text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {isAiFilling ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Sparkles className="h-3 w-3" aria-hidden />}
+            <span>{t("grammar.aiFillVerb")}</span>
+          </button>
+        )}
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 min-w-0">
         {fields.map(({ key, label, placeholder }) => (
           <div key={key} className="min-w-0">

@@ -74,6 +74,9 @@ lexisCard:
 grammar:
   sectionTitle: "Danish forms / inflections"
   displayTitle: "Forms"
+  aiFillVerb: "Fill forms with AI"
+  aiFillVerbEmpty: "Type the Danish infinitive first"
+  aiFillVerbError: "Couldn't fill verb forms — try again."
 
 quiz:
   title: "Word quiz"

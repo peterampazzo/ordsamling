@@ -74,6 +74,9 @@ lexisCard:
 grammar:
   sectionTitle: "Dansk bøjning / former"
   displayTitle: "Bøjning"
+  aiFillVerb: "Udfyld former med AI"
+  aiFillVerbEmpty: "Skriv først infinitivformen"
+  aiFillVerbError: "Kunne ikke udfylde verbformer — prøv igen."
 
 quiz:
   title: "Ordquiz"

@@ -10,7 +10,7 @@ import { GrammarFields } from "@/components/EntryGrammar";
 import { t } from "@/i18n";
 import { useExtraLanguages } from "@/hooks/useVisibleLanguages";
 import { getLanguageLabel, getGeminiApiKey } from "@/lib/settings";
-import { autocompleteSingleWord, GeminiRateLimitError, GeminiUnavailableError } from "@/lib/gemini";
+import { autocompleteSingleWord, autocompleteVerbForms, GeminiRateLimitError, GeminiUnavailableError } from "@/lib/gemini";
 
 interface Props {
   onAdd: (entry: Omit<LexisEntry, "id" | "createdAt">) => Promise<void>;
@@ -29,6 +29,7 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
   const [grammar, setGrammar] = useState<EntryGrammar>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAutofilling, setIsAutofilling] = useState(false);
+  const [isFillingVerbForms, setIsFillingVerbForms] = useState(false);
   const extraLangs = useExtraLanguages();
 
   const reset = () => {
@@ -73,6 +74,41 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
       }
     } finally {
       setIsAutofilling(false);
+    }
+  };
+
+  const handleFillVerbForms = async () => {
+    const seed = stripInfinitiveMarker(danish, "da").trim();
+    if (!seed) {
+      toast.error(t("grammar.aiFillVerbEmpty"));
+      return;
+    }
+    if (!getGeminiApiKey()) {
+      toast.error(t("addEntry.aiAutofillNoKey"));
+      return;
+    }
+    setIsFillingVerbForms(true);
+    try {
+      const forms = await autocompleteVerbForms(seed);
+      setGrammar((prev) => ({
+        ...prev,
+        present: forms.present || prev.present || "",
+        past: forms.past || prev.past || "",
+        perfect: forms.perfect || prev.perfect || "",
+      }));
+    } catch (err) {
+      console.error("AI verb-form fill failed", err);
+      if (err instanceof GeminiRateLimitError) {
+        toast.error(err.isDailyQuota
+          ? "Gemini daily quota exhausted. Try again tomorrow or enable billing in Google AI Studio."
+          : err.retryAfterSeconds
+          ? `Gemini rate limit hit. Try again in ${err.retryAfterSeconds}s.`
+          : "Gemini rate limit hit. Try again in a moment.");
+      } else {
+        toast.error(t("grammar.aiFillVerbError"));
+      }
+    } finally {
+      setIsFillingVerbForms(false);
     }
   };
 
@@ -181,7 +217,15 @@ export function AddEntryForm({ onAdd, onCancel, onEdit, findMatches, disabled = 
         </div>
       </div>
 
-      <GrammarFields type={type} value={grammar} onChange={setGrammar} disabled={disabled || isSubmitting} />
+      <GrammarFields
+        type={type}
+        value={grammar}
+        onChange={setGrammar}
+        disabled={disabled || isSubmitting}
+        onAiFill={handleFillVerbForms}
+        isAiFilling={isFillingVerbForms}
+        aiFillDisabled={!stripInfinitiveMarker(danish, "da").trim() || isAutofilling}
+      />
 
       <div className="rounded-md border border-border bg-muted/25 p-2.5 space-y-2 min-w-0">
         <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t("addEntry.translations")}</p>
