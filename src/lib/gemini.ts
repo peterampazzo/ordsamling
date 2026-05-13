@@ -1038,3 +1038,57 @@ Return ONLY the JSON object, no markdown, no explanation.`;
     ...(Object.keys(grammar).length > 0 ? { grammar } : {}),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Verb-form helper (Sparkles button inside GrammarFields for type="verb")
+// ---------------------------------------------------------------------------
+
+export interface VerbForms {
+  present: string;
+  past: string;
+  perfect: string;
+}
+
+/**
+ * Pure parser for the AI verb-forms response. Exported for unit tests.
+ * Accepts raw model text (possibly wrapped in markdown fences or with
+ * surrounding prose) and returns the three Danish verb forms, or null
+ * when the response cannot be interpreted.
+ */
+export function parseVerbFormsResponse(text: string): VerbForms | null {
+  const parsed = safeJsonParse<Record<string, unknown>>(text);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+  const present = typeof parsed.present === "string" ? parsed.present.trim() : "";
+  const past = typeof parsed.past === "string" ? parsed.past.trim() : "";
+  const perfect = typeof parsed.perfect === "string" ? parsed.perfect.trim() : "";
+  if (!present && !past && !perfect) return null;
+  return { present, past, perfect };
+}
+
+export async function autocompleteVerbForms(danish: string): Promise<VerbForms> {
+  const trimmed = danish.trim();
+  if (!trimmed) throw new Error("Empty verb");
+
+  const prompt = `You are a Danish grammar assistant.
+The user provided this Danish verb infinitive (without "at"): "${trimmed}"
+
+Return a single JSON object with exactly these fields:
+- "present": the present tense (nutid), e.g. "går"
+- "past": the past tense (datid), e.g. "gik"
+- "perfect": the perfect tense (perfektum) WITH the auxiliary, e.g. "har gået" or "er gået"
+
+Return ONLY the JSON object, no markdown, no explanation.`;
+
+  const responseText = await callGemini(prompt, {
+    temperature: 0.1,
+    systemInstruction: "Return only valid JSON. No prose, no markdown fences.",
+  });
+
+  const forms = parseVerbFormsResponse(responseText);
+  if (!forms) {
+    console.error("Could not parse verb-forms response. Length:", responseText.length);
+    console.error("Raw (first 500):", responseText.slice(0, 500));
+    throw new Error("Could not parse AI response");
+  }
+  return forms;
+}
