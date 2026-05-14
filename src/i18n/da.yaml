@@ -394,3 +394,26 @@ landing:
   openOrdsamling: "Åbn Ordsamling"
   footerCredit: "Lavet med omhu — og en lille hånd fra AI."
   footerGithub: "Se på GitHub"
+
+streak:
+  goalProgress: "{done} af {goal} ord i dag"
+  streakDays: "{count} dage i træk"
+  noStreak: "Ingen stribe endnu — start i dag"
+
+progress:
+  title: "Fremskridt"
+  streakLabel: "Nuværende stribe"
+  streakHint: "Længste: {longest}"
+  todayLabel: "I dag"
+  goalMet: "Dagens mål nået 🎉"
+  goalRemaining: "{count} tilbage"
+  masteredLabel: "Mestret"
+  masteryHint: "Gns. {days} dage til mestring"
+  masteryEmpty: "Ingen mestrede ord endnu"
+  totalWordsLabel: "I ordbogen"
+  dailyGoalLabel: "Dagligt mål"
+  dailyGoalHint: "Antal ord du vil øve hver dag for at holde din stribe."
+  wordsAddedTitle: "Ord tilføjet pr. uge"
+  accuracyTitle: "Quiz-præcision pr. uge"
+  hardestTitle: "10 sværeste ord"
+  empty: "Tag en quiz for at se data her."
