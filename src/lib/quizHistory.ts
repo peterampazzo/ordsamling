@@ -114,6 +114,10 @@ export async function saveSession(session: QuizSessionRecord): Promise<void> {
   if (_pushQuizSession) {
     _pushQuizSession(session);
   }
+  // Notify in-app listeners (StreakRing, /progress) that a session was recorded.
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("ordsamling:quiz-recorded"));
+  }
 }
 
 export async function clearHistory() {
