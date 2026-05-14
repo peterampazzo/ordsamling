@@ -394,3 +394,26 @@ landing:
   openOrdsamling: "Open Ordsamling"
   footerCredit: "Made with care, and a little help from AI."
   footerGithub: "View on GitHub"
+
+streak:
+  goalProgress: "{done} of {goal} words today"
+  streakDays: "{count}-day streak"
+  noStreak: "No streak yet — start today"
+
+progress:
+  title: "Progress"
+  streakLabel: "Current streak"
+  streakHint: "Longest: {longest}"
+  todayLabel: "Today"
+  goalMet: "Daily goal reached 🎉"
+  goalRemaining: "{count} to go"
+  masteredLabel: "Mastered"
+  masteryHint: "Avg. {days} days to mastery"
+  masteryEmpty: "No mastered words yet"
+  totalWordsLabel: "In dictionary"
+  dailyGoalLabel: "Daily goal"
+  dailyGoalHint: "Words to practice each day to keep your streak."
+  wordsAddedTitle: "Words added per week"
+  accuracyTitle: "Quiz accuracy per week"
+  hardestTitle: "Hardest 10 words"
+  empty: "Take a quiz to start seeing data here."
