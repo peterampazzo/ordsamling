@@ -417,3 +417,7 @@ progress:
   accuracyTitle: "Quiz-præcision pr. uge"
   hardestTitle: "10 sværeste ord"
   empty: "Tag en quiz for at se data her."
+  tabs:
+    overview: "Oversigt"
+    sessions: "Sessioner"
+    words: "Ord"
