@@ -656,7 +656,7 @@ const Quiz = () => {
           pageLabel={t("quiz.title")}
           actions={
             <Button variant="outline" size="sm" className="gap-1.5" asChild>
-              <Link to="/quiz/history" aria-label={t("quiz.history")}>
+              <Link to="/progress?tab=sessions" aria-label={t("quiz.history")}>
                 <History className="h-4 w-4" aria-hidden />
                 <span className="hidden sm:inline" aria-hidden="true">{t("quiz.history")}</span>
               </Link>

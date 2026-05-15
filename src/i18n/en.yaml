@@ -417,3 +417,7 @@ progress:
   accuracyTitle: "Quiz accuracy per week"
   hardestTitle: "Hardest 10 words"
   empty: "Take a quiz to start seeing data here."
+  tabs:
+    overview: "Overview"
+    sessions: "Sessions"
+    words: "Words"

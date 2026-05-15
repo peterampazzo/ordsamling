@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,7 +9,6 @@ import Landing from "./pages/Landing.tsx";
 import Index from "./pages/Index.tsx";
 import BulkImport from "./pages/BulkImport.tsx";
 import Quiz from "./pages/Quiz.tsx";
-import QuizHistory from "./pages/QuizHistory.tsx";
 import Progress from "./pages/Progress.tsx";
 import DemoEntry from "./pages/DemoEntry.tsx";
 import OAuthCallback from "./pages/OAuthCallback.tsx";
@@ -32,7 +31,7 @@ const App = () => (
           <Route path="/demo" element={<DemoEntry />} />
           <Route path="/import" element={<BulkImport />} />
           <Route path="/quiz" element={<Quiz />} />
-          <Route path="/quiz/history" element={<QuizHistory />} />
+          <Route path="/quiz/history" element={<Navigate to="/progress?tab=sessions" replace />} />
           <Route path="/progress" element={<Progress />} />
           <Route path="/oauth/callback" element={<OAuthCallback />} />
           <Route path="/privacy" element={<Privacy />} />
