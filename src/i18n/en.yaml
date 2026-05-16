@@ -318,6 +318,18 @@ demo:
   disable: "Exit demo"
   goToApp: "To my dictionary"
   addDisabled: "Disabled in demo mode"
+  tour:
+    step1Title: "Browse your collection"
+    step1Body: "12 sample words are loaded. Search, sort, and filter them here — your real workspace works the same way."
+    step2Title: "Add words"
+    step2Body: "In your own workspace, this button opens the entry form with AI-assisted autofill."
+    step3Title: "Quiz yourself"
+    step3Body: "Once you've collected a few words, jump into a quick quiz to build retention."
+    skip: "Skip"
+    back: "Back"
+    next: "Next"
+    done: "Start collecting"
+    progress: "{current} of {total}"
 
 settings:
   title: "Settings"
