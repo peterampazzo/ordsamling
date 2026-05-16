@@ -213,7 +213,7 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
               {demo ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span className="shrink-0">
+                    <span className="shrink-0" data-tour="quiz">
                       <Button type="button" size="sm" variant="outline" className="shrink-0 h-9 w-9 p-0 opacity-50" disabled aria-label={t("index.quizLabel")}>
                         <Brain className="h-4 w-4" />
                       </Button>
