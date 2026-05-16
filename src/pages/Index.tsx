@@ -256,7 +256,7 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
               {demo ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span className="shrink-0">
+                    <span className="shrink-0" data-tour="add">
                       <Button
                         type="button"
                         size="sm"
