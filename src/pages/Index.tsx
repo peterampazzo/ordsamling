@@ -388,7 +388,7 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
           </div>
         </div>
       )}
-      <main id="main" className="max-w-3xl mx-auto px-3 sm:px-4 py-6 sm:py-8">
+      <main id="main" data-tour="list" className="max-w-3xl mx-auto px-3 sm:px-4 py-6 sm:py-8">
         {isLoading ? (
           <div className="text-center py-16 text-muted-foreground">
             <p className="text-base">{t("index.loadingWords")}</p>
