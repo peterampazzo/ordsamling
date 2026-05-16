@@ -190,7 +190,7 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
         subRow={
           <div className="space-y-2.5">
             <div className="flex items-center gap-2">
-              <div className="relative flex-1 min-w-0">
+              <div className="relative flex-1 min-w-0" data-tour="list">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" aria-hidden />
                 <Input
                   value={search}
