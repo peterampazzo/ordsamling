@@ -318,6 +318,18 @@ demo:
   disable: "Afslut demo"
   goToApp: "Til min ordbog"
   addDisabled: "Deaktiveret i demo-tilstand"
+  tour:
+    step1Title: "Din samling"
+    step1Body: "Disse 12 eksempelord bor i din ordbog. Bladr, søg og sortér — præcis som i den rigtige app."
+    step2Title: "Tilføj ord"
+    step2Body: "I dit eget arbejdsområde åbner denne knap en formular med AI-assisteret udfyldning."
+    step3Title: "Test dig selv"
+    step3Body: "Når du har samlet et par ord, kan du tage en hurtig quiz for at huske dem bedre."
+    skip: "Spring over"
+    back: "Tilbage"
+    next: "Næste"
+    done: "Begynd at samle"
+    progress: "{current} af {total}"
 
 settings:
   title: "Indstillinger"
