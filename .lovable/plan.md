@@ -1,59 +1,54 @@
-# Unify Progress & Quiz History
+# Onboarding inside `/demo`
 
 ## Why
-Today, two pages read the same `quizHistory` data from two different places:
-- `/progress` — reached from the StreakRing in `/app` header
-- `/quiz/history` — reached from inside the Quiz page
+`/demo` is already the "try without commitment" surface with pre-seeded entries. Instead of building a separate onboarding flow that has to guard against overwriting real user data, the tour runs *only* on `/demo`, on top of the already-seeded sample deck. One code path for sample data, no new route, no new flag.
 
-That's the inconsistency: same data, two homes, two entry points. We'll consolidate into one **Progress hub** at `/progress` with tabs, and make `/quiz/history` redirect there.
+## New behaviour
 
-## New IA
+### 1. First visit to `/demo` → 3-step tour
+A lightweight tooltip controller overlays the existing UI and walks the user through:
 
-```text
-/progress
-├── ?tab=overview   → stats cards · charts · daily-goal editor   (default)
-├── ?tab=sessions   → quiz session list (was /quiz/history)
-└── ?tab=words      → hardest 10 words + word stats table
-```
+1. **Add an entry** — anchored to the AddEntryForm Danish input
+2. **Quiz yourself** — anchored to the Quiz link in the header
+3. **Track progress** — anchored to the StreakRing in the header
 
-Single H1: "Progress". Tab state synced to URL query so links from Quiz page deep-link to the right tab and browser back works.
+Footer controls: `Skip` · `Back` · `Next` / `Done`. Dismissal stored in `localStorage` under `ordsamling-demo-tour-seen`. Returning demo visitors don't see it again. Pressing `Esc` skips. Tour does not block interaction with the page — it's a sequence of popovers, not a modal.
 
-## Changes
+### 2. `/app` empty state → "Try the demo" CTA
+When the real user's lexicon is empty AND demo mode is off, show a single secondary CTA under the empty-state copy: "New here? Take the 30-second tour →" linking to `/demo`. No second sample-deck loader inside `/app`.
 
-### 1. Page restructure — `src/pages/Progress.tsx`
-- Add a `Tabs` (shadcn) row under the PageHeader: **Overview · Sessions · Words**.
-- **Overview** = current Progress content minus the hardest-words list (stats cards, daily-goal editor, "Words added per week" bar chart, "Accuracy trend" line chart).
-- **Sessions** = full content currently in `QuizHistory.tsx` (SessionCard list, clear-history button, empty state).
-- **Words** = current "Hardest 10" list, expanded to show the full `wordStats(history)` table with the same columns (correct ✓ / wrong ✗ / %).
-- Active tab driven by `useSearchParams` (`?tab=`), defaulting to `overview`. Invalid values fall back to overview.
+### 3. Landing page → optional tour entry
+Add a secondary "Take the tour" button next to the existing demo CTA on `/pages/Landing.tsx`, pointing at `/demo`. Same destination as today; the copy just frames it as a guided experience.
 
-### 2. Redirect old route — `src/App.tsx`
-- Replace `<Route path="/quiz/history" element={<QuizHistory />} />` with a `<Navigate to="/progress?tab=sessions" replace />`.
-- Remove the `QuizHistory` import.
-- Delete `src/pages/QuizHistory.tsx` (content moved into Progress).
+## Implementation
 
-### 3. Quiz page entry points — `src/pages/Quiz.tsx`
-- Any link/button currently pointing to `/quiz/history` (the `History` icon link in the Quiz header / results screen) → point to `/progress?tab=sessions`.
-- Relabel to "Progress" (using existing or new i18n key) so the destination matches.
+### New file
+- **`src/components/DemoTour.tsx`** — Tour controller. Uses shadcn `Popover` anchored to elements found via `document.querySelector('[data-tour="..."]')`. Holds step index in local state, writes the seen flag on completion or skip. Auto-scrolls the anchor into view between steps. Renders nothing when the seen flag is set or when not in demo mode.
 
-### 4. i18n — `src/i18n/en.yaml` + `da.yaml`
-- Add `progress.tabs.overview`, `progress.tabs.sessions`, `progress.tabs.words`.
-- Move existing `quizHistory.*` strings used by SessionCard, empty state, and clear button into a `progress.sessions.*` namespace (or alias them — keep the strings, just re-key under progress).
-- Update Quiz page link label key from "history" → "progress".
+### Edited files
+- **`src/pages/DemoEntry.tsx`** — Mount `<DemoTour />` once at the page root, after `<Index demo />`.
+- **`src/components/AddEntryForm.tsx`** — Add `data-tour="add"` to the Danish input wrapper.
+- **`src/components/layout/PageHeader.tsx`** — Add `data-tour="quiz"` to the Quiz nav link.
+- **`src/components/StreakRing.tsx`** — Add `data-tour="progress"` to the root link.
+- **`src/pages/Index.tsx`** — In the empty-state branch, render a "Take the tour" link to `/demo` when `!demo && entries.length === 0`.
+- **`src/pages/Landing.tsx`** — Add a secondary "Take the tour" button → `/demo`.
+- **`src/i18n/en.yaml` + `src/i18n/da.yaml`** — Add `onboarding.tour.step1.{title,body}`, `step2.*`, `step3.*`, `skip`, `back`, `next`, `done`, plus `index.emptyState.tourCta` and `landing.takeTour`.
 
-### 5. Tests
-- Update `playwright/accessibility.spec.ts`: drop `/quiz/history`, keep `/progress` (already there). Add a check that `/quiz/history` 30x-redirects (or client-renders) to `/progress?tab=sessions`.
-- No business-logic changes, so `streak.test.ts` and `quizHistory.test.ts` stay as-is.
+### Storage key
+- `ordsamling-demo-tour-seen` — set to `"1"` on completion or skip. Cleared if the user manually clears localStorage; no replay UI in v1.
 
-## What stays the same
-- StreakRing remains in `/app` header only (per your choice).
-- All computation lives in `src/lib/streak.ts` and `src/lib/quizHistory.ts` — untouched.
-- No backend, no schema, no Cloud changes. Pure client-side IA refactor.
+## Out of scope
+- No tour replay button (can add later)
+- No tour on `/app` — sample data and onboarding stay isolated to `/demo`
+- No analytics — dismissal is local-only
+- No changes to existing `/demo` seeding or exit flow
 
 ## Files touched
-- `src/pages/Progress.tsx` (refactor → tabbed)
-- `src/pages/Quiz.tsx` (link target + label)
-- `src/App.tsx` (route redirect, drop import)
-- `src/pages/QuizHistory.tsx` (delete)
-- `src/i18n/en.yaml`, `src/i18n/da.yaml` (tab labels, re-namespace)
-- `playwright/accessibility.spec.ts` (route list)
+- `src/components/DemoTour.tsx` (new)
+- `src/pages/DemoEntry.tsx`
+- `src/pages/Index.tsx`
+- `src/pages/Landing.tsx`
+- `src/components/AddEntryForm.tsx`
+- `src/components/layout/PageHeader.tsx`
+- `src/components/StreakRing.tsx`
+- `src/i18n/en.yaml`, `src/i18n/da.yaml`
