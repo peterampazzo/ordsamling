@@ -319,8 +319,8 @@ demo:
   goToApp: "Til min ordbog"
   addDisabled: "Deaktiveret i demo-tilstand"
   tour:
-    step1Title: "Din samling"
-    step1Body: "Disse 12 eksempelord bor i din ordbog. Bladr, søg og sortér — præcis som i den rigtige app."
+    step1Title: "Gennemse din samling"
+    step1Body: "12 eksempelord er indlæst. Søg, sortér og filtrér dem her — dit rigtige arbejdsområde fungerer på samme måde."
     step2Title: "Tilføj ord"
     step2Body: "I dit eget arbejdsområde åbner denne knap en formular med AI-assisteret udfyldning."
     step3Title: "Test dig selv"
