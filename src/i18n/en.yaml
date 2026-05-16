@@ -319,8 +319,8 @@ demo:
   goToApp: "To my dictionary"
   addDisabled: "Disabled in demo mode"
   tour:
-    step1Title: "Your collection"
-    step1Body: "These 12 sample words live in your dictionary. Browse, search, and sort them — just like the real thing."
+    step1Title: "Browse your collection"
+    step1Body: "12 sample words are loaded. Search, sort, and filter them here — your real workspace works the same way."
     step2Title: "Add words"
     step2Body: "In your own workspace, this button opens the entry form with AI-assisted autofill."
     step3Title: "Quiz yourself"
