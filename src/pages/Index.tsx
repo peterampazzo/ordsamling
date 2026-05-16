@@ -171,7 +171,7 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
                 <CloudSyncIndicator
                   status={syncState.status}
                   lastSyncAt={syncState.lastSyncAt}
-                  onClick={() => setSettingsOpen(true)}
+                  onClick={() => syncNow()}
                 />
                 <Button
                   type="button"

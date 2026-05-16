@@ -47,6 +47,7 @@ const mkEntry = (id: string, danish: string): LexisEntry => ({
   notes: "",
   type: "noun",
   createdAt: 0,
+  updatedAt: 0,
 });
 
 describe("Property 11 — focus restoration after LexisCard delete", () => {

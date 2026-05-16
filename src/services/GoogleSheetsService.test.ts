@@ -18,13 +18,15 @@ import type { QuizSessionRecord } from '@/lib/quizHistory';
 // ---------------------------------------------------------------------------
 
 function makeEntry(overrides: Partial<LexisEntry> = {}): LexisEntry {
+  const createdAt = overrides.createdAt ?? 1700000000000;
   return {
     id: 'test-id-1',
     danish: 'hund',
     english: 'dog',
     type: 'noun',
     notes: 'a common animal',
-    createdAt: 1700000000000,
+    createdAt,
+    updatedAt: overrides.updatedAt ?? createdAt,
     ...overrides,
   };
 }
@@ -62,7 +64,7 @@ describe('serializeLexiconRow / deserializeLexiconRow round-trip', () => {
   it('round-trips a "word" entry', () => {
     const entry = makeEntry({ type: 'word', id: 'w1', danish: 'god', english: 'good' });
     const row = serializeLexiconRow(entry);
-    expect(row).toHaveLength(8);
+    expect(row).toHaveLength(9);
     const result = deserializeLexiconRow(row);
     expect(result).toEqual(entry);
   });
@@ -81,7 +83,7 @@ describe('serializeLexiconRow / deserializeLexiconRow round-trip', () => {
       },
     });
     const row = serializeLexiconRow(entry);
-    expect(row).toHaveLength(8);
+    expect(row).toHaveLength(9);
     const result = deserializeLexiconRow(row);
     expect(result).toEqual(entry);
   });
@@ -99,6 +101,7 @@ describe('serializeLexiconRow / deserializeLexiconRow round-trip', () => {
       },
     });
     const row = serializeLexiconRow(entry);
+    expect(row).toHaveLength(9);
     const result = deserializeLexiconRow(row);
     expect(result).toEqual(entry);
   });
@@ -118,6 +121,7 @@ describe('serializeLexiconRow / deserializeLexiconRow round-trip', () => {
       },
     });
     const row = serializeLexiconRow(entry);
+    expect(row).toHaveLength(9);
     const result = deserializeLexiconRow(row);
     expect(result).toEqual(entry);
   });
@@ -132,6 +136,7 @@ describe('serializeLexiconRow / deserializeLexiconRow round-trip', () => {
       notes: 'common phrase',
     });
     const row = serializeLexiconRow(entry);
+    expect(row).toHaveLength(9);
     const result = deserializeLexiconRow(row);
     expect(result).toEqual(entry);
   });
@@ -144,8 +149,10 @@ describe('serializeLexiconRow / deserializeLexiconRow round-trip', () => {
       type: 'word',
       notes: '',
       createdAt: 1234567890,
+      updatedAt: 1234567890,
     };
     const row = serializeLexiconRow(entry);
+    expect(row).toHaveLength(9);
     const result = deserializeLexiconRow(row);
     expect(result).toEqual(entry);
   });
@@ -220,6 +227,7 @@ describe('deserializeLexiconRow edge cases', () => {
     expect(result!.grammar).toBeUndefined();
     // createdAt falls back to Date.now() — just check it's a positive number
     expect(result!.createdAt).toBeGreaterThan(0);
+    expect(result!.updatedAt).toBe(result!.createdAt);
   });
 
   it('falls back createdAt to Date.now() when column 7 is not a valid number', () => {

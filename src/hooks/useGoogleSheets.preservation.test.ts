@@ -95,6 +95,7 @@ describe('Preservation: Lexicon and Quiz Sync Behavior', () => {
         type: 'noun',
         notes: '',
         createdAt: Date.now(),
+        updatedAt: Date.now(),
       };
 
       // Call pushEntry
@@ -125,6 +126,7 @@ describe('Preservation: Lexicon and Quiz Sync Behavior', () => {
         type: 'noun',
         notes: '',
         createdAt: Date.now(),
+        updatedAt: Date.now(),
       };
 
       result.current.pushEntry(testEntry, 'update');
@@ -152,6 +154,7 @@ describe('Preservation: Lexicon and Quiz Sync Behavior', () => {
         type: 'noun',
         notes: '',
         createdAt: Date.now(),
+        updatedAt: Date.now(),
       };
 
       result.current.pushEntry(testEntry, 'delete');
@@ -179,6 +182,7 @@ describe('Preservation: Lexicon and Quiz Sync Behavior', () => {
         type: 'noun',
         notes: '',
         createdAt: Date.now(),
+        updatedAt: Date.now(),
       };
 
       // Rapid updates to same entry
@@ -197,6 +201,65 @@ describe('Preservation: Lexicon and Quiz Sync Behavior', () => {
         expect.objectContaining({ danish: 'hund3' }),
         'mock-token'
       );
+    });
+
+    it('pushEntry pulls fresh remote entries before writing', async () => {
+      const { result } = renderHook(() => useGoogleSheets());
+
+      await waitFor(() => {
+        expect(mockReadLexicon).toHaveBeenCalled();
+      });
+
+      mockReadLexicon.mockClear();
+      mockWriteLexiconRow.mockClear();
+
+      const testEntry: LexisEntry = {
+        id: 'sync-before-write',
+        danish: 'hund',
+        english: 'dog',
+        type: 'noun',
+        notes: '',
+        createdAt: Date.now(),
+      };
+
+      result.current.pushEntry(testEntry, 'add');
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+
+      expect(mockReadLexicon).toHaveBeenCalled();
+      expect(mockWriteLexiconRow).toHaveBeenCalledWith(
+        'test-sheet-id',
+        testEntry,
+        'mock-token'
+      );
+      expect(mockReadLexicon.mock.invocationCallOrder[0]).toBeLessThan(mockWriteLexiconRow.mock.invocationCallOrder[0]);
+    });
+
+    it('pushEntry falls back to dirty queue when offline before write', async () => {
+      const originalOnLine = Object.getOwnPropertyDescriptor(window.navigator, 'onLine');
+      Object.defineProperty(window.navigator, 'onLine', { value: false, configurable: true });
+
+      const { result } = renderHook(() => useGoogleSheets());
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const testEntry: LexisEntry = {
+        id: 'offline-sync',
+        danish: 'offline',
+        english: 'offline',
+        type: 'noun',
+        notes: '',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      result.current.pushEntry(testEntry, 'add');
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+
+      expect(mockWriteLexiconRow).not.toHaveBeenCalled();
+      expect(storageConfig.setDirtyQueue).toHaveBeenCalled();
+
+      if (originalOnLine) {
+        Object.defineProperty(window.navigator, 'onLine', originalOnLine);
+      }
     });
   });
 
@@ -249,6 +312,7 @@ describe('Preservation: Lexicon and Quiz Sync Behavior', () => {
         type: 'noun',
         notes: '',
         createdAt: Date.now(),
+        updatedAt: Date.now(),
       };
 
       result.current.pushEntry(testEntry, 'add');

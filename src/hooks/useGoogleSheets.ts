@@ -27,7 +27,7 @@ import {
   type DirtyOperation,
 } from '@/lib/storageConfig';
 import { getExtraLanguages, setExtraLanguages } from '@/lib/settings';
-import type { SheetSettings } from '@/lib/sheetTypes';
+import type { SheetSettings, StreakEvent } from '@/lib/sheetTypes';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -66,6 +66,7 @@ export interface UseGoogleSheetsReturn {
   syncNow: () => Promise<void>;
   pushEntry: (entry: LexisEntry, op: 'add' | 'update' | 'delete') => void;
   pushQuizSession: (session: QuizSessionRecord) => void;
+  pushStreakEvent: (event: StreakEvent) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -81,12 +82,13 @@ export interface UseGoogleSheetsReturn {
 
 /**
  * Merge sheet entries into local entries using a last-write-wins strategy
- * based on `createdAt` timestamp.
+ * based on `updatedAt` timestamp (modification time, not creation time).
  *
  * Rules:
  * - Local-only entry (not in sheet): preserved
  * - Sheet-only entry (not in local): added
- * - Both exist: sheet version wins if its createdAt is strictly greater
+ * - Both exist: sheet version wins if its updatedAt is strictly greater
+ * - If updatedAt is equal, local version wins (deterministic tie-breaker)
  */
 export function mergeSheetsIntoLocal(
   localEntries: LexisEntry[],
@@ -110,8 +112,8 @@ export function mergeSheetsIntoLocal(
     if (sheetVersion === undefined) {
       // Local-only: keep
       merged.push(localEntry);
-    } else if (sheetVersion.createdAt > localEntry.createdAt) {
-      // Sheet is newer
+    } else if (sheetVersion.updatedAt > localEntry.updatedAt) {
+      // Sheet is newer by updatedAt
       merged.push(sheetVersion);
     } else {
       // Local is same or newer
@@ -150,6 +152,41 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
    
   const sheetsService = useMemo(() => new GoogleSheetsService(), []);
 
+  const refreshRemoteEntries = useCallback(
+    async (spreadsheetId: string, accessToken: string) => {
+      const sheetEntries = await sheetsService.readLexicon(spreadsheetId, accessToken);
+      const localRaw = localStorage.getItem(getEntriesStorageKey());
+      const localEntries: LexisEntry[] = localRaw ? (JSON.parse(localRaw) as LexisEntry[]) : [];
+      const merged = mergeSheetsIntoLocal(localEntries, sheetEntries);
+      if (JSON.stringify(merged) !== JSON.stringify(localEntries)) {
+        localStorage.setItem(getEntriesStorageKey(), JSON.stringify(merged));
+        window.dispatchEvent(new CustomEvent('ordsamling:entries-synced'));
+      }
+    },
+    [sheetsService]
+  );
+
+  const syncBeforeWrite = useCallback(
+    async (spreadsheetId: string, accessToken: string): Promise<boolean> => {
+      if (!navigator.onLine) return false;
+
+      try {
+        await retryDirtyQueue();
+      } catch (err) {
+        console.warn('syncBeforeWrite.retryDirtyQueue failed:', err);
+      }
+
+      try {
+        await refreshRemoteEntries(spreadsheetId, accessToken);
+        return true;
+      } catch (err) {
+        console.warn('syncBeforeWrite failed:', err);
+        return false;
+      }
+    },
+    [refreshRemoteEntries, retryDirtyQueue]
+  );
+
   // Initialize state from StorageConfig
   const config = getStorageConfig();
   const initialStatus =
@@ -185,6 +222,13 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
     const spreadsheetId = currentConfig.spreadsheetId;
     if (!spreadsheetId) return;
 
+    try {
+      await refreshRemoteEntries(spreadsheetId, accessToken);
+    } catch (err) {
+      console.warn('retryDirtyQueue refresh failed:', err);
+      return;
+    }
+
     // Sort by timestamp ASC
     const sorted = [...queue].sort((a, b) => a.timestamp - b.timestamp);
     const remaining = [...sorted];
@@ -204,6 +248,12 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
           await sheetsService.appendQuizSession(
             spreadsheetId,
             op.payload as QuizSessionRecord,
+            accessToken
+          );
+        } else if (op.type === 'streak_event') {
+          await sheetsService.appendStreakEvent(
+            spreadsheetId,
+            op.payload as StreakEvent,
             accessToken
           );
         } else if (op.type === 'settings') {
@@ -226,7 +276,7 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
     if (getDirtyQueue().length === 0) {
       setSyncState((prev) => ({ ...prev, status: 'idle', errorMessage: null }));
     }
-  }, []);
+  }, [refreshRemoteEntries, sheetsService]);
 
   // ---------------------------------------------------------------------------
   // Sync on load
@@ -365,7 +415,7 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
         setSyncState((prev) => ({ ...prev, status: 'dirty' }));
       }
     }, 2000);
-  }, []);
+  }, [sheetsService]);
 
   useEffect(() => {
     function handleSettingsDirty(event: Event) {
@@ -511,6 +561,13 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
         const spreadsheetId = currentConfig.spreadsheetId;
         if (!spreadsheetId) return;
 
+        const ready = await syncBeforeWrite(spreadsheetId, accessToken);
+        if (!ready) {
+          addToDirtyQueue({ type: 'lexicon', operation: op, payload: op === 'delete' ? entry.id : entry });
+          setSyncState((prev) => ({ ...prev, status: 'dirty' }));
+          return;
+        }
+
         try {
           if (op === 'add') {
             await sheetsService.writeLexiconRow(spreadsheetId, entry, accessToken);
@@ -528,7 +585,7 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
 
       debounceMap.current.set(entry.id, timer);
     },
-    []
+    [syncBeforeWrite, sheetsService]
   );
 
   // ---------------------------------------------------------------------------
@@ -558,18 +615,45 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
         setSyncState((prev) => ({ ...prev, status: 'dirty' }));
       }
     })();
-  }, []);
+  }, [sheetsService]);
+
+  const pushStreakEvent = useCallback((event: StreakEvent) => {
+    if (!isCloudSyncEnabled()) return;
+
+    void (async () => {
+      const accessToken = await getValidAccessToken();
+      if (!accessToken) {
+        addToDirtyQueue({ type: 'streak_event', operation: 'add', payload: event });
+        setSyncState((prev) => ({ ...prev, status: 'dirty' }));
+        return;
+      }
+
+      const currentConfig = getStorageConfig();
+      const spreadsheetId = currentConfig.spreadsheetId;
+      if (!spreadsheetId) return;
+
+      try {
+        await sheetsService.appendStreakEvent(spreadsheetId, event, accessToken);
+      } catch (err) {
+        console.error('pushStreakEvent failed:', err);
+        addToDirtyQueue({ type: 'streak_event', operation: 'add', payload: event });
+        setSyncState((prev) => ({ ...prev, status: 'dirty' }));
+      }
+    })();
+  }, [sheetsService]);
 
   // ---------------------------------------------------------------------------
   // Cleanup debounce timers on unmount
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
+    const timers = debounceMap.current;
+
     return () => {
-      for (const timer of debounceMap.current.values()) {
+      for (const timer of timers.values()) {
         clearTimeout(timer);
       }
-      debounceMap.current.clear();
+      timers.clear();
       
       // Clear settings timer
       if (settingsTimer.current !== null) {
@@ -586,5 +670,6 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
     syncNow,
     pushEntry,
     pushQuizSession,
+    pushStreakEvent,
   };
 }

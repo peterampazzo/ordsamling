@@ -14,12 +14,14 @@ import type { LexisEntry } from '@/lib/lexicon';
 // ---------------------------------------------------------------------------
 
 function makeEntry(overrides: Partial<LexisEntry> & { id: string }): LexisEntry {
+  const createdAt = overrides.createdAt ?? 1000;
   return {
     danish: 'hund',
     english: 'dog',
     notes: '',
     type: 'noun',
-    createdAt: 1000,
+    createdAt,
+    updatedAt: overrides.updatedAt ?? createdAt,
     ...overrides,
   };
 }
@@ -30,8 +32,8 @@ function makeEntry(overrides: Partial<LexisEntry> & { id: string }): LexisEntry 
 
 describe('mergeSheetsIntoLocal', () => {
   it('sheet entry newer than local → sheet version wins', () => {
-    const local = makeEntry({ id: 'a', createdAt: 1000, danish: 'local' });
-    const sheet = makeEntry({ id: 'a', createdAt: 2000, danish: 'sheet' });
+    const local = makeEntry({ id: 'a', createdAt: 1000, updatedAt: 1000, danish: 'local' });
+    const sheet = makeEntry({ id: 'a', createdAt: 2000, updatedAt: 2000, danish: 'sheet' });
 
     const result = mergeSheetsIntoLocal([local], [sheet]);
 
@@ -40,8 +42,8 @@ describe('mergeSheetsIntoLocal', () => {
   });
 
   it('local entry newer than sheet → local version wins', () => {
-    const local = makeEntry({ id: 'b', createdAt: 3000, danish: 'local-newer' });
-    const sheet = makeEntry({ id: 'b', createdAt: 1000, danish: 'sheet-older' });
+    const local = makeEntry({ id: 'b', createdAt: 3000, updatedAt: 3000, danish: 'local-newer' });
+    const sheet = makeEntry({ id: 'b', createdAt: 1000, updatedAt: 1000, danish: 'sheet-older' });
 
     const result = mergeSheetsIntoLocal([local], [sheet]);
 
@@ -49,9 +51,9 @@ describe('mergeSheetsIntoLocal', () => {
     expect(result[0].danish).toBe('local-newer');
   });
 
-  it('local entry same createdAt as sheet → local version wins', () => {
-    const local = makeEntry({ id: 'c', createdAt: 1500, danish: 'local-same' });
-    const sheet = makeEntry({ id: 'c', createdAt: 1500, danish: 'sheet-same' });
+  it('local entry same updatedAt as sheet → local version wins', () => {
+    const local = makeEntry({ id: 'c', createdAt: 1500, updatedAt: 1500, danish: 'local-same' });
+    const sheet = makeEntry({ id: 'c', createdAt: 1500, updatedAt: 1500, danish: 'sheet-same' });
 
     const result = mergeSheetsIntoLocal([local], [sheet]);
 

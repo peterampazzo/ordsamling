@@ -59,6 +59,7 @@ const SAMPLE_ENTRY: LexisEntry = {
   notes: "",
   type: "noun",
   createdAt: 0,
+  updatedAt: 0,
 };
 
 // ─── Tests ───────────────────────────────────────────────────────────────────

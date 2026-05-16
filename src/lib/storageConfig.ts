@@ -31,9 +31,9 @@ export interface AiConfig {
 export interface DirtyOperation {
   /** UUID for deduplication */
   id: string;
-  type: 'lexicon' | 'quiz_history' | 'settings';
+  type: 'lexicon' | 'quiz_history' | 'settings' | 'streak_event';
   operation: 'add' | 'update' | 'delete' | 'write';
-  /** LexisEntry | QuizSessionRecord | string (id for delete) */
+  /** LexisEntry | QuizSessionRecord | StreakEvent | string (id for delete) */
   payload: unknown;
   timestamp: number;
 }
