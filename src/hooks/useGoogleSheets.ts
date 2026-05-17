@@ -166,50 +166,8 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
     [sheetsService]
   );
 
-  const syncBeforeWrite = useCallback(
-    async (spreadsheetId: string, accessToken: string): Promise<boolean> => {
-      if (!navigator.onLine) return false;
-
-      try {
-        await retryDirtyQueue();
-      } catch (err) {
-        console.warn('syncBeforeWrite.retryDirtyQueue failed:', err);
-      }
-
-      try {
-        await refreshRemoteEntries(spreadsheetId, accessToken);
-        return true;
-      } catch (err) {
-        console.warn('syncBeforeWrite failed:', err);
-        return false;
-      }
-    },
-    [refreshRemoteEntries, retryDirtyQueue]
-  );
-
-  // Initialize state from StorageConfig
-  const config = getStorageConfig();
-  const initialStatus =
-    config.storageSource === 'google_sheets' ? 'idle' : 'disconnected';
-
-  const [syncState, setSyncState] = useState<SyncState>({
-    status: initialStatus,
-    lastSyncAt: null,
-    spreadsheetId: config.spreadsheetId,
-    connectedEmail: config.connectedEmail,
-    errorMessage: null,
-  });
-
-  // Debounce timer map: entry.id → timer handle
-  const debounceMap = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-  // Settings push debounce + suppression flag for incoming sheet→local updates
-  const settingsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const suppressSettingsDirty = useRef(false);
-
   // ---------------------------------------------------------------------------
   // Retry dirty queue operations
-  // ---------------------------------------------------------------------------
-
   const retryDirtyQueue = useCallback(async () => {
     const queue = getDirtyQueue();
     if (queue.length === 0) return;
@@ -277,6 +235,46 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
       setSyncState((prev) => ({ ...prev, status: 'idle', errorMessage: null }));
     }
   }, [refreshRemoteEntries, sheetsService]);
+
+  const syncBeforeWrite = useCallback(
+    async (spreadsheetId: string, accessToken: string): Promise<boolean> => {
+      if (!navigator.onLine) return false;
+
+      try {
+        await retryDirtyQueue();
+      } catch (err) {
+        console.warn('syncBeforeWrite.retryDirtyQueue failed:', err);
+      }
+
+      try {
+        await refreshRemoteEntries(spreadsheetId, accessToken);
+        return true;
+      } catch (err) {
+        console.warn('syncBeforeWrite failed:', err);
+        return false;
+      }
+    },
+    [refreshRemoteEntries, retryDirtyQueue]
+  );
+
+  // Initialize state from StorageConfig
+  const config = getStorageConfig();
+  const initialStatus =
+    config.storageSource === 'google_sheets' ? 'idle' : 'disconnected';
+
+  const [syncState, setSyncState] = useState<SyncState>({
+    status: initialStatus,
+    lastSyncAt: null,
+    spreadsheetId: config.spreadsheetId,
+    connectedEmail: config.connectedEmail,
+    errorMessage: null,
+  });
+
+  // Debounce timer map: entry.id → timer handle
+  const debounceMap = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  // Settings push debounce + suppression flag for incoming sheet→local updates
+  const settingsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suppressSettingsDirty = useRef(false);
 
   // ---------------------------------------------------------------------------
   // Sync on load
@@ -608,6 +606,7 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
       if (!spreadsheetId) return;
 
       try {
+        await retryDirtyQueue();
         await sheetsService.appendQuizSession(spreadsheetId, session, accessToken);
       } catch (err) {
         console.error('pushQuizSession failed:', err);
@@ -615,7 +614,7 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
         setSyncState((prev) => ({ ...prev, status: 'dirty' }));
       }
     })();
-  }, [sheetsService]);
+  }, [retryDirtyQueue, sheetsService]);
 
   const pushStreakEvent = useCallback((event: StreakEvent) => {
     if (!isCloudSyncEnabled()) return;
@@ -633,6 +632,7 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
       if (!spreadsheetId) return;
 
       try {
+        await retryDirtyQueue();
         await sheetsService.appendStreakEvent(spreadsheetId, event, accessToken);
       } catch (err) {
         console.error('pushStreakEvent failed:', err);
@@ -640,7 +640,7 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
         setSyncState((prev) => ({ ...prev, status: 'dirty' }));
       }
     })();
-  }, [sheetsService]);
+  }, [retryDirtyQueue, sheetsService]);
 
   // ---------------------------------------------------------------------------
   // Cleanup debounce timers on unmount

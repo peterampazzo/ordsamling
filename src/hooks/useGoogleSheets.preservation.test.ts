@@ -25,6 +25,7 @@ import * as googleOAuth from '@/lib/googleOAuth';
 import * as storageConfig from '@/lib/storageConfig';
 import type { LexisEntry } from '@/lib/lexicon';
 import type { QuizSessionRecord } from '@/lib/quizHistory';
+import type { StreakEvent } from '@/lib/sheetTypes';
 
 // Mock dependencies
 vi.mock('@/services/GoogleSheetsService');
@@ -39,6 +40,7 @@ describe('Preservation: Lexicon and Quiz Sync Behavior', () => {
   let mockUpdateLexiconRow: ReturnType<typeof vi.fn>;
   let mockDeleteLexiconRow: ReturnType<typeof vi.fn>;
   let mockAppendQuizSession: ReturnType<typeof vi.fn>;
+  let mockAppendStreakEvent: ReturnType<typeof vi.fn>;
   let mockReadSettings: ReturnType<typeof vi.fn>;
   let mockReadLexicon: ReturnType<typeof vi.fn>;
 
@@ -49,6 +51,7 @@ describe('Preservation: Lexicon and Quiz Sync Behavior', () => {
     mockUpdateLexiconRow = vi.fn().mockResolvedValue(undefined);
     mockDeleteLexiconRow = vi.fn().mockResolvedValue(undefined);
     mockAppendQuizSession = vi.fn().mockResolvedValue(undefined);
+    mockAppendStreakEvent = vi.fn().mockResolvedValue(undefined);
     mockReadSettings = vi.fn().mockResolvedValue({ extraLanguages: [] });
     mockReadLexicon = vi.fn().mockResolvedValue([]);
 
@@ -57,6 +60,7 @@ describe('Preservation: Lexicon and Quiz Sync Behavior', () => {
       updateLexiconRow: mockUpdateLexiconRow,
       deleteLexiconRow: mockDeleteLexiconRow,
       appendQuizSession: mockAppendQuizSession,
+      appendStreakEvent: mockAppendStreakEvent,
       readSettings: mockReadSettings,
       readLexicon: mockReadLexicon,
       writeSettings: vi.fn(),
@@ -293,6 +297,147 @@ describe('Preservation: Lexicon and Quiz Sync Behavior', () => {
         );
       });
     });
+
+    it('pushStreakEvent calls appendStreakEvent immediately (no debounce)', async () => {
+      const { result } = renderHook(() => useGoogleSheets());
+
+      await waitFor(() => {
+        expect(mockReadLexicon).toHaveBeenCalled();
+      });
+
+      const testEvent: StreakEvent = {
+        timestamp: Date.now(),
+        type: 'extended',
+        deviceId: 'device-1',
+        notes: 'streak extended',
+      };
+
+      result.current.pushStreakEvent(testEvent);
+
+      await waitFor(() => {
+        expect(mockAppendStreakEvent).toHaveBeenCalledWith(
+          'test-sheet-id',
+          testEvent,
+          'mock-token'
+        );
+      });
+    });
+
+    it('pushQuizSession retries dirty queue before appending a new session', async () => {
+      const queuedSession: QuizSessionRecord = {
+        id: 'queued-quiz',
+        date: Date.now() - 1000,
+        mode: 'choice',
+        fromLabel: 'Danish',
+        toLabel: 'English',
+        score: 7,
+        total: 10,
+        answers: [],
+      };
+
+      const originalOnLine = Object.getOwnPropertyDescriptor(window.navigator, 'onLine');
+      Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true });
+
+      vi.mocked(storageConfig.getDirtyQueue).mockReturnValueOnce([
+        {
+          id: 'dirty-quiz-1',
+          type: 'quiz_history',
+          operation: 'add',
+          payload: queuedSession,
+          timestamp: Date.now() - 2000,
+        },
+      ]);
+
+      const { result } = renderHook(() => useGoogleSheets());
+      await waitFor(() => {
+        expect(mockReadLexicon).toHaveBeenCalled();
+      });
+
+      const newSession: QuizSessionRecord = {
+        id: 'new-quiz',
+        date: Date.now(),
+        mode: 'choice',
+        fromLabel: 'Danish',
+        toLabel: 'English',
+        score: 10,
+        total: 10,
+        answers: [],
+      };
+
+      result.current.pushQuizSession(newSession);
+
+      await waitFor(() => {
+        expect(mockAppendQuizSession).toHaveBeenCalledTimes(2);
+        expect(mockAppendQuizSession.mock.calls[0]).toEqual([
+          'test-sheet-id',
+          queuedSession,
+          'mock-token',
+        ]);
+        expect(mockAppendQuizSession.mock.calls[1]).toEqual([
+          'test-sheet-id',
+          newSession,
+          'mock-token',
+        ]);
+      });
+
+      if (originalOnLine) {
+        Object.defineProperty(window.navigator, 'onLine', originalOnLine);
+      }
+    });
+
+    it('pushStreakEvent retries dirty queue before appending a new streak event', async () => {
+      const queuedEvent: StreakEvent = {
+        timestamp: Date.now() - 1000,
+        type: 'reset',
+        deviceId: 'device-1',
+        notes: 'queued reset',
+      };
+
+      const originalOnLine = Object.getOwnPropertyDescriptor(window.navigator, 'onLine');
+      Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true });
+
+      vi.mocked(storageConfig.getDirtyQueue).mockReturnValueOnce([
+        {
+          id: 'dirty-streak-1',
+          type: 'streak_event',
+          operation: 'add',
+          payload: queuedEvent,
+          timestamp: Date.now() - 2000,
+        },
+      ]);
+
+      const { result } = renderHook(() => useGoogleSheets());
+      await waitFor(() => {
+        expect(mockReadLexicon).toHaveBeenCalled();
+      });
+
+      const newEvent: StreakEvent = {
+        timestamp: Date.now(),
+        type: 'extended',
+        deviceId: 'device-1',
+        notes: 'new extension',
+      };
+
+      result.current.pushStreakEvent(newEvent);
+
+      await waitFor(() => {
+        expect(mockAppendStreakEvent).toHaveBeenCalledTimes(2);
+        expect(mockAppendStreakEvent.mock.calls[0]).toEqual([
+          'test-sheet-id',
+          queuedEvent,
+          'mock-token',
+        ]);
+        expect(mockAppendStreakEvent.mock.calls[1]).toEqual([
+          'test-sheet-id',
+          newEvent,
+          'mock-token',
+        ]);
+      });
+
+      if (originalOnLine) {
+        Object.defineProperty(window.navigator, 'onLine', originalOnLine);
+      }
+    });
   });
 
   describe('Preservation 3.5: Offline Dirty Queue', () => {
@@ -347,6 +492,27 @@ describe('Preservation: Lexicon and Quiz Sync Behavior', () => {
 
       await waitFor(() => {
         expect(mockAppendQuizSession).not.toHaveBeenCalled();
+        expect(storageConfig.setDirtyQueue).toHaveBeenCalled();
+      });
+    });
+
+    it('pushStreakEvent adds to dirty queue when no access token', async () => {
+      vi.mocked(googleOAuth.getValidAccessToken).mockResolvedValue(null);
+
+      const { result } = renderHook(() => useGoogleSheets());
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const testEvent: StreakEvent = {
+        timestamp: Date.now(),
+        type: 'broken',
+        deviceId: 'device-1',
+        notes: 'offline break',
+      };
+
+      result.current.pushStreakEvent(testEvent);
+
+      await waitFor(() => {
+        expect(mockAppendStreakEvent).not.toHaveBeenCalled();
         expect(storageConfig.setDirtyQueue).toHaveBeenCalled();
       });
     });

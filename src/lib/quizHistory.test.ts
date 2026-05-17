@@ -33,6 +33,11 @@ vi.mock('@/lib/googleOAuth', () => ({
 import {
   fetchHistory,
   loadHistory,
+  saveSession,
+  registerPushQuizSession,
+  unregisterPushQuizSession,
+  registerPushStreakEvent,
+  unregisterPushStreakEvent,
   updateSm2,
   pickDue,
   seedFromHistory,
@@ -64,6 +69,8 @@ function makeSession(id: string, date = NOW): QuizSessionRecord {
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
+  unregisterPushQuizSession();
+  unregisterPushStreakEvent();
   mockIsCloudSyncEnabled.mockReturnValue(false);
   mockGetStorageConfig.mockReturnValue({
     storageSource: 'local',
@@ -160,6 +167,39 @@ describe("fetchHistory", () => {
     localStorage.setItem('lexikon-quiz-history', JSON.stringify([local]));
 
     await expect(fetchHistory()).resolves.toEqual([local]);
+  });
+});
+
+describe("saveSession callback registration", () => {
+  it("invokes registered quiz session callback", async () => {
+    const session = makeSession('quiz-callback');
+    const callback = vi.fn();
+    registerPushQuizSession(callback);
+
+    await saveSession(session);
+
+    expect(callback).toHaveBeenCalledWith(session);
+  });
+
+  it("invokes registered streak event callback when streak changes", async () => {
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(NOW);
+    const first = makeSession('quiz-1', NOW - 2 * 24 * 60 * 60 * 1000);
+    const callback = vi.fn();
+    registerPushStreakEvent(callback);
+
+    localStorage.setItem('lexikon-quiz-history', JSON.stringify([first]));
+
+    const second = makeSession('quiz-2', NOW);
+    await saveSession(second);
+
+    expect(callback).toHaveBeenCalled();
+    expect(callback.mock.calls[0][0]).toMatchObject({
+      type: expect.any(String),
+      deviceId: expect.any(String),
+      notes: expect.any(String),
+    });
+
+    nowSpy.mockRestore();
   });
 });
 

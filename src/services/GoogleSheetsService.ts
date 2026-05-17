@@ -653,5 +653,6 @@ export class GoogleSheetsService {
 
 export { serializeLexiconRow, deserializeLexiconRow };
 export { serializeQuizHistoryRow, deserializeQuizHistoryRow };
+export { serializeStreakEventRow };
 
 export default GoogleSheetsService;

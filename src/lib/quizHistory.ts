@@ -1,8 +1,57 @@
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { getValidAccessToken } from '@/lib/googleOAuth';
 import { getStorageConfig, isCloudSyncEnabled } from '@/lib/storageConfig';
+import { computeStreak, type StreakInfo } from './streak';
 
 const STORAGE_KEY = "lexikon-quiz-history";
+const DEVICE_ID_KEY = 'ordsamling-device-id';
+
+let _pushStreakEvent: ((event: import('@/lib/sheetTypes').StreakEvent) => void) | null = null;
+
+export function registerPushStreakEvent(fn: (event: import('@/lib/sheetTypes').StreakEvent) => void): void {
+  _pushStreakEvent = fn;
+}
+
+export function unregisterPushStreakEvent(): void {
+  _pushStreakEvent = null;
+}
+
+function getDeviceId(): string {
+  try {
+    const stored = localStorage.getItem(DEVICE_ID_KEY);
+    if (stored) return stored;
+    const id = crypto.randomUUID?.() ?? `device-${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem(DEVICE_ID_KEY, id);
+    return id;
+  } catch {
+    return 'unknown-device';
+  }
+}
+
+function makeStreakEvent(type: 'extended' | 'broken' | 'reset', notes: string): import('@/lib/sheetTypes').StreakEvent {
+  return {
+    timestamp: Date.now(),
+    type,
+    deviceId: getDeviceId(),
+    notes,
+  };
+}
+
+function inferStreakEvent(prev: StreakInfo, next: StreakInfo, session: QuizSessionRecord): import('@/lib/sheetTypes').StreakEvent | null {
+  if (next.current > prev.current) {
+    return makeStreakEvent('extended', `mode=${session.mode} score=${session.score}/${session.total}`);
+  }
+
+  if (prev.current > 0 && next.current === 0) {
+    return makeStreakEvent('broken', `streak broken after ${prev.current} days`);
+  }
+
+  if (prev.current === 0 && next.current > 0) {
+    return makeStreakEvent('reset', `streak reset to ${next.current} days`);
+  }
+
+  return null;
+}
 
 export interface QuizAnswerRecord {
   prompt: string;
@@ -34,6 +83,10 @@ let _pushQuizSession: ((session: QuizSessionRecord) => void) | null = null;
 
 export function registerPushQuizSession(fn: (session: QuizSessionRecord) => void): void {
   _pushQuizSession = fn;
+}
+
+export function unregisterPushQuizSession(): void {
+  _pushQuizSession = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -107,13 +160,26 @@ export async function fetchHistory(): Promise<QuizSessionRecord[]> {
 
 export async function saveSession(session: QuizSessionRecord): Promise<void> {
   const history = getLocalHistory();
+  const prevStreak = computeStreak(history);
+
   history.unshift(session);
   if (history.length > 50) history.length = 50;
   saveLocalHistory(history);
+
+  const nextStreak = computeStreak(history);
+
   // Task 9.1 — push to Sheets if registered
   if (_pushQuizSession) {
     _pushQuizSession(session);
   }
+
+  if (_pushStreakEvent) {
+    const event = inferStreakEvent(prevStreak, nextStreak, session);
+    if (event) {
+      _pushStreakEvent(event);
+    }
+  }
+
   // Notify in-app listeners (StreakRing, /progress) that a session was recorded.
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("ordsamling:quiz-recorded"));

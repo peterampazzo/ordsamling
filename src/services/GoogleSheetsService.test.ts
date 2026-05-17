@@ -9,6 +9,7 @@ import {
   deserializeLexiconRow,
   serializeQuizHistoryRow,
   deserializeQuizHistoryRow,
+  serializeStreakEventRow,
 } from './GoogleSheetsService';
 import type { LexisEntry } from '@/lib/lexicon';
 import type { QuizSessionRecord } from '@/lib/quizHistory';
@@ -53,6 +54,15 @@ function makeSession(overrides: Partial<QuizSessionRecord> = {}): QuizSessionRec
       },
     ],
     ...overrides,
+  };
+}
+
+function makeStreakEvent(overrides: Partial<{ timestamp: number; type: 'extended' | 'broken' | 'reset'; deviceId?: string; notes?: string }> = {}) {
+  return {
+    timestamp: overrides.timestamp ?? 1700000000000,
+    type: overrides.type ?? 'extended',
+    deviceId: overrides.deviceId,
+    notes: overrides.notes,
   };
 }
 
@@ -176,6 +186,18 @@ describe('serializeQuizHistoryRow / deserializeQuizHistoryRow round-trip', () =>
     const row = serializeQuizHistoryRow(session);
     const result = deserializeQuizHistoryRow(row);
     expect(result).toEqual(session);
+  });
+
+  it('serializes a streak event row correctly', () => {
+    const event = makeStreakEvent({ type: 'broken', deviceId: 'device-1', notes: 'lost streak' });
+    const row = serializeStreakEventRow(event);
+    expect(row).toEqual(['1700000000000', 'broken', 'device-1', 'lost streak']);
+  });
+
+  it('serializes optional streak event fields as empty strings when missing', () => {
+    const event = makeStreakEvent({ type: 'extended' });
+    const row = serializeStreakEventRow(event);
+    expect(row).toEqual(['1700000000000', 'extended', '', '']);
   });
 
   it('round-trips a "type" mode session', () => {
