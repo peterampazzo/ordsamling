@@ -16,7 +16,7 @@ import { AddEntryForm } from "@/components/AddEntryForm";
 import { LexisCard } from "@/components/LexisCard";
 import { SettingsDialog } from "@/components/SettingsDialog";
 import { useGoogleSheets } from "@/hooks/useGoogleSheets";
-import { registerPushQuizSession } from "@/lib/quizHistory";
+import { registerPushQuizSession, unregisterPushQuizSession, registerPushStreakEvent, unregisterPushStreakEvent } from "@/lib/quizHistory";
 import type { LexisEntry } from "@/hooks/useLexicon";
 import { ENTRY_TYPES, entryTypeLabel, stripInfinitiveMarker, type EntryType } from "@/lib/lexicon";
 
@@ -58,7 +58,7 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
     isLoading,
     isSaving,
   } = useLexicon({ demo });
-  const { syncState, connect, disconnect, syncNow, pushQuizSession } = useGoogleSheets();
+  const { syncState, connect, disconnect, syncNow, pushQuizSession, pushStreakEvent } = useGoogleSheets();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [addFormOpen, setAddFormOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -71,8 +71,17 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
 
   // Task 9.3 — register pushQuizSession so quizHistory module can push to Sheets
   useEffect(() => {
-    if (!demo) registerPushQuizSession(pushQuizSession);
-  }, [demo, pushQuizSession]);
+    if (!demo) {
+      registerPushQuizSession(pushQuizSession);
+      registerPushStreakEvent(pushStreakEvent);
+    }
+    return () => {
+      if (!demo) {
+        unregisterPushQuizSession();
+        unregisterPushStreakEvent();
+      }
+    };
+  }, [demo, pushQuizSession, pushStreakEvent]);
 
   // Task 7.1 — focus management for the Add Entry dialog
   // On open: move focus to the first input; on close: return focus to the trigger button
@@ -171,7 +180,7 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
                 <CloudSyncIndicator
                   status={syncState.status}
                   lastSyncAt={syncState.lastSyncAt}
-                  onClick={() => setSettingsOpen(true)}
+                  onClick={() => syncNow()}
                 />
                 <Button
                   type="button"

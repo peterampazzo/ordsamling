@@ -8,8 +8,8 @@
 import type { LexisEntry, EntryType } from '@/lib/lexicon';
 import { normalizeEntryType } from '@/lib/lexicon';
 import type { QuizSessionRecord, QuizAnswerRecord } from '@/lib/quizHistory';
-import type { SheetSettings } from '@/lib/sheetTypes';
-import { LEXICON_HEADERS, QUIZ_HISTORY_HEADERS, SETTINGS_HEADERS } from '@/lib/sheetTypes';
+import type { SheetSettings, StreakEvent } from '@/lib/sheetTypes';
+import { LEXICON_HEADERS, QUIZ_HISTORY_HEADERS, SETTINGS_HEADERS, STREAK_HISTORY_HEADERS } from '@/lib/sheetTypes';
 import type { GeminiModel } from '@/lib/storageConfig';
 
 // ---------------------------------------------------------------------------
@@ -94,8 +94,8 @@ async function sheetsRequest<T>(
 // ---------------------------------------------------------------------------
 
 /**
- * Serialize a LexisEntry to exactly 8 strings for the Lexicon sheet row.
- * Columns: [ID, Danish, English, Translations(JSON), Type, Grammar(JSON), Notes, CreatedAt]
+ * Serialize a LexisEntry to exactly 9 strings for the Lexicon sheet row.
+ * Columns: [ID, Danish, English, Translations(JSON), Type, Grammar(JSON), Notes, CreatedAt, UpdatedAt]
  */
 function serializeLexiconRow(entry: LexisEntry): string[] {
   return [
@@ -107,6 +107,7 @@ function serializeLexiconRow(entry: LexisEntry): string[] {
     entry.grammar !== undefined ? JSON.stringify(entry.grammar) : '',
     entry.notes,
     String(entry.createdAt),
+    String(entry.updatedAt),
   ];
 }
 
@@ -115,6 +116,7 @@ function serializeLexiconRow(entry: LexisEntry): string[] {
  * Returns null if row[0] is empty/missing (blank row).
  * Gracefully handles malformed JSON in columns 3 (translations) and 5 (grammar).
  * createdAt falls back to Date.now() if column 7 is not a valid number.
+ * updatedAt falls back to createdAt if column 8 is missing (for backward compatibility).
  */
 function deserializeLexiconRow(row: string[]): LexisEntry | null {
   if (!row || !row[0]) return null;
@@ -157,7 +159,12 @@ function deserializeLexiconRow(row: string[]): LexisEntry | null {
   const createdAtNum = Number(createdAtRaw);
   const createdAt = Number.isFinite(createdAtNum) && createdAtNum > 0 ? createdAtNum : Date.now();
 
-  return { id, danish, english, translations, type, grammar, notes, createdAt };
+  // updatedAt: fall back to createdAt for backward compatibility with old entries
+  const updatedAtRaw = row[8] ?? '';
+  const updatedAtNum = Number(updatedAtRaw);
+  const updatedAt = Number.isFinite(updatedAtNum) && updatedAtNum > 0 ? updatedAtNum : createdAt;
+
+  return { id, danish, english, translations, type, grammar, notes, createdAt, updatedAt };
 }
 
 /**
@@ -174,6 +181,15 @@ function serializeQuizHistoryRow(session: QuizSessionRecord): string[] {
     String(session.score),
     String(session.total),
     JSON.stringify(session.answers),
+  ];
+}
+
+function serializeStreakEventRow(event: StreakEvent): string[] {
+  return [
+    String(event.timestamp),
+    event.type,
+    event.deviceId ?? '',
+    event.notes ?? '',
   ];
 }
 
@@ -302,6 +318,9 @@ export class GoogleSheetsService {
       if (!existingTitles.has('QuizHistory')) {
         tabsToCreate.push({ title: 'QuizHistory', headers: QUIZ_HISTORY_HEADERS });
       }
+      if (!existingTitles.has('StreakHistory')) {
+        tabsToCreate.push({ title: 'StreakHistory', headers: STREAK_HISTORY_HEADERS });
+      }
       if (!existingTitles.has('Settings')) {
         tabsToCreate.push({ title: 'Settings', headers: SETTINGS_HEADERS });
       }
@@ -342,7 +361,7 @@ export class GoogleSheetsService {
   async readLexicon(spreadsheetId: string, accessToken: string): Promise<LexisEntry[]> {
     return withRetry(async () => {
       const result = await sheetsRequest<{ values?: string[][] }>(
-        `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent('Lexicon!A2:H')}`,
+        `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent('Lexicon!A2:I')}`,
         accessToken
       );
       const rows = result.values ?? [];
@@ -351,7 +370,7 @@ export class GoogleSheetsService {
   }
 
   /**
-   * Clear Lexicon!A2:H and write all entries in one values.update call.
+   * Clear Lexicon!A2:I and write all entries in one values.update call.
    */
   async batchWriteLexicon(
     spreadsheetId: string,
@@ -361,7 +380,7 @@ export class GoogleSheetsService {
     return withRetry(async () => {
       // 1. Clear existing data
       await sheetsRequest(
-        `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent('Lexicon!A2:H')}:clear`,
+        `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent('Lexicon!A2:I')}:clear`,
         accessToken,
         { method: 'POST', body: JSON.stringify({}) }
       );
@@ -406,7 +425,7 @@ export class GoogleSheetsService {
   ): Promise<void> {
     return withRetry(async () => {
       const result = await sheetsRequest<{ values?: string[][] }>(
-        `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent('Lexicon!A2:H')}`,
+        `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent('Lexicon!A2:I')}`,
         accessToken
       );
       const rows = result.values ?? [];
@@ -522,6 +541,21 @@ export class GoogleSheetsService {
     });
   }
 
+  async appendStreakEvent(
+    spreadsheetId: string,
+    event: StreakEvent,
+    accessToken: string
+  ): Promise<void> {
+    return withRetry(async () => {
+      const values = [serializeStreakEventRow(event)];
+      await sheetsRequest(
+        `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent('StreakHistory!A2')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+        accessToken,
+        { method: 'POST', body: JSON.stringify({ values }) }
+      );
+    });
+  }
+
   /**
    * Clear QuizHistory!A2:H and write all sessions in one values.update call.
    */
@@ -619,5 +653,6 @@ export class GoogleSheetsService {
 
 export { serializeLexiconRow, deserializeLexiconRow };
 export { serializeQuizHistoryRow, deserializeQuizHistoryRow };
+export { serializeStreakEventRow };
 
 export default GoogleSheetsService;

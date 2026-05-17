@@ -37,6 +37,7 @@ function normalizeEntry(entry: Partial<LexisEntry> & { italian?: unknown }): Lex
     type,
     grammar: normalizeGrammar(entry.grammar),
     createdAt: typeof entry.createdAt === "number" ? entry.createdAt : Date.now(),
+    updatedAt: typeof entry.updatedAt === "number" ? entry.updatedAt : Date.now(),
     ...(hasTrans ? { translations } : {}),
   };
 }
@@ -99,10 +100,12 @@ export function useLexicon({ demo = false }: { demo?: boolean } = {}) {
   // Task 8.5 — always use localStorage path (no isLocalStorageMode branch)
   const addMutation = useMutation({
     mutationFn: async (entry: LexisEntryInput) => {
+      const now = Date.now();
       const createdEntry = normalizeEntry({
         ...entry,
         id: crypto.randomUUID(),
-        createdAt: Date.now(),
+        createdAt: now,
+        updatedAt: now,
       });
       const nextEntries = [createdEntry, ...loadLocalEntries(storageKey)];
       saveLocalEntries(nextEntries, storageKey);
@@ -127,9 +130,10 @@ export function useLexicon({ demo = false }: { demo?: boolean } = {}) {
       id: string;
       updates: Partial<LexisEntryInput> & { grammar?: LexisEntry["grammar"] | null };
     }) => {
+      const now = Date.now();
       const nextEntries = loadLocalEntries(storageKey).map((entry) => {
         if (entry.id !== id) return entry;
-        const merged: LexisEntry = { ...entry, ...updates };
+        const merged: LexisEntry = { ...entry, ...updates, updatedAt: now };
         if (updates.grammar === null) {
           delete merged.grammar;
         } else if (updates.grammar !== undefined) {
@@ -164,7 +168,7 @@ export function useLexicon({ demo = false }: { demo?: boolean } = {}) {
       // Task 8.4 — push to Sheets after delete (skipped in demo)
       if (!demo) {
         pushEntry(
-          { id, danish: "", english: "", notes: "", type: "word" as const, createdAt: 0 },
+          { id, danish: "", english: "", notes: "", type: "word" as const, createdAt: 0, updatedAt: 0 },
           "delete",
         );
       }

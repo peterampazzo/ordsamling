@@ -9,6 +9,7 @@ import {
   deserializeLexiconRow,
   serializeQuizHistoryRow,
   deserializeQuizHistoryRow,
+  serializeStreakEventRow,
 } from './GoogleSheetsService';
 import type { LexisEntry } from '@/lib/lexicon';
 import type { QuizSessionRecord } from '@/lib/quizHistory';
@@ -18,13 +19,15 @@ import type { QuizSessionRecord } from '@/lib/quizHistory';
 // ---------------------------------------------------------------------------
 
 function makeEntry(overrides: Partial<LexisEntry> = {}): LexisEntry {
+  const createdAt = overrides.createdAt ?? 1700000000000;
   return {
     id: 'test-id-1',
     danish: 'hund',
     english: 'dog',
     type: 'noun',
     notes: 'a common animal',
-    createdAt: 1700000000000,
+    createdAt,
+    updatedAt: overrides.updatedAt ?? createdAt,
     ...overrides,
   };
 }
@@ -54,6 +57,15 @@ function makeSession(overrides: Partial<QuizSessionRecord> = {}): QuizSessionRec
   };
 }
 
+function makeStreakEvent(overrides: Partial<{ timestamp: number; type: 'extended' | 'broken' | 'reset'; deviceId?: string; notes?: string }> = {}) {
+  return {
+    timestamp: overrides.timestamp ?? 1700000000000,
+    type: overrides.type ?? 'extended',
+    deviceId: overrides.deviceId,
+    notes: overrides.notes,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // LexisEntry round-trip tests (one per entry type)
 // ---------------------------------------------------------------------------
@@ -62,7 +74,7 @@ describe('serializeLexiconRow / deserializeLexiconRow round-trip', () => {
   it('round-trips a "word" entry', () => {
     const entry = makeEntry({ type: 'word', id: 'w1', danish: 'god', english: 'good' });
     const row = serializeLexiconRow(entry);
-    expect(row).toHaveLength(8);
+    expect(row).toHaveLength(9);
     const result = deserializeLexiconRow(row);
     expect(result).toEqual(entry);
   });
@@ -81,7 +93,7 @@ describe('serializeLexiconRow / deserializeLexiconRow round-trip', () => {
       },
     });
     const row = serializeLexiconRow(entry);
-    expect(row).toHaveLength(8);
+    expect(row).toHaveLength(9);
     const result = deserializeLexiconRow(row);
     expect(result).toEqual(entry);
   });
@@ -99,6 +111,7 @@ describe('serializeLexiconRow / deserializeLexiconRow round-trip', () => {
       },
     });
     const row = serializeLexiconRow(entry);
+    expect(row).toHaveLength(9);
     const result = deserializeLexiconRow(row);
     expect(result).toEqual(entry);
   });
@@ -118,6 +131,7 @@ describe('serializeLexiconRow / deserializeLexiconRow round-trip', () => {
       },
     });
     const row = serializeLexiconRow(entry);
+    expect(row).toHaveLength(9);
     const result = deserializeLexiconRow(row);
     expect(result).toEqual(entry);
   });
@@ -132,6 +146,7 @@ describe('serializeLexiconRow / deserializeLexiconRow round-trip', () => {
       notes: 'common phrase',
     });
     const row = serializeLexiconRow(entry);
+    expect(row).toHaveLength(9);
     const result = deserializeLexiconRow(row);
     expect(result).toEqual(entry);
   });
@@ -144,8 +159,10 @@ describe('serializeLexiconRow / deserializeLexiconRow round-trip', () => {
       type: 'word',
       notes: '',
       createdAt: 1234567890,
+      updatedAt: 1234567890,
     };
     const row = serializeLexiconRow(entry);
+    expect(row).toHaveLength(9);
     const result = deserializeLexiconRow(row);
     expect(result).toEqual(entry);
   });
@@ -169,6 +186,18 @@ describe('serializeQuizHistoryRow / deserializeQuizHistoryRow round-trip', () =>
     const row = serializeQuizHistoryRow(session);
     const result = deserializeQuizHistoryRow(row);
     expect(result).toEqual(session);
+  });
+
+  it('serializes a streak event row correctly', () => {
+    const event = makeStreakEvent({ type: 'broken', deviceId: 'device-1', notes: 'lost streak' });
+    const row = serializeStreakEventRow(event);
+    expect(row).toEqual(['1700000000000', 'broken', 'device-1', 'lost streak']);
+  });
+
+  it('serializes optional streak event fields as empty strings when missing', () => {
+    const event = makeStreakEvent({ type: 'extended' });
+    const row = serializeStreakEventRow(event);
+    expect(row).toEqual(['1700000000000', 'extended', '', '']);
   });
 
   it('round-trips a "type" mode session', () => {
@@ -220,6 +249,7 @@ describe('deserializeLexiconRow edge cases', () => {
     expect(result!.grammar).toBeUndefined();
     // createdAt falls back to Date.now() — just check it's a positive number
     expect(result!.createdAt).toBeGreaterThan(0);
+    expect(result!.updatedAt).toBe(result!.createdAt);
   });
 
   it('falls back createdAt to Date.now() when column 7 is not a valid number', () => {

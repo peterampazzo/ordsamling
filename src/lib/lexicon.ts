@@ -110,9 +110,10 @@ export interface LexisEntry {
   type: EntryType;
   grammar?: EntryGrammar;
   createdAt: number;
+  updatedAt: number;
 }
 
-export type LexisEntryInput = Omit<LexisEntry, "id" | "createdAt">;
+export type LexisEntryInput = Omit<LexisEntry, "id" | "createdAt" | "updatedAt">;
 
 /** Read a translation safely (returns empty string when missing). */
 export function getTranslation(entry: Pick<LexisEntry, "translations">, code: string): string {
