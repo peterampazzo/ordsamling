@@ -74,13 +74,15 @@ import type { QuizSessionRecord } from '@/lib/quizHistory';
 // ---------------------------------------------------------------------------
 
 function makeEntry(id: string): LexisEntry {
+  const now = Date.now();
   return {
     id,
     danish: 'hund',
     english: 'dog',
     notes: '',
     type: 'noun',
-    createdAt: Date.now(),
+    createdAt: now,
+    updatedAt: now,
   };
 }
 

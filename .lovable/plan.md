@@ -1,54 +1,76 @@
-# Onboarding inside `/demo`
+# Harden Google Drive sync against stale overwrites
 
-## Why
-`/demo` is already the "try without commitment" surface with pre-seeded entries. Instead of building a separate onboarding flow that has to guard against overwriting real user data, the tour runs *only* on `/demo`, on top of the already-seeded sample deck. One code path for sample data, no new route, no new flag.
+## Goals
+- Prevent older local data from overwriting newer sheet data.
+- Guarantee offline-saved changes are retried until they upload.
+- Warn clearly when sync is stale, blocked, or auth has expired.
+- Keep quiz history append-only so locally saved quiz results are not lost.
 
-## New behaviour
+## What will change
 
-### 1. First visit to `/demo` → 3-step tour
-A lightweight tooltip controller overlays the existing UI and walks the user through:
+### 1. Stop full-sheet rewrites in normal sync paths
+- Keep `Lexicon` writes row-level (`append`, `update`, `delete`) during normal app use.
+- Keep `QuizHistory` and `StreakHistory` append-only during normal app use.
+- Restrict full-sheet operations to initial migration/recovery only, not routine syncing.
+- Update migration/reconnect flow so it merges before any bulk rewrite, instead of blindly clearing tabs.
 
-1. **Add an entry** — anchored to the AddEntryForm Danish input
-2. **Quiz yourself** — anchored to the Quiz link in the header
-3. **Track progress** — anchored to the StreakRing in the header
+### 2. Prevent stale entries from overwriting newer remote rows
+- In `useGoogleSheets`, after pulling latest remote data before a write, re-read the merged local row by `entry.id`.
+- If the merged version is newer than the pending local payload, skip the write and mark it as superseded instead of pushing stale data.
+- Apply the same protection to deletes so an older device cannot delete a newer remote edit.
+- Preserve last-write-wins by `updatedAt`, but make it safe.
 
-Footer controls: `Skip` · `Back` · `Next` / `Done`. Dismissal stored in `localStorage` under `ordsamling-demo-tour-seen`. Returning demo visitors don't see it again. Pressing `Esc` skips. Tour does not block interaction with the page — it's a sequence of popovers, not a modal.
+### 3. Make the dirty queue reliable for weak/offline connectivity
+- Treat offline save as durable local success first, remote sync second.
+- Ensure all failed writes queue with enough information to retry later.
+- Add retry triggers beyond the current ones: app startup, tab focus, visibility change, manual sync, and network reconnect.
+- Retry the queue in order and only remove items after confirmed success.
+- Add deduping/coalescing for repeated updates to the same lexicon entry so the queue does not grow with obsolete edits.
+- Keep quiz sessions append-only in the queue so a locally saved result always gets another chance to upload.
 
-### 2. `/app` empty state → "Try the demo" CTA
-When the real user's lexicon is empty AND demo mode is off, show a single secondary CTA under the empty-state copy: "New here? Take the 30-second tour →" linking to `/demo`. No second sample-deck loader inside `/app`.
+### 4. Surface out-of-sync state clearly in the UI
+- Add a visible sync status banner for important states:
+  - auth expired
+  - sync conflict / remote newer than local
+  - pending unsynced changes
+  - sync failed repeatedly
+- Keep the compact cloud icon, but make it secondary to the banner for important states.
+- Show a reconnect action when Google auth has expired.
+- Show retry / sync-now actions when there are queued local changes.
+- Make disconnected/expired state visible even if the user is not looking for the tiny icon.
 
-### 3. Landing page → optional tour entry
-Add a secondary "Take the tour" button next to the existing demo CTA on `/pages/Landing.tsx`, pointing at `/demo`. Same destination as today; the copy just frames it as a guided experience.
+### 5. Handle 7-day Google test-mode expiry more safely
+- On app load and when returning to the tab, proactively check whether auth is expired.
+- If expired, switch to an explicit blocked-sync state instead of silently continuing as if sync were healthy.
+- Continue saving locally while auth is expired, but clearly show that remote sync is paused until reconnect.
+- After reconnect, flush the queue before any new pull/push cycle.
 
-## Implementation
+### 6. Preserve quiz results saved under bad coverage
+- Make queued `quiz_history` uploads retry automatically on every relevant retry trigger.
+- Add a stronger recovery path so pending quiz sessions are pushed after reconnect or when connection returns.
+- Show pending count/status in the sync UI so the user knows local quiz results are waiting to upload.
 
-### New file
-- **`src/components/DemoTour.tsx`** — Tour controller. Uses shadcn `Popover` anchored to elements found via `document.querySelector('[data-tour="..."]')`. Holds step index in local state, writes the seen flag on completion or skip. Auto-scrolls the anchor into view between steps. Renders nothing when the seen flag is set or when not in demo mode.
+## Files likely involved
+- `src/hooks/useGoogleSheets.ts`
+- `src/services/GoogleSheetsService.ts`
+- `src/lib/migration.ts`
+- `src/components/CloudSyncIndicator.tsx`
+- shared layout/page container where a sync banner should mount
+- `src/i18n/en.yaml`
+- `src/i18n/da.yaml`
+- sync-related tests in `src/hooks` / `src/services`
 
-### Edited files
-- **`src/pages/DemoEntry.tsx`** — Mount `<DemoTour />` once at the page root, after `<Index demo />`.
-- **`src/components/AddEntryForm.tsx`** — Add `data-tour="add"` to the Danish input wrapper.
-- **`src/components/layout/PageHeader.tsx`** — Add `data-tour="quiz"` to the Quiz nav link.
-- **`src/components/StreakRing.tsx`** — Add `data-tour="progress"` to the root link.
-- **`src/pages/Index.tsx`** — In the empty-state branch, render a "Take the tour" link to `/demo` when `!demo && entries.length === 0`.
-- **`src/pages/Landing.tsx`** — Add a secondary "Take the tour" button → `/demo`.
-- **`src/i18n/en.yaml` + `src/i18n/da.yaml`** — Add `onboarding.tour.step1.{title,body}`, `step2.*`, `step3.*`, `skip`, `back`, `next`, `done`, plus `index.emptyState.tourCta` and `landing.takeTour`.
+## Technical details
+- Add a guarded write path that compares pending local payloads against the freshest merged local/remote state before writing.
+- Introduce explicit sync sub-states/messages for `expired`, `pending`, `conflict`, and `retrying`.
+- Keep append-only history tabs append-only; do not replace them during normal operation.
+- Bulk rewrite methods remain available only for migration/recovery flows and must merge first.
+- Add tests for:
+  - stale local update skipped when remote is newer
+  - stale delete skipped when remote is newer
+  - offline quiz result enters queue and is retried on reconnect/focus/startup
+  - expired auth shows blocked-sync UI while preserving local saves
+  - queue items are removed only after confirmed upload
 
-### Storage key
-- `ordsamling-demo-tour-seen` — set to `"1"` on completion or skip. Cleared if the user manually clears localStorage; no replay UI in v1.
-
-## Out of scope
-- No tour replay button (can add later)
-- No tour on `/app` — sample data and onboarding stay isolated to `/demo`
-- No analytics — dismissal is local-only
-- No changes to existing `/demo` seeding or exit flow
-
-## Files touched
-- `src/components/DemoTour.tsx` (new)
-- `src/pages/DemoEntry.tsx`
-- `src/pages/Index.tsx`
-- `src/pages/Landing.tsx`
-- `src/components/AddEntryForm.tsx`
-- `src/components/layout/PageHeader.tsx`
-- `src/components/StreakRing.tsx`
-- `src/i18n/en.yaml`, `src/i18n/da.yaml`
+## Result
+The app will still work offline-first, but older devices won’t clobber newer data, expired Google auth will be obvious, and locally saved quiz results will keep retrying until they reach the sheet.
