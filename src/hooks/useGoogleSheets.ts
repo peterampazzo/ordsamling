@@ -477,7 +477,11 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
         spreadsheetId: updatedConfig.spreadsheetId,
         connectedEmail: updatedConfig.connectedEmail,
         errorMessage: null,
+        pendingCount: getDirtyQueue().length,
+        sessionExpired: false,
       });
+      // Flush anything queued while auth was missing.
+      void retryDirtyQueue().then(refreshPendingCount);
     }
 
     window.addEventListener('ordsamling:oauth-complete', handleOAuthComplete);
@@ -516,6 +520,8 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
       spreadsheetId: null,
       connectedEmail: null,
       errorMessage: null,
+      pendingCount: 0,
+      sessionExpired: false,
     });
   }, []);
 
