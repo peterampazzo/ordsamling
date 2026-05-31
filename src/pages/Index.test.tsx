@@ -13,7 +13,7 @@ vi.mock('@/hooks/useGoogleSheets', () => ({
 }));
 
 vi.mock('@/lib/quizHistory', async (importOriginal) => {
-  const actual = await importOriginal();
+  const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
     registerPushQuizSession: vi.fn(),

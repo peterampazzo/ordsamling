@@ -224,6 +224,7 @@ describe('Preservation: Lexicon and Quiz Sync Behavior', () => {
         type: 'noun',
         notes: '',
         createdAt: Date.now(),
+        updatedAt: Date.now(),
       };
 
       result.current.pushEntry(testEntry, 'add');

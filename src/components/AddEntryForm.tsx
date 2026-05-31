@@ -13,7 +13,7 @@ import { getLanguageLabel, getGeminiApiKey } from "@/lib/settings";
 import { autocompleteSingleWord, autocompleteVerbForms, GeminiRateLimitError, GeminiUnavailableError } from "@/lib/gemini";
 
 interface Props {
-  onAdd: (entry: Omit<LexisEntry, "id" | "createdAt">) => Promise<void>;
+  onAdd: (entry: import("@/lib/lexicon").LexisEntryInput) => Promise<void>;
   onCancel: () => void;
   onEdit: (id: string) => void;
   findMatches: (query: string) => LexisEntry[];

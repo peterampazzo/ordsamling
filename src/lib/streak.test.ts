@@ -136,9 +136,9 @@ describe("wordsPracticedToday", () => {
 describe("wordsAddedPerWeek", () => {
   it("buckets entries into the requested number of weeks ending now", () => {
     const entries: LexisEntry[] = [
-      { id: "1", danish: "a", english: "a", notes: "", type: "word", createdAt: NOON_TODAY },
-      { id: "2", danish: "b", english: "b", notes: "", type: "word", createdAt: NOON_TODAY - 8 * DAY },
-      { id: "3", danish: "c", english: "c", notes: "", type: "word", createdAt: NOON_TODAY - 100 * DAY },
+      { id: "1", danish: "a", english: "a", notes: "", type: "word", createdAt: NOON_TODAY, updatedAt: NOON_TODAY },
+      { id: "2", danish: "b", english: "b", notes: "", type: "word", createdAt: NOON_TODAY - 8 * DAY, updatedAt: NOON_TODAY - 8 * DAY },
+      { id: "3", danish: "c", english: "c", notes: "", type: "word", createdAt: NOON_TODAY - 100 * DAY, updatedAt: NOON_TODAY - 100 * DAY },
     ];
     const r = wordsAddedPerWeek(entries, 4, NOON_TODAY);
     expect(r).toHaveLength(4);
