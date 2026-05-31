@@ -45,6 +45,8 @@ export interface SyncState {
   sessionExpired: boolean;
 }
 
+const SESSION_EXPIRED = 'session_expired';
+
 /**
  * Pure conflict detection. A conflict exists when we have unsynced local
  * changes (`localDirty`) AND the remote sheet was updated after we last
@@ -141,6 +143,24 @@ export function mergeSheetsIntoLocal(
 
 function addToDirtyQueue(op: Omit<DirtyOperation, 'id' | 'timestamp'>): void {
   const queue = getDirtyQueue();
+  // Coalesce: drop any earlier queued lexicon update/add for the same entry id
+  // so the queue never grows with obsolete edits of the same row. Deletes are
+  // kept (a delete supersedes earlier adds/updates).
+  if (op.type === 'lexicon' && (op.operation === 'add' || op.operation === 'update')) {
+    const incomingEntry = op.payload as LexisEntry;
+    const incomingId = incomingEntry?.id;
+    if (incomingId) {
+      for (let i = queue.length - 1; i >= 0; i--) {
+        const existing = queue[i];
+        if (existing.type !== 'lexicon') continue;
+        if (existing.operation === 'delete') continue;
+        const existingEntry = existing.payload as LexisEntry;
+        if (existingEntry?.id === incomingId) {
+          queue.splice(i, 1);
+        }
+      }
+    }
+  }
   queue.push({ ...op, id: crypto.randomUUID(), timestamp: Date.now() });
   setDirtyQueue(queue);
 }
