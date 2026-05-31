@@ -292,7 +292,19 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
     spreadsheetId: config.spreadsheetId,
     connectedEmail: config.connectedEmail,
     errorMessage: null,
+    pendingCount: getDirtyQueue().length,
+    sessionExpired: false,
   });
+
+  // Keep `pendingCount` and `sessionExpired` in the state object whenever the
+  // dirty queue or auth status changes.
+  const refreshPendingCount = useCallback(() => {
+    setSyncState((prev) => {
+      const count = getDirtyQueue().length;
+      if (prev.pendingCount === count) return prev;
+      return { ...prev, pendingCount: count };
+    });
+  }, []);
 
   // Debounce timer map: entry.id → timer handle
   const debounceMap = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
