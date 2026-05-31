@@ -43,9 +43,11 @@ describe('Preservation: Lexicon and Quiz Sync Behavior', () => {
   let mockAppendStreakEvent: ReturnType<typeof vi.fn>;
   let mockReadSettings: ReturnType<typeof vi.fn>;
   let mockReadLexicon: ReturnType<typeof vi.fn>;
+  let dirtyQueue: storageConfig.DirtyOperation[];
 
   beforeEach(() => {
     localStorage.clear();
+    dirtyQueue = [];
     
     mockWriteLexiconRow = vi.fn().mockResolvedValue(undefined);
     mockUpdateLexiconRow = vi.fn().mockResolvedValue(undefined);
@@ -76,8 +78,10 @@ describe('Preservation: Lexicon and Quiz Sync Behavior', () => {
     });
 
     vi.mocked(storageConfig.isCloudSyncEnabled).mockReturnValue(true);
-    vi.mocked(storageConfig.getDirtyQueue).mockReturnValue([]);
-    vi.mocked(storageConfig.setDirtyQueue).mockImplementation(() => {});
+    vi.mocked(storageConfig.getDirtyQueue).mockImplementation(() => [...dirtyQueue]);
+    vi.mocked(storageConfig.setDirtyQueue).mockImplementation((queue) => {
+      dirtyQueue = [...queue];
+    });
   });
 
   afterEach(() => {
@@ -339,7 +343,7 @@ describe('Preservation: Lexicon and Quiz Sync Behavior', () => {
       const originalOnLine = Object.getOwnPropertyDescriptor(window.navigator, 'onLine');
       Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true });
 
-      vi.mocked(storageConfig.getDirtyQueue).mockReturnValueOnce([
+      dirtyQueue = [
         {
           id: 'dirty-quiz-1',
           type: 'quiz_history',
@@ -347,7 +351,7 @@ describe('Preservation: Lexicon and Quiz Sync Behavior', () => {
           payload: queuedSession,
           timestamp: Date.now() - 2000,
         },
-      ]);
+      ];
 
       const { result } = renderHook(() => useGoogleSheets());
       await waitFor(() => {
@@ -397,7 +401,7 @@ describe('Preservation: Lexicon and Quiz Sync Behavior', () => {
       const originalOnLine = Object.getOwnPropertyDescriptor(window.navigator, 'onLine');
       Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true });
 
-      vi.mocked(storageConfig.getDirtyQueue).mockReturnValueOnce([
+      dirtyQueue = [
         {
           id: 'dirty-streak-1',
           type: 'streak_event',
@@ -405,7 +409,7 @@ describe('Preservation: Lexicon and Quiz Sync Behavior', () => {
           payload: queuedEvent,
           timestamp: Date.now() - 2000,
         },
-      ]);
+      ];
 
       const { result } = renderHook(() => useGoogleSheets());
       await waitFor(() => {
