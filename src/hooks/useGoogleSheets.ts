@@ -768,7 +768,13 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
       const accessToken = await getValidAccessToken();
       if (!accessToken) {
         addToDirtyQueue({ type: 'streak_event', operation: 'add', payload: event });
-        setSyncState((prev) => ({ ...prev, status: 'dirty' }));
+        setSyncState((prev) => ({
+          ...prev,
+          status: 'error',
+          errorMessage: SESSION_EXPIRED,
+          sessionExpired: true,
+          pendingCount: getDirtyQueue().length,
+        }));
         return;
       }
 
@@ -779,10 +785,19 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
       try {
         await retryDirtyQueue();
         await sheetsService.appendStreakEvent(spreadsheetId, event, accessToken);
+        setSyncState((prev) => ({
+          ...prev,
+          pendingCount: getDirtyQueue().length,
+          sessionExpired: false,
+        }));
       } catch (err) {
         console.error('pushStreakEvent failed:', err);
         addToDirtyQueue({ type: 'streak_event', operation: 'add', payload: event });
-        setSyncState((prev) => ({ ...prev, status: 'dirty' }));
+        setSyncState((prev) => ({
+          ...prev,
+          status: 'dirty',
+          pendingCount: getDirtyQueue().length,
+        }));
       }
     })();
   }, [retryDirtyQueue, sheetsService]);
