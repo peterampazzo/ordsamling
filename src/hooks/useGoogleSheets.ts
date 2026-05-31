@@ -337,7 +337,8 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
           setSyncState((prev) => ({
             ...prev,
             status: 'error',
-            errorMessage: 'Session expired. Please reconnect.',
+            errorMessage: SESSION_EXPIRED,
+            sessionExpired: true,
           }));
         }
         return;
@@ -387,7 +388,11 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
             status: 'idle',
             lastSyncAt: Date.now(),
             errorMessage: null,
+            sessionExpired: false,
+            pendingCount: getDirtyQueue().length,
           }));
+          // Flush any operations queued while we were offline / pre-load.
+          void retryDirtyQueue();
         }
       } catch (err) {
         console.error('syncOnLoad failed:', err);
@@ -410,11 +415,40 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
-    window.addEventListener('online', retryDirtyQueue);
-    return () => {
-      window.removeEventListener('online', retryDirtyQueue);
+    const handler = () => {
+      void retryDirtyQueue().then(refreshPendingCount);
     };
-  }, [retryDirtyQueue]);
+    const handleVisibility = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!isCloudSyncEnabled()) return;
+      // Check token health when the user returns to the tab. If expired, surface
+      // it immediately so the banner appears before any new edits go out.
+      void (async () => {
+        const token = await getValidAccessToken();
+        if (!token) {
+          setSyncState((prev) => ({
+            ...prev,
+            status: 'error',
+            errorMessage: SESSION_EXPIRED,
+            sessionExpired: true,
+          }));
+          return;
+        }
+        setSyncState((prev) =>
+          prev.sessionExpired ? { ...prev, sessionExpired: false, errorMessage: null } : prev,
+        );
+        void retryDirtyQueue().then(refreshPendingCount);
+      })();
+    };
+    window.addEventListener('online', handler);
+    window.addEventListener('focus', handleVisibility);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('online', handler);
+      window.removeEventListener('focus', handleVisibility);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [retryDirtyQueue, refreshPendingCount]);
 
   // ---------------------------------------------------------------------------
   // Settings sync — listen for "ordsamling:settings-dirty" events
