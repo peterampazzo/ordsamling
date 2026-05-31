@@ -255,8 +255,11 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
       }
     }
 
-    if (getDirtyQueue().length === 0) {
-      setSyncState((prev) => ({ ...prev, status: 'idle', errorMessage: null }));
+    const finalCount = getDirtyQueue().length;
+    if (finalCount === 0) {
+      setSyncState((prev) => ({ ...prev, status: 'idle', errorMessage: null, pendingCount: 0 }));
+    } else {
+      setSyncState((prev) => ({ ...prev, pendingCount: finalCount }));
     }
   }, [refreshRemoteEntries, sheetsService]);
 
