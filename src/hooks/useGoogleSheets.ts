@@ -624,13 +624,30 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
         clearTimeout(existing);
       }
 
+      const queuePayload = op === 'delete' ? entry.id : entry;
+      const markDirty = () => {
+        addToDirtyQueue({ type: 'lexicon', operation: op, payload: queuePayload });
+        setSyncState((prev) => ({
+          ...prev,
+          status: 'dirty',
+          pendingCount: getDirtyQueue().length,
+        }));
+      };
+
       const timer = setTimeout(async () => {
         debounceMap.current.delete(entry.id);
 
         const accessToken = await getValidAccessToken();
         if (!accessToken) {
-          addToDirtyQueue({ type: 'lexicon', operation: op, payload: op === 'delete' ? entry.id : entry });
-          setSyncState((prev) => ({ ...prev, status: 'dirty' }));
+          // Queue + flag the session as expired so the banner can prompt reconnect.
+          addToDirtyQueue({ type: 'lexicon', operation: op, payload: queuePayload });
+          setSyncState((prev) => ({
+            ...prev,
+            status: 'error',
+            errorMessage: SESSION_EXPIRED,
+            sessionExpired: true,
+            pendingCount: getDirtyQueue().length,
+          }));
           return;
         }
 
@@ -640,9 +657,39 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
 
         const ready = await syncBeforeWrite(spreadsheetId, accessToken);
         if (!ready) {
-          addToDirtyQueue({ type: 'lexicon', operation: op, payload: op === 'delete' ? entry.id : entry });
-          setSyncState((prev) => ({ ...prev, status: 'dirty' }));
+          markDirty();
           return;
+        }
+
+        // Stale-write guard — after syncBeforeWrite merged in the remote rows,
+        // compare the merged local row to the pending payload. If the merged
+        // version is newer (another device updated this row), drop the push.
+        if (op !== 'delete') {
+          try {
+            const localRaw = localStorage.getItem(getEntriesStorageKey());
+            const localEntries: LexisEntry[] = localRaw ? (JSON.parse(localRaw) as LexisEntry[]) : [];
+            const merged = localEntries.find((e) => e.id === entry.id);
+            if (merged && merged.updatedAt > entry.updatedAt) {
+              // Remote is newer — our payload is stale. Skip the write.
+              setSyncState((prev) => ({ ...prev, pendingCount: getDirtyQueue().length }));
+              return;
+            }
+          } catch {
+            // best-effort guard — fall through to write
+          }
+        } else {
+          // Delete guard: if remote has a newer version, don't delete it.
+          try {
+            const localRaw = localStorage.getItem(getEntriesStorageKey());
+            const localEntries: LexisEntry[] = localRaw ? (JSON.parse(localRaw) as LexisEntry[]) : [];
+            const merged = localEntries.find((e) => e.id === entry.id);
+            if (merged && merged.updatedAt > entry.updatedAt) {
+              setSyncState((prev) => ({ ...prev, pendingCount: getDirtyQueue().length }));
+              return;
+            }
+          } catch {
+            // fall through
+          }
         }
 
         try {
@@ -653,10 +700,14 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
           } else if (op === 'delete') {
             await sheetsService.deleteLexiconRow(spreadsheetId, entry.id, accessToken);
           }
+          setSyncState((prev) => ({
+            ...prev,
+            pendingCount: getDirtyQueue().length,
+            sessionExpired: false,
+          }));
         } catch (err) {
           console.error('pushEntry failed:', err);
-          addToDirtyQueue({ type: 'lexicon', operation: op, payload: op === 'delete' ? entry.id : entry });
-          setSyncState((prev) => ({ ...prev, status: 'dirty' }));
+          markDirty();
         }
       }, 1000);
 
@@ -676,7 +727,13 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
       const accessToken = await getValidAccessToken();
       if (!accessToken) {
         addToDirtyQueue({ type: 'quiz_history', operation: 'add', payload: session });
-        setSyncState((prev) => ({ ...prev, status: 'dirty' }));
+        setSyncState((prev) => ({
+          ...prev,
+          status: 'error',
+          errorMessage: SESSION_EXPIRED,
+          sessionExpired: true,
+          pendingCount: getDirtyQueue().length,
+        }));
         return;
       }
 
@@ -687,10 +744,19 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
       try {
         await retryDirtyQueue();
         await sheetsService.appendQuizSession(spreadsheetId, session, accessToken);
+        setSyncState((prev) => ({
+          ...prev,
+          pendingCount: getDirtyQueue().length,
+          sessionExpired: false,
+        }));
       } catch (err) {
         console.error('pushQuizSession failed:', err);
         addToDirtyQueue({ type: 'quiz_history', operation: 'add', payload: session });
-        setSyncState((prev) => ({ ...prev, status: 'dirty' }));
+        setSyncState((prev) => ({
+          ...prev,
+          status: 'dirty',
+          pendingCount: getDirtyQueue().length,
+        }));
       }
     })();
   }, [retryDirtyQueue, sheetsService]);
