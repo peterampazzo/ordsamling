@@ -39,6 +39,10 @@ export interface SyncState {
   spreadsheetId: string | null;
   connectedEmail: string | null;
   errorMessage: string | null;
+  /** Number of operations waiting in the local dirty queue. */
+  pendingCount: number;
+  /** True when getValidAccessToken returned null while cloud sync was enabled. */
+  sessionExpired: boolean;
 }
 
 /**
