@@ -479,6 +479,7 @@ const Quiz = () => {
   const [timeLeft, setTimeLeft] = useState(0);
   const [timerActive, setTimerActive] = useState(false);
   const [aiActive, setAiActive] = useState(false);
+  const [mistakeIds, setMistakeIds] = useState<Set<string>>(() => getMistakeEntryIds(loadHistory()));
 
   const answersRef = useRef<QuizAnswerRecord[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
