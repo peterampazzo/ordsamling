@@ -331,8 +331,10 @@ function buildQuestions(
   // For completion mode (or mixed questions that are completion), add masked versions
   for (const q of picked) {
     const isCompletion = mode === "completion" || q.displayMode === "completion";
-    if (isCompletion && !q.masked) {
-      q.masked = makeBlank(q.answer);
+    if (isCompletion) {
+      const primary = primaryForm(q.answer);
+      q.answer = primary;
+      if (!q.masked) q.masked = makeBlank(primary);
     }
   }
 
