@@ -641,6 +641,7 @@ const Quiz = () => {
     } catch (error) {
       console.error("Failed to save quiz history:", error);
     }
+    setMistakeIds(getMistakeEntryIds(loadHistory()));
     setState("result");
   }, [mode, score, total]);
 
