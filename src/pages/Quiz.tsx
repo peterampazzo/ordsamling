@@ -790,9 +790,20 @@ const Quiz = () => {
                 <p className="text-xs text-muted-foreground">{t("quiz.questionsAvailable", { count: eligibleCount })}</p>
               </section>
 
-              <Button onClick={startQuiz} disabled={eligibleCount < 2} className="w-full h-11 text-base">
-                {t("quiz.startQuiz")}
-              </Button>
+              <div className="space-y-2">
+                <Button onClick={() => startQuiz()} disabled={eligibleCount < 2} className="w-full h-11 text-base">
+                  {t("quiz.startQuiz")}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => startQuiz({ restrictIds: trainableMistakeIds })}
+                  disabled={trainableMistakeIds.size < 2}
+                  className="w-full h-11 text-base"
+                  title={trainableMistakeIds.size < 2 ? t("quiz.trainMistakesNone") : undefined}
+                >
+                  {t("quiz.trainMistakes", { count: trainableMistakeIds.size })}
+                </Button>
+              </div>
             </>
           )}
         </main>
