@@ -569,9 +569,11 @@ const Quiz = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIdx, state]);
 
-  const startQuiz = useCallback(() => {
+  const startQuiz = useCallback((opts?: { restrictIds?: Set<string> }) => {
     let pool = allEntries;
-    if (smartPractice) {
+    if (opts?.restrictIds && opts.restrictIds.size > 0) {
+      pool = allEntries.filter((e) => opts.restrictIds!.has(e.id));
+    } else if (smartPractice) {
       const dueIds = new Set(pickDue(loadBoxStates(), allEntries.map((e) => e.id)));
       const dueEntries = allEntries.filter((e) => dueIds.has(e.id));
       // Fall back to full pool if there isn't enough due material to build a quiz.
@@ -590,6 +592,11 @@ const Quiz = () => {
     setTimerActive(true);
     setState("playing");
   }, [allEntries, questionCount, difficulty, mode, activeDirections, smartPractice]);
+
+  const trainableMistakeIds = useMemo(
+    () => new Set([...mistakeIds].filter((id) => allEntries.some((e) => e.id === id))),
+    [mistakeIds, allEntries],
+  );
 
   const submitAnswer = useCallback(
     (answer: string) => {
