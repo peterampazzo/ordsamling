@@ -126,6 +126,8 @@ quiz:
   dirMixed: "Blandet"
   smartPractice: "Smart træning"
   smartPracticeDesc: "Fokusér på ord, der er klar til repetition (spaced repetition)"
+  trainMistakes: "Træn fejl ({count})"
+  trainMistakesNone: "Ingen fejl at træne — svar forkert på nogle spørgsmål først"
 
 quizHistory:
   title: "Quizhistorik"
