@@ -848,10 +848,22 @@ const Quiz = () => {
               </div>
             </div>
 
-            <div className="flex gap-3 justify-center pt-2">
-              <Button variant="outline" onClick={() => setState("setup")}><ArrowLeft className="h-4 w-4 mr-1" /> {t("common.settings")}</Button>
-              <Button onClick={startQuiz}><RotateCcw className="h-4 w-4 mr-1" /> {t("quiz.tryAgain")}</Button>
-            </div>
+            {(() => {
+              const wrongIds = new Set(
+                sessionAnswers.filter((a) => !a.correct && !a.skipped && a.entryId).map((a) => a.entryId),
+              );
+              return (
+                <div className="flex flex-wrap gap-3 justify-center pt-2">
+                  <Button variant="outline" onClick={() => setState("setup")}><ArrowLeft className="h-4 w-4 mr-1" /> {t("common.settings")}</Button>
+                  <Button onClick={() => startQuiz()}><RotateCcw className="h-4 w-4 mr-1" /> {t("quiz.tryAgain")}</Button>
+                  {wrongIds.size >= 2 && (
+                    <Button variant="secondary" onClick={() => startQuiz({ restrictIds: wrongIds })}>
+                      <Brain className="h-4 w-4 mr-1" /> {t("quiz.trainMistakes", { count: wrongIds.size })}
+                    </Button>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </main>
       </div>
