@@ -24,7 +24,7 @@ import { useLexicon } from "@/hooks/useLexicon";
 import { fetchDistractors, GeminiKeyMissingError } from "@/lib/gemini";import { toast } from "@/components/ui/sonner";
 import type { LexisEntry } from "@/hooks/useLexicon";
 import { entryTypeLabel, type EntryGrammar } from "@/lib/lexicon";
-import { saveSession, recordReview, loadBoxStates, pickDue, type QuizAnswerRecord } from "@/lib/quizHistory";
+import { saveSession, recordReview, loadBoxStates, pickDue, loadHistory, getMistakeEntryIds, type QuizAnswerRecord } from "@/lib/quizHistory";
 import { useVisibleLanguages } from "@/hooks/useVisibleLanguages";
 import { t } from "@/i18n";
 
