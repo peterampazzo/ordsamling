@@ -118,37 +118,53 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
+/** Strip parenthesized hidden context, e.g. "read (someone)" -> "read". */
+function stripParens(s: string): string {
+  return s.replace(/\s*\([^)]*\)/g, "").replace(/\s+/g, " ").trim();
+}
+
 function normalize(s: string) {
-  return s
-    .trim()
+  return stripParens(s)
     .toLowerCase()
     .replace(/[\u2018\u2019]/g, "'")
     .replace(/[\u201C\u201D]/g, '"')
     .replace(/^[\s¿¡]+|[\s?!.,;:]+$/g, "")
-    .replace(/\s+/g, " ");
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-/** Split an answer like "imagine/invent" or "to imagine / to invent" into alternatives. */
+/** Split an answer like "imagine/invent", "finish, complete" or "to imagine / to invent" into alternatives. */
 function splitAlternatives(s: string): string[] {
   return s
-    .split("/")
-    .map((p) => p.trim())
+    .split(/[/,]/)
+    .map((p) => stripParens(p).trim())
     .filter((p) => p.length > 0);
 }
 
-/** Check if a given answer matches the correct answer, accepting any slash-separated alternative. */
-function matchesAnswer(given: string, correct: string): boolean {
-  const g = normalize(given);
-  const alts = splitAlternatives(correct).map(normalize);
-  if (alts.includes(g)) return true;
-  // Also accept the full string as-is
-  return normalize(correct) === g;
+/** Lenient Danish noun suffix check: accept base ↔ base+en / base+et. */
+function suffixMatch(a: string, b: string): boolean {
+  if (a === b) return true;
+  for (const suf of ["en", "et"]) {
+    if (a === b + suf) return true;
+    if (b === a + suf) return true;
+  }
+  return false;
 }
 
-/** Pick the primary form of a multi-alternative answer (first slash segment). */
+/** Check if a given answer matches the correct answer, accepting any alternative. */
+function matchesAnswer(given: string, correct: string): boolean {
+  const g = normalize(given);
+  if (!g) return false;
+  const alts = splitAlternatives(correct).map(normalize).filter(Boolean);
+  const full = normalize(correct);
+  if (full && !alts.includes(full)) alts.push(full);
+  return alts.some((a) => suffixMatch(g, a));
+}
+
+/** Pick the primary form of a multi-alternative answer (first slash/comma segment). */
 function primaryForm(s: string): string {
   const alts = splitAlternatives(s);
-  return alts[0] ?? s;
+  return alts[0] ?? s.trim();
 }
 
 /** Create a word completion mask: show first, last, and ~40% of chars */
@@ -315,8 +331,10 @@ function buildQuestions(
   // For completion mode (or mixed questions that are completion), add masked versions
   for (const q of picked) {
     const isCompletion = mode === "completion" || q.displayMode === "completion";
-    if (isCompletion && !q.masked) {
-      q.masked = makeBlank(q.answer);
+    if (isCompletion) {
+      const primary = primaryForm(q.answer);
+      q.answer = primary;
+      if (!q.masked) q.masked = makeBlank(primary);
     }
   }
 
