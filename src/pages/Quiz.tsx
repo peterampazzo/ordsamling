@@ -24,7 +24,7 @@ import { useLexicon } from "@/hooks/useLexicon";
 import { fetchDistractors, GeminiKeyMissingError } from "@/lib/gemini";import { toast } from "@/components/ui/sonner";
 import type { LexisEntry } from "@/hooks/useLexicon";
 import { entryTypeLabel, type EntryGrammar } from "@/lib/lexicon";
-import { saveSession, recordReview, loadBoxStates, pickDue, type QuizAnswerRecord } from "@/lib/quizHistory";
+import { saveSession, recordReview, loadBoxStates, pickDue, loadHistory, getMistakeEntryIds, type QuizAnswerRecord } from "@/lib/quizHistory";
 import { useVisibleLanguages } from "@/hooks/useVisibleLanguages";
 import { t } from "@/i18n";
 
@@ -479,6 +479,7 @@ const Quiz = () => {
   const [timeLeft, setTimeLeft] = useState(0);
   const [timerActive, setTimerActive] = useState(false);
   const [aiActive, setAiActive] = useState(false);
+  const [mistakeIds, setMistakeIds] = useState<Set<string>>(() => getMistakeEntryIds(loadHistory()));
 
   const answersRef = useRef<QuizAnswerRecord[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -568,9 +569,11 @@ const Quiz = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIdx, state]);
 
-  const startQuiz = useCallback(() => {
+  const startQuiz = useCallback((opts?: { restrictIds?: Set<string> }) => {
     let pool = allEntries;
-    if (smartPractice) {
+    if (opts?.restrictIds && opts.restrictIds.size > 0) {
+      pool = allEntries.filter((e) => opts.restrictIds!.has(e.id));
+    } else if (smartPractice) {
       const dueIds = new Set(pickDue(loadBoxStates(), allEntries.map((e) => e.id)));
       const dueEntries = allEntries.filter((e) => dueIds.has(e.id));
       // Fall back to full pool if there isn't enough due material to build a quiz.
@@ -589,6 +592,11 @@ const Quiz = () => {
     setTimerActive(true);
     setState("playing");
   }, [allEntries, questionCount, difficulty, mode, activeDirections, smartPractice]);
+
+  const trainableMistakeIds = useMemo(
+    () => new Set([...mistakeIds].filter((id) => allEntries.some((e) => e.id === id))),
+    [mistakeIds, allEntries],
+  );
 
   const submitAnswer = useCallback(
     (answer: string) => {
@@ -633,6 +641,7 @@ const Quiz = () => {
     } catch (error) {
       console.error("Failed to save quiz history:", error);
     }
+    setMistakeIds(getMistakeEntryIds(loadHistory()));
     setState("result");
   }, [mode, score, total]);
 
@@ -781,9 +790,20 @@ const Quiz = () => {
                 <p className="text-xs text-muted-foreground">{t("quiz.questionsAvailable", { count: eligibleCount })}</p>
               </section>
 
-              <Button onClick={startQuiz} disabled={eligibleCount < 2} className="w-full h-11 text-base">
-                {t("quiz.startQuiz")}
-              </Button>
+              <div className="space-y-2">
+                <Button onClick={() => startQuiz()} disabled={eligibleCount < 2} className="w-full h-11 text-base">
+                  {t("quiz.startQuiz")}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => startQuiz({ restrictIds: trainableMistakeIds })}
+                  disabled={trainableMistakeIds.size < 2}
+                  className="w-full h-11 text-base"
+                  title={trainableMistakeIds.size < 2 ? t("quiz.trainMistakesNone") : undefined}
+                >
+                  {t("quiz.trainMistakes", { count: trainableMistakeIds.size })}
+                </Button>
+              </div>
             </>
           )}
         </main>
@@ -828,10 +848,22 @@ const Quiz = () => {
               </div>
             </div>
 
-            <div className="flex gap-3 justify-center pt-2">
-              <Button variant="outline" onClick={() => setState("setup")}><ArrowLeft className="h-4 w-4 mr-1" /> {t("common.settings")}</Button>
-              <Button onClick={startQuiz}><RotateCcw className="h-4 w-4 mr-1" /> {t("quiz.tryAgain")}</Button>
-            </div>
+            {(() => {
+              const wrongIds = new Set(
+                sessionAnswers.filter((a) => !a.correct && !a.skipped && a.entryId).map((a) => a.entryId),
+              );
+              return (
+                <div className="flex flex-wrap gap-3 justify-center pt-2">
+                  <Button variant="outline" onClick={() => setState("setup")}><ArrowLeft className="h-4 w-4 mr-1" /> {t("common.settings")}</Button>
+                  <Button onClick={() => startQuiz()}><RotateCcw className="h-4 w-4 mr-1" /> {t("quiz.tryAgain")}</Button>
+                  {wrongIds.size >= 2 && (
+                    <Button variant="secondary" onClick={() => startQuiz({ restrictIds: wrongIds })}>
+                      <Brain className="h-4 w-4 mr-1" /> {t("quiz.trainMistakes", { count: wrongIds.size })}
+                    </Button>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </main>
       </div>

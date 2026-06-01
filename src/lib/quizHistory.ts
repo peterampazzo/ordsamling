@@ -307,6 +307,28 @@ export function recordReview(entryId: string, correct: boolean, now: number = Da
   saveBoxStates(states);
 }
 
+/**
+ * Returns the set of entry IDs whose most recent non-skipped attempt was incorrect.
+ * Answering one of these correctly in a later session automatically removes it
+ * from the set, since the "last attempt" then becomes correct.
+ */
+export function getMistakeEntryIds(history: readonly QuizSessionRecord[]): Set<string> {
+  const lastByEntry = new Map<string, boolean>();
+  // Iterate oldest → newest so later attempts overwrite earlier ones.
+  const sorted = [...history].sort((a, b) => a.date - b.date);
+  for (const session of sorted) {
+    for (const a of session.answers) {
+      if (!a.entryId || a.skipped) continue;
+      lastByEntry.set(a.entryId, a.correct);
+    }
+  }
+  const mistakes = new Set<string>();
+  for (const [id, correct] of lastByEntry) {
+    if (!correct) mistakes.add(id);
+  }
+  return mistakes;
+}
+
 /** Aggregate per-word stats across all sessions */
 export function wordStats(history: QuizSessionRecord[]) {
   const map = new Map<string, { prompt: string; correct: number; wrong: number; total: number }>();

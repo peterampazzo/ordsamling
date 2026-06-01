@@ -126,6 +126,8 @@ quiz:
   dirMixed: "Mixed"
   smartPractice: "Smart practice"
   smartPracticeDesc: "Focus on words that are due for review (spaced repetition)"
+  trainMistakes: "Train mistakes ({count})"
+  trainMistakesNone: "No mistakes to train — answer some questions wrong first"
 
 quizHistory:
   title: "Quiz history"
