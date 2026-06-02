@@ -197,7 +197,9 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
                           }),
                         );
                       }
-                    } else if (result.reason === "session_expired") {
+                      return;
+                    }
+                    if (result.reason === "session_expired") {
                       toast.error(t("sync.pull.sessionExpired"));
                     } else if (result.reason === "error") {
                       toast.error(t("sync.pull.failed"));
