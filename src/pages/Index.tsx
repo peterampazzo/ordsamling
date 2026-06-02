@@ -184,7 +184,7 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
                   lastSyncAt={syncState.lastSyncAt}
                   onClick={async () => {
                     const result = await syncNow();
-                    if (result.ok) {
+                    if (result.ok === true) {
                       const changed = result.added + result.updated + result.removed;
                       if (changed === 0) {
                         toast.success(t("sync.pull.upToDate"));
