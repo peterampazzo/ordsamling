@@ -435,3 +435,10 @@ progress:
     overview: "Overview"
     sessions: "Sessions"
     words: "Words"
+
+sync:
+  pull:
+    upToDate: "Already up to date with Google Sheets"
+    pulled: "Pulled {added} new, {updated} updated, {removed} removed from Google Sheets"
+    failed: "Could not pull from Google Sheets"
+    sessionExpired: "Session expired — reconnect to pull changes"

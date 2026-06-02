@@ -65,11 +65,15 @@ export function detectConflict(
   return remoteUpdatedAt > lastSyncAt;
 }
 
+export type PullResult =
+  | { ok: true; added: number; updated: number; removed: number }
+  | { ok: false; reason: 'disabled' | 'no_spreadsheet' | 'session_expired' | 'error' };
+
 export interface UseGoogleSheetsReturn {
   syncState: SyncState;
   connect: () => void;
   disconnect: () => Promise<void>;
-  syncNow: () => Promise<void>;
+  syncNow: () => Promise<PullResult>;
   pushEntry: (entry: LexisEntry, op: 'add' | 'update' | 'delete') => void;
   pushQuizSession: (session: QuizSessionRecord) => void;
   pushStreakEvent: (event: StreakEvent) => void;
@@ -87,19 +91,49 @@ export interface UseGoogleSheetsReturn {
 // ---------------------------------------------------------------------------
 
 /**
- * Merge sheet entries into local entries using a last-write-wins strategy
- * based on `updatedAt` timestamp (modification time, not creation time).
+ * Returns true when two entries differ in any user-meaningful field.
+ * Used to detect manual edits made directly in the Google Sheet,
+ * where `updatedAt` is not bumped.
+ */
+function entryContentDiffers(a: LexisEntry, b: LexisEntry): boolean {
+  if (a.danish !== b.danish) return true;
+  if (a.english !== b.english) return true;
+  if ((a.notes || '') !== (b.notes || '')) return true;
+  if (a.type !== b.type) return true;
+  if (JSON.stringify(a.grammar ?? null) !== JSON.stringify(b.grammar ?? null)) return true;
+  if (JSON.stringify(a.translations ?? null) !== JSON.stringify(b.translations ?? null)) return true;
+  return false;
+}
+
+export interface MergeOptions {
+  /** Entry ids that have pending unsynced local edits — never overwrite these. */
+  pendingIds?: ReadonlySet<string>;
+  /**
+   * When true, remove local entries whose id is missing from the sheet
+   * (only if they're not in `pendingIds`). Used by the manual "pull" path.
+   */
+  deleteMissing?: boolean;
+}
+
+/**
+ * Merge sheet entries into local entries.
  *
  * Rules:
- * - Local-only entry (not in sheet): preserved
- * - Sheet-only entry (not in local): added
- * - Both exist: sheet version wins if its updatedAt is strictly greater
- * - If updatedAt is equal, local version wins (deterministic tie-breaker)
+ * - Local-only entry: preserved, unless `deleteMissing` is true and the entry
+ *   has no pending local op (then it's dropped — sheet was the source of truth
+ *   and the row was removed there).
+ * - Sheet-only entry: added.
+ * - Both exist, sheet `updatedAt` is greater: sheet wins.
+ * - Both exist, same `updatedAt` but content differs: sheet wins (catches manual
+ *   sheet edits that don't bump updatedAt), unless the id has a pending local op.
+ * - Otherwise: local wins.
  */
 export function mergeSheetsIntoLocal(
   localEntries: LexisEntry[],
-  sheetEntries: LexisEntry[]
+  sheetEntries: LexisEntry[],
+  opts: MergeOptions = {}
 ): LexisEntry[] {
+  const pendingIds = opts.pendingIds ?? new Set<string>();
   const sheetMap = new Map<string, LexisEntry>();
   for (const entry of sheetEntries) {
     sheetMap.set(entry.id, entry);
@@ -112,22 +146,26 @@ export function mergeSheetsIntoLocal(
 
   const merged: LexisEntry[] = [];
 
-  // Process all local entries
   for (const localEntry of localEntries) {
     const sheetVersion = sheetMap.get(localEntry.id);
     if (sheetVersion === undefined) {
-      // Local-only: keep
+      if (opts.deleteMissing && !pendingIds.has(localEntry.id)) {
+        continue;
+      }
       merged.push(localEntry);
     } else if (sheetVersion.updatedAt > localEntry.updatedAt) {
-      // Sheet is newer by updatedAt
+      merged.push(sheetVersion);
+    } else if (
+      sheetVersion.updatedAt === localEntry.updatedAt &&
+      !pendingIds.has(localEntry.id) &&
+      entryContentDiffers(sheetVersion, localEntry)
+    ) {
       merged.push(sheetVersion);
     } else {
-      // Local is same or newer
       merged.push(localEntry);
     }
   }
 
-  // Add sheet-only entries
   for (const sheetEntry of sheetEntries) {
     if (!localMap.has(sheetEntry.id)) {
       merged.push(sheetEntry);
@@ -135,6 +173,21 @@ export function mergeSheetsIntoLocal(
   }
 
   return merged;
+}
+
+/** Collect ids of lexicon entries with pending ops in the dirty queue. */
+function pendingLexiconIds(): Set<string> {
+  const ids = new Set<string>();
+  for (const op of getDirtyQueue()) {
+    if (op.type !== 'lexicon') continue;
+    if (op.operation === 'delete') {
+      if (typeof op.payload === 'string') ids.add(op.payload);
+    } else {
+      const entry = op.payload as LexisEntry | undefined;
+      if (entry?.id) ids.add(entry.id);
+    }
+  }
+  return ids;
 }
 
 // ---------------------------------------------------------------------------
@@ -181,7 +234,9 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
       const sheetEntries = await sheetsService.readLexicon(spreadsheetId, accessToken);
       const localRaw = localStorage.getItem(getEntriesStorageKey());
       const localEntries: LexisEntry[] = localRaw ? (JSON.parse(localRaw) as LexisEntry[]) : [];
-      const merged = mergeSheetsIntoLocal(localEntries, sheetEntries);
+      const merged = mergeSheetsIntoLocal(localEntries, sheetEntries, {
+        pendingIds: pendingLexiconIds(),
+      });
       if (JSON.stringify(merged) !== JSON.stringify(localEntries)) {
         localStorage.setItem(getEntriesStorageKey(), JSON.stringify(merged));
         window.dispatchEvent(new CustomEvent('ordsamling:entries-synced'));
@@ -353,7 +408,9 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
         const localRaw = localStorage.getItem(getEntriesStorageKey());
         const localEntries: LexisEntry[] = localRaw ? (JSON.parse(localRaw) as LexisEntry[]) : [];
 
-        const merged = mergeSheetsIntoLocal(localEntries, sheetEntries);
+        const merged = mergeSheetsIntoLocal(localEntries, sheetEntries, {
+          pendingIds: pendingLexiconIds(),
+        });
 
         localStorage.setItem(getEntriesStorageKey(), JSON.stringify(merged));
 
@@ -566,12 +623,12 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
   // Manual full sync
   // ---------------------------------------------------------------------------
 
-  const syncNow = useCallback(async () => {
-    if (!isCloudSyncEnabled()) return;
+  const syncNow = useCallback(async (): Promise<PullResult> => {
+    if (!isCloudSyncEnabled()) return { ok: false, reason: 'disabled' };
 
     const currentConfig = getStorageConfig();
     const spreadsheetId = currentConfig.spreadsheetId;
-    if (!spreadsheetId) return;
+    if (!spreadsheetId) return { ok: false, reason: 'no_spreadsheet' };
 
     setSyncState((prev) => ({ ...prev, status: 'syncing', errorMessage: null }));
 
@@ -580,26 +637,60 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
       setSyncState((prev) => ({
         ...prev,
         status: 'error',
-        errorMessage: 'Session expired. Please reconnect.',
+        errorMessage: SESSION_EXPIRED,
+        sessionExpired: true,
       }));
-      return;
+      return { ok: false, reason: 'session_expired' };
     }
 
     try {
+      // 1. Push any local pending edits first so we don't accidentally
+      //    discard them when treating the sheet as the source of truth.
       await retryDirtyQueue();
+
+      // 2. Read the freshest sheet state.
       const sheetEntries = await sheetsService.readLexicon(spreadsheetId, accessToken);
       const localRaw = localStorage.getItem(getEntriesStorageKey());
       const localEntries: LexisEntry[] = localRaw ? (JSON.parse(localRaw) as LexisEntry[]) : [];
-      const merged = mergeSheetsIntoLocal(localEntries, sheetEntries);
-      localStorage.setItem(getEntriesStorageKey(), JSON.stringify(merged));
-      window.dispatchEvent(new CustomEvent('ordsamling:entries-synced'));
+
+      // 3. Content-aware merge with deleteMissing — this is the manual
+      //    "pull" path, so honor rows that were removed in the sheet.
+      const pendingIds = pendingLexiconIds();
+      const merged = mergeSheetsIntoLocal(localEntries, sheetEntries, {
+        pendingIds,
+        deleteMissing: true,
+      });
+
+      // Count what changed (added/updated/removed) so the UI can give feedback.
+      const prevById = new Map(localEntries.map((e) => [e.id, e]));
+      const nextById = new Map(merged.map((e) => [e.id, e]));
+      let added = 0;
+      let updated = 0;
+      let removed = 0;
+      for (const [id, next] of nextById) {
+        const prev = prevById.get(id);
+        if (!prev) added++;
+        else if (prev !== next) updated++;
+      }
+      for (const id of prevById.keys()) {
+        if (!nextById.has(id)) removed++;
+      }
+      const changed = added + updated + removed;
+
+      if (changed > 0) {
+        localStorage.setItem(getEntriesStorageKey(), JSON.stringify(merged));
+        window.dispatchEvent(new CustomEvent('ordsamling:entries-synced'));
+      }
 
       setSyncState((prev) => ({
         ...prev,
         status: 'idle',
         lastSyncAt: Date.now(),
         errorMessage: null,
+        sessionExpired: false,
+        pendingCount: getDirtyQueue().length,
       }));
+      return { ok: true, added, updated, removed };
     } catch (err) {
       console.error('syncNow failed:', err);
       setSyncState((prev) => ({
@@ -607,6 +698,7 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
         status: 'dirty',
         errorMessage: err instanceof Error ? err.message : 'Sync failed',
       }));
+      return { ok: false, reason: 'error' };
     }
   }, [retryDirtyQueue, sheetsService]);
 

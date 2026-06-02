@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { Search, BookOpen, ArrowDownAZ, Clock, Plus, Upload, Brain, X, Filter, Settings as SettingsIcon } from "lucide-react";
+import { toast } from "sonner";
 import { CloudSyncIndicator } from "@/components/CloudSyncIndicator";
 import { SyncStatusBanner } from "@/components/SyncStatusBanner";
 import { StreakRing } from "@/components/StreakRing";
@@ -181,8 +182,31 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
                 <CloudSyncIndicator
                   status={syncState.status}
                   lastSyncAt={syncState.lastSyncAt}
-                  onClick={() => syncNow()}
+                  onClick={async () => {
+                    const result = await syncNow();
+                    if (result.ok === true) {
+                      const changed = result.added + result.updated + result.removed;
+                      if (changed === 0) {
+                        toast.success(t("sync.pull.upToDate"));
+                      } else {
+                        toast.success(
+                          t("sync.pull.pulled", {
+                            added: result.added,
+                            updated: result.updated,
+                            removed: result.removed,
+                          }),
+                        );
+                      }
+                      return;
+                    }
+                    if (result.reason === "session_expired") {
+                      toast.error(t("sync.pull.sessionExpired"));
+                    } else if (result.reason === "error") {
+                      toast.error(t("sync.pull.failed"));
+                    }
+                  }}
                 />
+
                 <Button
                   type="button"
                   size="icon"

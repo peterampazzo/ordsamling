@@ -1,76 +1,39 @@
-# Harden Google Drive sync against stale overwrites
+## Why refresh doesn't pull your sheet edits
 
-## Goals
-- Prevent older local data from overwriting newer sheet data.
-- Guarantee offline-saved changes are retried until they upload.
-- Warn clearly when sync is stale, blocked, or auth has expired.
-- Keep quiz history append-only so locally saved quiz results are not lost.
+When you edit a row directly in Google Sheets, the `updatedAt` column doesn't change (the app is the only thing that bumps it). The merge logic in `mergeSheetsIntoLocal` only takes the sheet version when `sheetVersion.updatedAt > localEntry.updatedAt`. Result: your manual edit is silently ignored and the local copy "wins". Same story for rows you delete in the sheet — they're treated as "sheet-only missing" and never removed locally.
 
-## What will change
+## What to change
 
-### 1. Stop full-sheet rewrites in normal sync paths
-- Keep `Lexicon` writes row-level (`append`, `update`, `delete`) during normal app use.
-- Keep `QuizHistory` and `StreakHistory` append-only during normal app use.
-- Restrict full-sheet operations to initial migration/recovery only, not routine syncing.
-- Update migration/reconnect flow so it merges before any bulk rewrite, instead of blindly clearing tabs.
+### 1. Content-aware merge (detect sheet edits without an updatedAt bump)
+In `mergeSheetsIntoLocal` (`src/hooks/useGoogleSheets.ts`):
+- When sheet and local have the same id and same `updatedAt`, compare the meaningful fields (danish, english, notes, type, grammar, translations).
+- If they differ and the entry has **no pending op in the dirty queue**, take the sheet version (sheet was edited manually).
+- If a dirty op exists for that id, keep local (the user's unsynced change still wins until it's pushed).
 
-### 2. Prevent stale entries from overwriting newer remote rows
-- In `useGoogleSheets`, after pulling latest remote data before a write, re-read the merged local row by `entry.id`.
-- If the merged version is newer than the pending local payload, skip the write and mark it as superseded instead of pushing stale data.
-- Apply the same protection to deletes so an older device cannot delete a newer remote edit.
-- Preserve last-write-wins by `updatedAt`, but make it safe.
+### 2. Honor sheet-side deletes on manual pull
+Add an explicit "pull from sheet" path used by the refresh button / `syncNow`:
+- After flushing the dirty queue, if a local entry's id is missing from the sheet **and** has no pending op **and** existed before this session (i.e., it was previously synced), remove it locally.
+- Background auto-sync keeps today's safer behavior (don't delete on missing) to avoid wiping data on transient read errors.
 
-### 3. Make the dirty queue reliable for weak/offline connectivity
-- Treat offline save as durable local success first, remote sync second.
-- Ensure all failed writes queue with enough information to retry later.
-- Add retry triggers beyond the current ones: app startup, tab focus, visibility change, manual sync, and network reconnect.
-- Retry the queue in order and only remove items after confirmed success.
-- Add deduping/coalescing for repeated updates to the same lexicon entry so the queue does not grow with obsolete edits.
-- Keep quiz sessions append-only in the queue so a locally saved result always gets another chance to upload.
+### 3. Make the refresh button do a real pull
+Wire the refresh control to a new `pullFromSheet()` (or a `{ force: true }` variant of `syncNow`) that:
+1. Flushes the dirty queue (so local unsynced edits aren't lost).
+2. Re-reads the sheet.
+3. Runs the new content-aware merge with delete handling.
+4. Shows a toast like "Pulled N updates from Google Sheets" / "Already up to date".
 
-### 4. Surface out-of-sync state clearly in the UI
-- Add a visible sync status banner for important states:
-  - auth expired
-  - sync conflict / remote newer than local
-  - pending unsynced changes
-  - sync failed repeatedly
-- Keep the compact cloud icon, but make it secondary to the banner for important states.
-- Show a reconnect action when Google auth has expired.
-- Show retry / sync-now actions when there are queued local changes.
-- Make disconnected/expired state visible even if the user is not looking for the tiny icon.
+### 4. Small UX touches
+- In the sync banner / `CloudSyncIndicator` tooltip, label the action clearly: "Pull latest from Google Sheets".
+- Add an i18n key for the toast and button.
 
-### 5. Handle 7-day Google test-mode expiry more safely
-- On app load and when returning to the tab, proactively check whether auth is expired.
-- If expired, switch to an explicit blocked-sync state instead of silently continuing as if sync were healthy.
-- Continue saving locally while auth is expired, but clearly show that remote sync is paused until reconnect.
-- After reconnect, flush the queue before any new pull/push cycle.
+## Files involved
+- `src/hooks/useGoogleSheets.ts` — merge function, `syncNow`, new `pullFromSheet`.
+- `src/components/CloudSyncIndicator.tsx` and/or `SyncStatusBanner.tsx` — wire the refresh action.
+- `src/i18n/en.yaml`, `src/i18n/da.yaml` — new strings.
+- Tests: extend `useGoogleSheets.*.test.ts` with cases for manual sheet edit (same updatedAt, different content), sheet-side delete with no pending op, and "don't clobber local pending edit".
 
-### 6. Preserve quiz results saved under bad coverage
-- Make queued `quiz_history` uploads retry automatically on every relevant retry trigger.
-- Add a stronger recovery path so pending quiz sessions are pushed after reconnect or when connection returns.
-- Show pending count/status in the sync UI so the user knows local quiz results are waiting to upload.
+## Out of scope
+- Changing how the app writes `updatedAt` on its own edits.
+- Two-way conflict UI beyond the existing banner.
 
-## Files likely involved
-- `src/hooks/useGoogleSheets.ts`
-- `src/services/GoogleSheetsService.ts`
-- `src/lib/migration.ts`
-- `src/components/CloudSyncIndicator.tsx`
-- shared layout/page container where a sync banner should mount
-- `src/i18n/en.yaml`
-- `src/i18n/da.yaml`
-- sync-related tests in `src/hooks` / `src/services`
-
-## Technical details
-- Add a guarded write path that compares pending local payloads against the freshest merged local/remote state before writing.
-- Introduce explicit sync sub-states/messages for `expired`, `pending`, `conflict`, and `retrying`.
-- Keep append-only history tabs append-only; do not replace them during normal operation.
-- Bulk rewrite methods remain available only for migration/recovery flows and must merge first.
-- Add tests for:
-  - stale local update skipped when remote is newer
-  - stale delete skipped when remote is newer
-  - offline quiz result enters queue and is retried on reconnect/focus/startup
-  - expired auth shows blocked-sync UI while preserving local saves
-  - queue items are removed only after confirmed upload
-
-## Result
-The app will still work offline-first, but older devices won’t clobber newer data, expired Google auth will be obvious, and locally saved quiz results will keep retrying until they reach the sheet.
+After this, hitting refresh will reliably bring in edits and deletions you made directly in Google Sheets, while still protecting any local changes you haven't pushed yet.
