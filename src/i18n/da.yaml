@@ -435,3 +435,10 @@ progress:
     overview: "Oversigt"
     sessions: "Sessioner"
     words: "Ord"
+
+sync:
+  pull:
+    upToDate: "Allerede synkroniseret med Google Sheets"
+    pulled: "Hentet {added} nye, {updated} opdaterede, {removed} fjernet fra Google Sheets"
+    failed: "Kunne ikke hente fra Google Sheets"
+    sessionExpired: "Sessionen er udløbet — tilslut igen for at hente ændringer"
