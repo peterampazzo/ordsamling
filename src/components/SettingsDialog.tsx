@@ -83,7 +83,7 @@ interface SettingsDialogProps {
   syncState: SyncState;
   onConnect: () => void;
   onDisconnect: () => Promise<void>;
-  onRetrySync: () => Promise<void>;
+  onRetrySync: () => Promise<unknown>;
 }
 
 // ---------------------------------------------------------------------------
