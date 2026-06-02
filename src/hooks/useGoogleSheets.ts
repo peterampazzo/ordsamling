@@ -619,12 +619,12 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
   // Manual full sync
   // ---------------------------------------------------------------------------
 
-  const syncNow = useCallback(async () => {
-    if (!isCloudSyncEnabled()) return;
+  const syncNow = useCallback(async (): Promise<PullResult> => {
+    if (!isCloudSyncEnabled()) return { ok: false, reason: 'disabled' };
 
     const currentConfig = getStorageConfig();
     const spreadsheetId = currentConfig.spreadsheetId;
-    if (!spreadsheetId) return;
+    if (!spreadsheetId) return { ok: false, reason: 'no_spreadsheet' };
 
     setSyncState((prev) => ({ ...prev, status: 'syncing', errorMessage: null }));
 
@@ -633,26 +633,60 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
       setSyncState((prev) => ({
         ...prev,
         status: 'error',
-        errorMessage: 'Session expired. Please reconnect.',
+        errorMessage: SESSION_EXPIRED,
+        sessionExpired: true,
       }));
-      return;
+      return { ok: false, reason: 'session_expired' };
     }
 
     try {
+      // 1. Push any local pending edits first so we don't accidentally
+      //    discard them when treating the sheet as the source of truth.
       await retryDirtyQueue();
+
+      // 2. Read the freshest sheet state.
       const sheetEntries = await sheetsService.readLexicon(spreadsheetId, accessToken);
       const localRaw = localStorage.getItem(getEntriesStorageKey());
       const localEntries: LexisEntry[] = localRaw ? (JSON.parse(localRaw) as LexisEntry[]) : [];
-      const merged = mergeSheetsIntoLocal(localEntries, sheetEntries);
-      localStorage.setItem(getEntriesStorageKey(), JSON.stringify(merged));
-      window.dispatchEvent(new CustomEvent('ordsamling:entries-synced'));
+
+      // 3. Content-aware merge with deleteMissing — this is the manual
+      //    "pull" path, so honor rows that were removed in the sheet.
+      const pendingIds = pendingLexiconIds();
+      const merged = mergeSheetsIntoLocal(localEntries, sheetEntries, {
+        pendingIds,
+        deleteMissing: true,
+      });
+
+      // Count what changed (added/updated/removed) so the UI can give feedback.
+      const prevById = new Map(localEntries.map((e) => [e.id, e]));
+      const nextById = new Map(merged.map((e) => [e.id, e]));
+      let added = 0;
+      let updated = 0;
+      let removed = 0;
+      for (const [id, next] of nextById) {
+        const prev = prevById.get(id);
+        if (!prev) added++;
+        else if (prev !== next) updated++;
+      }
+      for (const id of prevById.keys()) {
+        if (!nextById.has(id)) removed++;
+      }
+      const changed = added + updated + removed;
+
+      if (changed > 0) {
+        localStorage.setItem(getEntriesStorageKey(), JSON.stringify(merged));
+        window.dispatchEvent(new CustomEvent('ordsamling:entries-synced'));
+      }
 
       setSyncState((prev) => ({
         ...prev,
         status: 'idle',
         lastSyncAt: Date.now(),
         errorMessage: null,
+        sessionExpired: false,
+        pendingCount: getDirtyQueue().length,
       }));
+      return { ok: true, added, updated, removed };
     } catch (err) {
       console.error('syncNow failed:', err);
       setSyncState((prev) => ({
@@ -660,6 +694,7 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
         status: 'dirty',
         errorMessage: err instanceof Error ? err.message : 'Sync failed',
       }));
+      return { ok: false, reason: 'error' };
     }
   }, [retryDirtyQueue, sheetsService]);
 
