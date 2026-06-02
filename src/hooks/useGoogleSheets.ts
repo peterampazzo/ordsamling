@@ -404,7 +404,9 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
         const localRaw = localStorage.getItem(getEntriesStorageKey());
         const localEntries: LexisEntry[] = localRaw ? (JSON.parse(localRaw) as LexisEntry[]) : [];
 
-        const merged = mergeSheetsIntoLocal(localEntries, sheetEntries);
+        const merged = mergeSheetsIntoLocal(localEntries, sheetEntries, {
+          pendingIds: pendingLexiconIds(),
+        });
 
         localStorage.setItem(getEntriesStorageKey(), JSON.stringify(merged));
 
