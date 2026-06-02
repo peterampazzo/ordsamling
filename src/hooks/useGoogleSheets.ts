@@ -230,7 +230,9 @@ export function useGoogleSheets(): UseGoogleSheetsReturn {
       const sheetEntries = await sheetsService.readLexicon(spreadsheetId, accessToken);
       const localRaw = localStorage.getItem(getEntriesStorageKey());
       const localEntries: LexisEntry[] = localRaw ? (JSON.parse(localRaw) as LexisEntry[]) : [];
-      const merged = mergeSheetsIntoLocal(localEntries, sheetEntries);
+      const merged = mergeSheetsIntoLocal(localEntries, sheetEntries, {
+        pendingIds: pendingLexiconIds(),
+      });
       if (JSON.stringify(merged) !== JSON.stringify(localEntries)) {
         localStorage.setItem(getEntriesStorageKey(), JSON.stringify(merged));
         window.dispatchEvent(new CustomEvent('ordsamling:entries-synced'));
