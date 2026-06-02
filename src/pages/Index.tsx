@@ -182,8 +182,29 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
                 <CloudSyncIndicator
                   status={syncState.status}
                   lastSyncAt={syncState.lastSyncAt}
-                  onClick={() => syncNow()}
+                  onClick={async () => {
+                    const result = await syncNow();
+                    if (result.ok) {
+                      const changed = result.added + result.updated + result.removed;
+                      if (changed === 0) {
+                        toast.success(t("sync.pull.upToDate"));
+                      } else {
+                        toast.success(
+                          t("sync.pull.pulled", {
+                            added: result.added,
+                            updated: result.updated,
+                            removed: result.removed,
+                          }),
+                        );
+                      }
+                    } else if (result.reason === "session_expired") {
+                      toast.error(t("sync.pull.sessionExpired"));
+                    } else if (result.reason === "error") {
+                      toast.error(t("sync.pull.failed"));
+                    }
+                  }}
                 />
+
                 <Button
                   type="button"
                   size="icon"
