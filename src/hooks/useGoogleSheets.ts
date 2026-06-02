@@ -87,19 +87,49 @@ export interface UseGoogleSheetsReturn {
 // ---------------------------------------------------------------------------
 
 /**
- * Merge sheet entries into local entries using a last-write-wins strategy
- * based on `updatedAt` timestamp (modification time, not creation time).
+ * Returns true when two entries differ in any user-meaningful field.
+ * Used to detect manual edits made directly in the Google Sheet,
+ * where `updatedAt` is not bumped.
+ */
+function entryContentDiffers(a: LexisEntry, b: LexisEntry): boolean {
+  if (a.danish !== b.danish) return true;
+  if (a.english !== b.english) return true;
+  if ((a.notes || '') !== (b.notes || '')) return true;
+  if (a.type !== b.type) return true;
+  if (JSON.stringify(a.grammar ?? null) !== JSON.stringify(b.grammar ?? null)) return true;
+  if (JSON.stringify(a.translations ?? null) !== JSON.stringify(b.translations ?? null)) return true;
+  return false;
+}
+
+export interface MergeOptions {
+  /** Entry ids that have pending unsynced local edits — never overwrite these. */
+  pendingIds?: ReadonlySet<string>;
+  /**
+   * When true, remove local entries whose id is missing from the sheet
+   * (only if they're not in `pendingIds`). Used by the manual "pull" path.
+   */
+  deleteMissing?: boolean;
+}
+
+/**
+ * Merge sheet entries into local entries.
  *
  * Rules:
- * - Local-only entry (not in sheet): preserved
- * - Sheet-only entry (not in local): added
- * - Both exist: sheet version wins if its updatedAt is strictly greater
- * - If updatedAt is equal, local version wins (deterministic tie-breaker)
+ * - Local-only entry: preserved, unless `deleteMissing` is true and the entry
+ *   has no pending local op (then it's dropped — sheet was the source of truth
+ *   and the row was removed there).
+ * - Sheet-only entry: added.
+ * - Both exist, sheet `updatedAt` is greater: sheet wins.
+ * - Both exist, same `updatedAt` but content differs: sheet wins (catches manual
+ *   sheet edits that don't bump updatedAt), unless the id has a pending local op.
+ * - Otherwise: local wins.
  */
 export function mergeSheetsIntoLocal(
   localEntries: LexisEntry[],
-  sheetEntries: LexisEntry[]
+  sheetEntries: LexisEntry[],
+  opts: MergeOptions = {}
 ): LexisEntry[] {
+  const pendingIds = opts.pendingIds ?? new Set<string>();
   const sheetMap = new Map<string, LexisEntry>();
   for (const entry of sheetEntries) {
     sheetMap.set(entry.id, entry);
@@ -112,22 +142,26 @@ export function mergeSheetsIntoLocal(
 
   const merged: LexisEntry[] = [];
 
-  // Process all local entries
   for (const localEntry of localEntries) {
     const sheetVersion = sheetMap.get(localEntry.id);
     if (sheetVersion === undefined) {
-      // Local-only: keep
+      if (opts.deleteMissing && !pendingIds.has(localEntry.id)) {
+        continue;
+      }
       merged.push(localEntry);
     } else if (sheetVersion.updatedAt > localEntry.updatedAt) {
-      // Sheet is newer by updatedAt
+      merged.push(sheetVersion);
+    } else if (
+      sheetVersion.updatedAt === localEntry.updatedAt &&
+      !pendingIds.has(localEntry.id) &&
+      entryContentDiffers(sheetVersion, localEntry)
+    ) {
       merged.push(sheetVersion);
     } else {
-      // Local is same or newer
       merged.push(localEntry);
     }
   }
 
-  // Add sheet-only entries
   for (const sheetEntry of sheetEntries) {
     if (!localMap.has(sheetEntry.id)) {
       merged.push(sheetEntry);
@@ -135,6 +169,21 @@ export function mergeSheetsIntoLocal(
   }
 
   return merged;
+}
+
+/** Collect ids of lexicon entries with pending ops in the dirty queue. */
+function pendingLexiconIds(): Set<string> {
+  const ids = new Set<string>();
+  for (const op of getDirtyQueue()) {
+    if (op.type !== 'lexicon') continue;
+    if (op.operation === 'delete') {
+      if (typeof op.payload === 'string') ids.add(op.payload);
+    } else {
+      const entry = op.payload as LexisEntry | undefined;
+      if (entry?.id) ids.add(entry.id);
+    }
+  }
+  return ids;
 }
 
 // ---------------------------------------------------------------------------
