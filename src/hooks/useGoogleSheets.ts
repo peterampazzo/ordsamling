@@ -65,11 +65,15 @@ export function detectConflict(
   return remoteUpdatedAt > lastSyncAt;
 }
 
+export type PullResult =
+  | { ok: true; added: number; updated: number; removed: number }
+  | { ok: false; reason: 'disabled' | 'no_spreadsheet' | 'session_expired' | 'error' };
+
 export interface UseGoogleSheetsReturn {
   syncState: SyncState;
   connect: () => void;
   disconnect: () => Promise<void>;
-  syncNow: () => Promise<void>;
+  syncNow: () => Promise<PullResult>;
   pushEntry: (entry: LexisEntry, op: 'add' | 'update' | 'delete') => void;
   pushQuizSession: (session: QuizSessionRecord) => void;
   pushStreakEvent: (event: StreakEvent) => void;
