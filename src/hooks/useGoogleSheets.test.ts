@@ -51,14 +51,56 @@ describe('mergeSheetsIntoLocal', () => {
     expect(result[0].danish).toBe('local-newer');
   });
 
-  it('local entry same updatedAt as sheet → local version wins', () => {
-    const local = makeEntry({ id: 'c', createdAt: 1500, updatedAt: 1500, danish: 'local-same' });
-    const sheet = makeEntry({ id: 'c', createdAt: 1500, updatedAt: 1500, danish: 'sheet-same' });
+  it('same updatedAt + identical content → local version kept (no-op)', () => {
+    const local = makeEntry({ id: 'c', createdAt: 1500, updatedAt: 1500, danish: 'same' });
+    const sheet = makeEntry({ id: 'c', createdAt: 1500, updatedAt: 1500, danish: 'same' });
 
     const result = mergeSheetsIntoLocal([local], [sheet]);
 
     expect(result).toHaveLength(1);
-    expect(result[0].danish).toBe('local-same');
+    expect(result[0].danish).toBe('same');
+  });
+
+  it('same updatedAt + different content → sheet wins (manual sheet edit)', () => {
+    const local = makeEntry({ id: 'c', createdAt: 1500, updatedAt: 1500, danish: 'local-same' });
+    const sheet = makeEntry({ id: 'c', createdAt: 1500, updatedAt: 1500, danish: 'sheet-edited' });
+
+    const result = mergeSheetsIntoLocal([local], [sheet]);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].danish).toBe('sheet-edited');
+  });
+
+  it('same updatedAt + different content but id has pending op → local kept', () => {
+    const local = makeEntry({ id: 'c', createdAt: 1500, updatedAt: 1500, danish: 'local-pending' });
+    const sheet = makeEntry({ id: 'c', createdAt: 1500, updatedAt: 1500, danish: 'sheet-edited' });
+
+    const result = mergeSheetsIntoLocal([local], [sheet], { pendingIds: new Set(['c']) });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].danish).toBe('local-pending');
+  });
+
+  it('deleteMissing drops local rows absent from sheet (no pending op)', () => {
+    const local = makeEntry({ id: 'gone', danish: 'will-be-removed' });
+    const kept = makeEntry({ id: 'kept', danish: 'kept' });
+
+    const result = mergeSheetsIntoLocal([local, kept], [kept], { deleteMissing: true });
+
+    const ids = result.map((e) => e.id);
+    expect(ids).not.toContain('gone');
+    expect(ids).toContain('kept');
+  });
+
+  it('deleteMissing keeps local rows that have pending ops', () => {
+    const local = makeEntry({ id: 'pending', danish: 'unsynced-add' });
+
+    const result = mergeSheetsIntoLocal([local], [], {
+      deleteMissing: true,
+      pendingIds: new Set(['pending']),
+    });
+
+    expect(result.map((e) => e.id)).toContain('pending');
   });
 
   it('local-only entry (not in sheet) → preserved in merged result', () => {
