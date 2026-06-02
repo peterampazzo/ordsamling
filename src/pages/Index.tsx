@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { Search, BookOpen, ArrowDownAZ, Clock, Plus, Upload, Brain, X, Filter, Settings as SettingsIcon } from "lucide-react";
+import { toast } from "sonner";
 import { CloudSyncIndicator } from "@/components/CloudSyncIndicator";
 import { SyncStatusBanner } from "@/components/SyncStatusBanner";
 import { StreakRing } from "@/components/StreakRing";
