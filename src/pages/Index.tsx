@@ -74,7 +74,23 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
   // Task 9.3 — register pushQuizSession so quizHistory module can push to Sheets
   useEffect(() => {
     if (!demo) {
-      registerPushQuizSession(pushQuizSession);
+      registerPushQuizSession(async (session) => {
+        await pushQuizSession(session);
+        // Fire a best-effort heartbeat so the push-cron Worker can skip users
+        // who already practiced today. Fails silently if offline / signed out.
+        try {
+          const { getValidAccessToken } = await import("@/lib/googleOAuth");
+          const token = await getValidAccessToken();
+          if (token) {
+            await fetch("/api/notifications/heartbeat", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}` },
+            });
+          }
+        } catch {
+          /* ignore */
+        }
+      });
       registerPushStreakEvent(pushStreakEvent);
     }
     return () => {
