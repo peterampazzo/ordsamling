@@ -35,6 +35,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
+  Bell,
   Cloud,
   Database,
   Download,
@@ -45,6 +46,7 @@ import {
   RotateCcw,
   Sparkles,
   Plus,
+  Smartphone,
   X,
   CheckCircle2,
   XCircle,
@@ -53,6 +55,10 @@ import {
   Check,
   Bug,
 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Switch } from "@/components/ui/switch";
+import { toast } from "sonner";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 import {
   LANGUAGE_CATALOG,
   CORE_LANGUAGES,
