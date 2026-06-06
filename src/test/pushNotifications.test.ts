@@ -92,12 +92,10 @@ describe('usePushNotifications', () => {
         ready: Promise.resolve({}),
       },
     });
-    // @ts-expect-error test stub
-    globalThis.PushManager = function PushManager() {};
-    // @ts-expect-error test stub
-    globalThis.Notification = {
+    (globalThis as Record<string, unknown>).PushManager = function PushManager() {};
+    (globalThis as Record<string, unknown>).Notification = {
       permission: 'default',
-      requestPermission: vi.fn(async () => 'granted'),
+      requestPermission: async () => 'granted' as NotificationPermission,
     };
 
     const { result } = renderHook(() => usePushNotifications());
