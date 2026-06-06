@@ -1,0 +1,28 @@
+# Ordsamling daily-reminder cron Worker.
+#
+# Shares the PUSH_SUBS KV namespace with the Pages app (`functions/api/notifications/*`).
+# The KV namespace id below must match the one bound to the Pages project — TF
+# manages both bindings so they always reference the same namespace.
+#
+# Required secrets (set via `wrangler secret put`):
+#   VAPID_PRIVATE_KEY  — base64url-encoded VAPID private key
+#   VAPID_SUBJECT      — `mailto:you@example.com`
+# Plain vars (set in wrangler.toml or via TF):
+#   VAPID_PUBLIC_KEY   — same value the client uses as VITE_VAPID_PUBLIC_KEY
+
+name = "ordsamling-push-cron"
+main = "src/index.ts"
+compatibility_date = "2026-04-04"
+compatibility_flags = ["nodejs_compat"]
+
+[triggers]
+crons = ["0 17 * * *"]
+
+[[kv_namespaces]]
+binding = "PUSH_SUBS"
+# Override this id during deploy (or set it via Terraform output):
+#   wrangler deploy --var KV_ID:<id>
+id = "REPLACE_ME"
+
+[vars]
+VAPID_PUBLIC_KEY = "REPLACE_WITH_VAPID_PUBLIC_KEY"

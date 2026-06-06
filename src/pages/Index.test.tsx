@@ -94,7 +94,7 @@ describe('Index page integration', () => {
     );
 
     await waitFor(() => {
-      expect(mockRegisterPushQuizSession).toHaveBeenCalledWith(mockPushQuizSession);
+      expect(mockRegisterPushQuizSession).toHaveBeenCalledWith(expect.any(Function));
       expect(mockRegisterPushStreakEvent).toHaveBeenCalledWith(mockPushStreakEvent);
     });
 

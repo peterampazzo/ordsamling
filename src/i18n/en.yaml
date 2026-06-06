@@ -442,3 +442,19 @@ sync:
     pulled: "Pulled {added} new, {updated} updated, {removed} removed from Google Sheets"
     failed: "Could not pull from Google Sheets"
     sessionExpired: "Session expired — reconnect to pull changes"
+
+push:
+  title: "Daily reminder"
+  desc: "Get a gentle nudge when you haven't practiced in a day."
+  enable: "Enable reminders"
+  disable: "Disable reminders"
+  enabled: "Reminders are on"
+  iosInstallTitle: "Install Ordsamling to enable reminders"
+  iosInstallBody: "On iPhone, tap the Share icon in Safari, then choose «Add to Home Screen». Open the app from your home screen to turn on daily reminders."
+  signInFirst: "Sign in with Google first — reminders are tied to your account."
+  unsupported: "This browser doesn't support push notifications yet."
+  permissionDenied: "Notifications are blocked in your browser settings."
+  enableError: "Couldn't enable reminders — try again."
+  enabledToast: "Daily reminders enabled."
+  disabledToast: "Daily reminders disabled."
+

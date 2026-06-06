@@ -26,3 +26,22 @@ variable "google_client_secret" {
   type        = string
   sensitive   = true
 }
+
+variable "vapid_public_key" {
+  description = "VAPID public key (base64url). Exposed to the browser as VITE_VAPID_PUBLIC_KEY at build time and to the cron Worker."
+  type        = string
+  default     = ""
+}
+
+variable "vapid_private_key" {
+  description = "VAPID private key (base64url). Used only by the cron Worker."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "vapid_subject" {
+  description = "VAPID subject — `mailto:` URL used as the From header for push delivery."
+  type        = string
+  default     = "mailto:hello@ordsamling.pages.dev"
+}

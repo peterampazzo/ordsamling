@@ -35,6 +35,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
+  Bell,
   Cloud,
   Database,
   Download,
@@ -45,6 +46,7 @@ import {
   RotateCcw,
   Sparkles,
   Plus,
+  Smartphone,
   X,
   CheckCircle2,
   XCircle,
@@ -53,6 +55,10 @@ import {
   Check,
   Bug,
 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Switch } from "@/components/ui/switch";
+import { toast } from "sonner";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 import {
   LANGUAGE_CATALOG,
   CORE_LANGUAGES,
@@ -424,6 +430,11 @@ export function SettingsDialog({
         {/* ------------------------------------------------------------------ */}
         {/* UI Language                                                          */}
         {/* ------------------------------------------------------------------ */}
+        {/* ------------------------------------------------------------------ */}
+        {/* Section: Push notifications                                          */}
+        {/* ------------------------------------------------------------------ */}
+        <PushSection isConnected={isConnected} />
+
         <section className="space-y-2">
           <h3 className="text-sm font-semibold">{t("settings.uiLangTitle")}</h3>
           <p className="text-xs text-muted-foreground">{t("settings.uiLangDesc")}</p>
@@ -771,3 +782,100 @@ export function SettingsDialog({
     </Dialog>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Push notifications sub-section
+// ---------------------------------------------------------------------------
+
+function PushSection({ isConnected }: { isConnected: boolean }) {
+  const {
+    isSupported,
+    isIOS,
+    isStandalone,
+    permission,
+    subscription,
+    loading,
+    subscribe,
+    unsubscribe,
+  } = usePushNotifications();
+
+  const enabled = subscription !== null && permission === "granted";
+
+  const handleToggle = async (next: boolean) => {
+    try {
+      if (next) {
+        await subscribe();
+        toast.success(t("push.enabledToast"));
+      } else {
+        await unsubscribe();
+        toast.success(t("push.disabledToast"));
+      }
+    } catch (err) {
+      const msg = (err as Error).message;
+      if (/permission/i.test(msg)) {
+        toast.error(t("push.permissionDenied"));
+      } else if (/sign in/i.test(msg)) {
+        toast.error(t("push.signInFirst"));
+      } else {
+        toast.error(t("push.enableError"));
+      }
+    }
+  };
+
+  // iPhone, but not running as an installed PWA → show install instructions.
+  if (isIOS && !isStandalone) {
+    return (
+      <section className="space-y-3 border-b border-border pb-4">
+        <div className="flex items-center gap-2">
+          <Bell className="h-4 w-4 text-muted-foreground" />
+          <h3 className="text-sm font-semibold">{t("push.title")}</h3>
+        </div>
+        <Alert>
+          <Smartphone className="h-4 w-4" />
+          <AlertTitle>{t("push.iosInstallTitle")}</AlertTitle>
+          <AlertDescription>{t("push.iosInstallBody")}</AlertDescription>
+        </Alert>
+      </section>
+    );
+  }
+
+  if (!isSupported) {
+    return (
+      <section className="space-y-3 border-b border-border pb-4">
+        <div className="flex items-center gap-2">
+          <Bell className="h-4 w-4 text-muted-foreground" />
+          <h3 className="text-sm font-semibold">{t("push.title")}</h3>
+        </div>
+        <p className="text-xs text-muted-foreground">{t("push.unsupported")}</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="space-y-3 border-b border-border pb-4">
+      <div className="flex items-center gap-2">
+        <Bell className="h-4 w-4 text-muted-foreground" />
+        <h3 className="text-sm font-semibold">{t("push.title")}</h3>
+      </div>
+      <div className="rounded-md border border-border bg-muted/30 p-4 space-y-3">
+        <p className="text-xs text-foreground/80 leading-relaxed">{t("push.desc")}</p>
+        {!isConnected ? (
+          <p className="text-xs text-muted-foreground italic">{t("push.signInFirst")}</p>
+        ) : (
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm">
+              {enabled ? t("push.enabled") : t("push.enable")}
+            </span>
+            <Switch
+              checked={enabled}
+              disabled={loading}
+              onCheckedChange={handleToggle}
+              aria-label={enabled ? t("push.disable") : t("push.enable")}
+            />
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+

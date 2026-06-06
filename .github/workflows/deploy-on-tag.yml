@@ -90,6 +90,7 @@ jobs:
       - name: Build (pnpm)
         env:
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          VITE_VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
         run: pnpm run build
 
       - name: Deploy to Cloudflare Pages with Wrangler
