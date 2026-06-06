@@ -430,6 +430,11 @@ export function SettingsDialog({
         {/* ------------------------------------------------------------------ */}
         {/* UI Language                                                          */}
         {/* ------------------------------------------------------------------ */}
+        {/* ------------------------------------------------------------------ */}
+        {/* Section: Push notifications                                          */}
+        {/* ------------------------------------------------------------------ */}
+        <PushSection isConnected={isConnected} />
+
         <section className="space-y-2">
           <h3 className="text-sm font-semibold">{t("settings.uiLangTitle")}</h3>
           <p className="text-xs text-muted-foreground">{t("settings.uiLangDesc")}</p>
