@@ -1,6 +1,6 @@
 # ---------------------------------------------------------------------------
-# KV namespace shared by the Pages app (functions/api/notifications/*) and
-# the standalone cron Worker (workers/push-cron). Stores Web Push
+# KV namespace shared by the Pages app (functions/api/notifications/*)
+# and the standalone cron Worker (workers/push-cron). Stores Web Push
 # subscriptions and per-user `lastQuizAt` heartbeats.
 # ---------------------------------------------------------------------------
 
@@ -12,8 +12,6 @@ resource "cloudflare_workers_kv_namespace" "push_subs" {
 # ---------------------------------------------------------------------------
 # Pages project
 # ---------------------------------------------------------------------------
-# This resource is configured for Direct Upload deployments (Wrangler / API).
-# No `source` block is defined, so Terraform will not connect a Git provider.
 
 resource "cloudflare_pages_project" "ordsamling" {
   account_id        = var.cloudflare_account_id
@@ -25,7 +23,7 @@ resource "cloudflare_pages_project" "ordsamling" {
       compatibility_date  = "2026-04-04"
       compatibility_flags = []
 
-      env_vars = {
+      environment_variables = {
         VITE_VAPID_PUBLIC_KEY = var.vapid_public_key
       }
 
@@ -43,7 +41,7 @@ resource "cloudflare_pages_project" "ordsamling" {
       compatibility_date  = "2026-04-04"
       compatibility_flags = []
 
-      env_vars = {
+      environment_variables = {
         VITE_VAPID_PUBLIC_KEY = var.vapid_public_key
       }
 
