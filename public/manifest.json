@@ -1,0 +1,25 @@
+{
+  "name": "Ordsamling — A minimalist language notebook",
+  "short_name": "Ordsamling",
+  "description": "A minimalist Danish & English vocabulary notebook with smart quizzes.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "lang": "en",
+  "background_color": "#fbf7f1",
+  "theme_color": "#1a2942",
+  "icons": [
+    {
+      "src": "/favicon-32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
