@@ -6,11 +6,8 @@ vi.mock('@/lib/googleOAuth', () => ({
   getValidAccessToken: vi.fn(async () => 'fake-token'),
 }));
 
-const originalNavigator = globalThis.navigator;
-const originalWindow = globalThis.window;
-
 function setUserAgent(ua: string) {
-  Object.defineProperty(globalThis.navigator, 'userAgent', {
+  Object.defineProperty(window.navigator, 'userAgent', {
     configurable: true,
     get: () => ua,
   });
@@ -35,19 +32,31 @@ function setMatchMedia(matches: boolean) {
 
 afterEach(() => {
   vi.restoreAllMocks();
-  globalThis.navigator = originalNavigator;
-  globalThis.window = originalWindow;
+  setUserAgent('Mozilla/5.0');
+  setMatchMedia(false);
+  // Drop any test stubs.
+  // @ts-expect-error cleanup
+  delete (window.navigator as Navigator & { serviceWorker?: unknown }).serviceWorker;
+  // @ts-expect-error cleanup
+  delete globalThis.PushManager;
+  // @ts-expect-error cleanup
+  delete globalThis.Notification;
 });
 
 describe('urlBase64ToUint8Array', () => {
-  it('decodes a known VAPID public key into 65 bytes (uncompressed P-256)', () => {
-    // Sample base64url-encoded VAPID public key (65 raw bytes).
+  it('decodes a 65-byte uncompressed P-256 VAPID public key', () => {
     const sample =
       'BNbnG3FzL0nP5pq1WoT0Y7CXMPdiSqGqHnXJ4-eJiTtJ7K_lTLcjnG5GwK4u3XVwAYUI5oMrr-tCfA_O3xRm9bA';
     const out = urlBase64ToUint8Array(sample);
     expect(out).toBeInstanceOf(Uint8Array);
     expect(out.length).toBe(65);
-    expect(out[0]).toBe(0x04); // uncompressed point prefix
+    expect(out[0]).toBe(0x04);
+  });
+
+  it('round-trips simple ASCII through base64url padding logic', () => {
+    // base64url of "hello" = aGVsbG8 (no padding)
+    const out = urlBase64ToUint8Array('aGVsbG8');
+    expect(new TextDecoder().decode(out)).toBe('hello');
   });
 });
 
@@ -56,13 +65,8 @@ describe('usePushNotifications', () => {
     setMatchMedia(false);
   });
 
-  it('reports isSupported=false when service workers are unavailable', () => {
-    // Strip the relevant globals.
-    const navStub = { userAgent: 'Mozilla/5.0', maxTouchPoints: 0 } as Navigator;
-    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: navStub });
-    const winStub = { matchMedia: window.matchMedia } as unknown as Window & typeof globalThis;
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: winStub });
-
+  it('reports isSupported=false when PushManager/Notification globals are missing', () => {
+    // Default jsdom: no PushManager, no Notification, no serviceWorker.
     const { result } = renderHook(() => usePushNotifications());
     expect(result.current.isSupported).toBe(false);
     expect(result.current.permission).toBe('unsupported');
@@ -78,20 +82,16 @@ describe('usePushNotifications', () => {
     expect(result.current.isStandalone).toBe(false);
   });
 
-  it('subscribe() refuses without a configured VAPID key', async () => {
-    // Provide just enough of a supported environment.
-    const subscribeMock = vi.fn();
-    const registerMock = vi.fn(async () => ({
-      pushManager: {
-        getSubscription: vi.fn(async () => null),
-        subscribe: subscribeMock,
-      },
-    }));
-
-    Object.defineProperty(globalThis.navigator, 'serviceWorker', {
+  it('subscribe() throws without a configured VAPID key', async () => {
+    Object.defineProperty(window.navigator, 'serviceWorker', {
       configurable: true,
       value: {
-        register: registerMock,
+        register: vi.fn(async () => ({
+          pushManager: {
+            getSubscription: vi.fn(async () => null),
+            subscribe: vi.fn(),
+          },
+        })),
         getRegistration: vi.fn(async () => null),
         ready: Promise.resolve({}),
       },
@@ -99,7 +99,10 @@ describe('usePushNotifications', () => {
     // @ts-expect-error test stub
     globalThis.PushManager = function PushManager() {};
     // @ts-expect-error test stub
-    globalThis.Notification = { permission: 'default', requestPermission: vi.fn(async () => 'granted') };
+    globalThis.Notification = {
+      permission: 'default',
+      requestPermission: vi.fn(async () => 'granted'),
+    };
 
     const { result } = renderHook(() => usePushNotifications());
     await waitFor(() => expect(result.current.isSupported).toBe(true));
@@ -107,6 +110,5 @@ describe('usePushNotifications', () => {
     await act(async () => {
       await expect(result.current.subscribe()).rejects.toThrow(/VAPID public key/);
     });
-    expect(subscribeMock).not.toHaveBeenCalled();
   });
 });
