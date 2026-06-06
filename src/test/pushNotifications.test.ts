@@ -34,13 +34,9 @@ afterEach(() => {
   vi.restoreAllMocks();
   setUserAgent('Mozilla/5.0');
   setMatchMedia(false);
-  // Drop any test stubs.
-  // @ts-expect-error cleanup
   delete (window.navigator as Navigator & { serviceWorker?: unknown }).serviceWorker;
-  // @ts-expect-error cleanup
-  delete globalThis.PushManager;
-  // @ts-expect-error cleanup
-  delete globalThis.Notification;
+  delete (globalThis as Record<string, unknown>).PushManager;
+  delete (globalThis as Record<string, unknown>).Notification;
 });
 
 describe('urlBase64ToUint8Array', () => {
