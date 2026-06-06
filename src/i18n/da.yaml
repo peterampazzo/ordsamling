@@ -442,3 +442,19 @@ sync:
     pulled: "Hentet {added} nye, {updated} opdaterede, {removed} fjernet fra Google Sheets"
     failed: "Kunne ikke hente fra Google Sheets"
     sessionExpired: "Sessionen er udløbet — tilslut igen for at hente ændringer"
+
+push:
+  title: "Daglig påmindelse"
+  desc: "Få en venlig påmindelse, når du ikke har øvet i et døgn."
+  enable: "Slå påmindelser til"
+  disable: "Slå påmindelser fra"
+  enabled: "Påmindelser er aktive"
+  iosInstallTitle: "Installér Ordsamling for at få påmindelser"
+  iosInstallBody: "På iPhone: tryk på Del-ikonet i Safari og vælg «Føj til hjemmeskærm». Åbn appen fra hjemmeskærmen for at slå daglige påmindelser til."
+  signInFirst: "Log først ind med Google — påmindelser er knyttet til din konto."
+  unsupported: "Denne browser understøtter endnu ikke push-notifikationer."
+  permissionDenied: "Notifikationer er blokeret i browserens indstillinger."
+  enableError: "Kunne ikke aktivere påmindelser — prøv igen."
+  enabledToast: "Daglige påmindelser slået til."
+  disabledToast: "Daglige påmindelser slået fra."
+
