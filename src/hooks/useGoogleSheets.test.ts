@@ -148,6 +148,18 @@ describe('mergeSheetsIntoLocal', () => {
     }
   });
 
+  it('duplicate sheet rows with the same id are deduplicated and freshest row wins', () => {
+    const local = makeEntry({ id: 'dup', createdAt: 1000, updatedAt: 1000, danish: 'local-old' });
+    const sheetA = makeEntry({ id: 'dup', createdAt: 2000, updatedAt: 2000, danish: 'sheet-new' });
+    const sheetB = makeEntry({ id: 'dup', createdAt: 1500, updatedAt: 1500, danish: 'sheet-old' });
+
+    const result = mergeSheetsIntoLocal([local], [sheetA, sheetB]);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('dup');
+    expect(result[0].danish).toBe('sheet-new');
+  });
+
   it('empty local + non-empty sheet → all sheet entries returned', () => {
     const sheet1 = makeEntry({ id: 's1', danish: 'sheet1' });
     const sheet2 = makeEntry({ id: 's2', danish: 'sheet2' });

@@ -167,6 +167,39 @@ function deserializeLexiconRow(row: string[]): LexisEntry | null {
   return { id, danish, english, translations, type, grammar, notes, createdAt, updatedAt };
 }
 
+function entryCompletenessScore(entry: LexisEntry): number {
+  return [
+    entry.danish?.trim(),
+    entry.english?.trim(),
+    entry.notes?.trim(),
+    JSON.stringify(entry.grammar ?? {}).replace(/"/g, '').trim(),
+    JSON.stringify(entry.translations ?? {}).replace(/"/g, '').trim(),
+  ].filter(Boolean).length;
+}
+
+function dedupeLexiconEntries(entries: LexisEntry[]): LexisEntry[] {
+  const map = new Map<string, LexisEntry>();
+  for (const entry of entries) {
+    const existing = map.get(entry.id);
+    if (!existing) {
+      map.set(entry.id, entry);
+      continue;
+    }
+
+    if (entry.updatedAt > existing.updatedAt) {
+      map.set(entry.id, entry);
+      continue;
+    }
+
+    if (entry.updatedAt === existing.updatedAt) {
+      if (entryCompletenessScore(entry) > entryCompletenessScore(existing)) {
+        map.set(entry.id, entry);
+      }
+    }
+  }
+  return Array.from(map.values());
+}
+
 /**
  * Serialize a QuizSessionRecord to exactly 8 strings for the QuizHistory sheet row.
  * Columns: [ID, Date, Mode, FromLabel, ToLabel, Score, Total, Answers(JSON)]
@@ -365,7 +398,8 @@ export class GoogleSheetsService {
         accessToken
       );
       const rows = result.values ?? [];
-      return rows.map(deserializeLexiconRow).filter((e): e is LexisEntry => e !== null);
+      const entries = rows.map(deserializeLexiconRow).filter((e): e is LexisEntry => e !== null);
+      return dedupeLexiconEntries(entries);
     });
   }
 
@@ -429,20 +463,57 @@ export class GoogleSheetsService {
         accessToken
       );
       const rows = result.values ?? [];
-      const rowIndex = rows.findIndex((r) => r[0] === entry.id);
-      if (rowIndex === -1) {
-        // Entry not found — append instead
+      const rowIndexes = rows
+        .map((row, index) => (row[0] === entry.id ? index : -1))
+        .filter((index) => index >= 0);
+
+      if (rowIndexes.length === 0) {
+        // Entry not found — append instead to preserve the local update.
         await this.writeLexiconRow(spreadsheetId, entry, accessToken);
         return;
       }
-      // Sheet row number: data starts at row 2, so rowIndex 0 → row 2
-      const sheetRow = rowIndex + 2;
+
+      const firstRowIndex = rowIndexes[0];
+      const sheetRow = firstRowIndex + 2;
       const values = [serializeLexiconRow(entry)];
       await sheetsRequest(
         `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent(`Lexicon!A${sheetRow}`)}?valueInputOption=RAW`,
         accessToken,
         { method: 'PUT', body: JSON.stringify({ values }) }
       );
+
+      if (rowIndexes.length > 1) {
+        const meta = await sheetsRequest<{
+          sheets: Array<{ properties: { title: string; sheetId: number } }>;
+        }>(`${SHEETS_BASE}/${spreadsheetId}`, accessToken);
+
+        const lexiconSheet = (meta.sheets ?? []).find(
+          (s) => s.properties.title === 'Lexicon'
+        );
+        if (!lexiconSheet) return;
+
+        const sheetId = lexiconSheet.properties.sheetId;
+        const duplicateRowIndexes = rowIndexes.slice(1).sort((a, b) => b - a);
+        const requests = duplicateRowIndexes.map((rowIndex) => ({
+          deleteDimension: {
+            range: {
+              sheetId,
+              dimension: 'ROWS',
+              startIndex: rowIndex + 1,
+              endIndex: rowIndex + 2,
+            },
+          },
+        }));
+
+        await sheetsRequest(
+          `${SHEETS_BASE}/${spreadsheetId}:batchUpdate`,
+          accessToken,
+          {
+            method: 'POST',
+            body: JSON.stringify({ requests }),
+          }
+        );
+      }
     });
   }
 
@@ -471,30 +542,29 @@ export class GoogleSheetsService {
         accessToken
       );
       const idColumn = result.values ?? [];
-      const rowIndex = idColumn.findIndex((r) => r[0] === entryId);
-      if (rowIndex === -1) return; // not found, nothing to delete
+      const rowIndexes = idColumn
+        .map((row, index) => (row[0] === entryId ? index : -1))
+        .filter((index) => index >= 0);
+      if (rowIndexes.length === 0) return;
 
-      // Sheet row index (0-based): data starts at row 2 (index 1), so rowIndex 0 → sheet index 1
-      const startIndex = rowIndex + 1; // 0-based sheet row index
+      const duplicateRowIndexes = rowIndexes.sort((a, b) => b - a);
+      const requests = duplicateRowIndexes.map((rowIndex) => ({
+        deleteDimension: {
+          range: {
+            sheetId,
+            dimension: 'ROWS',
+            startIndex: rowIndex + 1,
+            endIndex: rowIndex + 2,
+          },
+        },
+      }));
+
       await sheetsRequest(
         `${SHEETS_BASE}/${spreadsheetId}:batchUpdate`,
         accessToken,
         {
           method: 'POST',
-          body: JSON.stringify({
-            requests: [
-              {
-                deleteDimension: {
-                  range: {
-                    sheetId,
-                    dimension: 'ROWS',
-                    startIndex,
-                    endIndex: startIndex + 1,
-                  },
-                },
-              },
-            ],
-          }),
+          body: JSON.stringify({ requests }),
         }
       );
     });

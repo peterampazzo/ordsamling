@@ -105,6 +105,39 @@ function entryContentDiffers(a: LexisEntry, b: LexisEntry): boolean {
   return false;
 }
 
+function entryCompletenessScore(entry: LexisEntry): number {
+  return [
+    entry.danish?.trim(),
+    entry.english?.trim(),
+    entry.notes?.trim(),
+    JSON.stringify(entry.grammar ?? {}).replace(/"/g, '').trim(),
+    JSON.stringify(entry.translations ?? {}).replace(/"/g, '').trim(),
+  ].filter(Boolean).length;
+}
+
+function dedupeEntries(entries: LexisEntry[]): LexisEntry[] {
+  const map = new Map<string, LexisEntry>();
+  for (const entry of entries) {
+    const existing = map.get(entry.id);
+    if (!existing) {
+      map.set(entry.id, entry);
+      continue;
+    }
+
+    if (entry.updatedAt > existing.updatedAt) {
+      map.set(entry.id, entry);
+      continue;
+    }
+
+    if (entry.updatedAt === existing.updatedAt) {
+      if (entryCompletenessScore(entry) > entryCompletenessScore(existing)) {
+        map.set(entry.id, entry);
+      }
+    }
+  }
+  return Array.from(map.values());
+}
+
 export interface MergeOptions {
   /** Entry ids that have pending unsynced local edits — never overwrite these. */
   pendingIds?: ReadonlySet<string>;
@@ -134,19 +167,22 @@ export function mergeSheetsIntoLocal(
   opts: MergeOptions = {}
 ): LexisEntry[] {
   const pendingIds = opts.pendingIds ?? new Set<string>();
+  const normalizedLocalEntries = dedupeEntries(localEntries);
+  const normalizedSheetEntries = dedupeEntries(sheetEntries);
+
   const sheetMap = new Map<string, LexisEntry>();
-  for (const entry of sheetEntries) {
+  for (const entry of normalizedSheetEntries) {
     sheetMap.set(entry.id, entry);
   }
 
   const localMap = new Map<string, LexisEntry>();
-  for (const entry of localEntries) {
+  for (const entry of normalizedLocalEntries) {
     localMap.set(entry.id, entry);
   }
 
   const merged: LexisEntry[] = [];
 
-  for (const localEntry of localEntries) {
+  for (const localEntry of normalizedLocalEntries) {
     const sheetVersion = sheetMap.get(localEntry.id);
     if (sheetVersion === undefined) {
       if (opts.deleteMissing && !pendingIds.has(localEntry.id)) {
@@ -166,7 +202,7 @@ export function mergeSheetsIntoLocal(
     }
   }
 
-  for (const sheetEntry of sheetEntries) {
+  for (const sheetEntry of normalizedSheetEntries) {
     if (!localMap.has(sheetEntry.id)) {
       merged.push(sheetEntry);
     }
