@@ -784,89 +784,171 @@ const Quiz = () => {
         />
 
         <main id="main" className="flex-1 max-w-md mx-auto w-full px-4 py-6 sm:py-8 space-y-8">
-          {allEntries.length < 4 ? (
-            <div className="text-center py-12 text-muted-foreground space-y-2">
-              <Brain className="h-10 w-10 mx-auto opacity-30" />
-              <p className="text-base">{t("quiz.minWordsNeeded")}</p>
+          {/* Exercise picker */}
+          <section className="space-y-3">
+            <h2 id="exercise-label" className="text-sm font-medium text-foreground flex items-center gap-1.5">
+              <Dumbbell className="h-4 w-4" aria-hidden /> {t("quiz.exercise.title")}
+            </h2>
+            <div role="radiogroup" aria-labelledby="exercise-label" className="grid grid-cols-2 gap-2">
+              {EXERCISE_KINDS.map((kind) => {
+                const Icon = EXERCISE_ICONS[kind];
+                const selected = exercise === kind;
+                return (
+                  <button
+                    key={kind}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => setExercise(kind)}
+                    className={cn(
+                      "flex flex-col items-start gap-1 px-3 py-3 rounded-lg border text-left transition-colors",
+                      selected
+                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                        : "bg-card text-foreground border-border hover:border-primary/40",
+                    )}
+                  >
+                    <Icon className="h-4 w-4" aria-hidden />
+                    <span className="text-sm font-medium">{t(`quiz.exercise.${kind}`)}</span>
+                    <span className={cn("text-xs", selected ? "text-primary-foreground/80" : "text-muted-foreground")}>
+                      {t(`quiz.exercise.${kind}Desc`)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {needsEntries && availableForExercise < 2 ? (
+            <div className="text-center py-10 text-muted-foreground space-y-2">
+              <Brain className="h-10 w-10 mx-auto opacity-30" aria-hidden />
+              <p className="text-base">
+                {exercise === "verbs"
+                  ? t("quiz.exercise.needVerbs")
+                  : exercise === "articles"
+                  ? t("quiz.exercise.needNouns")
+                  : t("quiz.minWordsNeeded")}
+              </p>
               <Button variant="outline" asChild className="mt-4"><Link to="/app">{t("quiz.addWords")}</Link></Button>
             </div>
           ) : (
             <>
-              {/* Difficulty */}
-              <section className="space-y-3">
-                <h2 className="text-sm font-medium text-foreground flex items-center gap-1.5">
-                  <Gauge className="h-4 w-4" /> {t("quiz.difficulty")}
-                </h2>
-                <div className="grid grid-cols-1 gap-2">
-                  {DIFFICULTIES.map((d) => (
-                    <button
-                      key={d.value}
-                      type="button"
-                      onClick={() => setDifficulty(d.value)}
-                      aria-pressed={difficulty === d.value}
-                      className={cn(
-                        "px-3 py-3 rounded-lg border text-sm transition-colors text-left",
-                        difficulty === d.value
-                          ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                          : "bg-card text-foreground border-border hover:border-primary/40",
-                      )}
-                    >
-                      <span className="font-medium">{d.label}</span>
-                      <p className={cn("text-xs mt-0.5", difficulty === d.value ? "text-primary-foreground/80" : "text-muted-foreground")}>{d.description}</p>
+              {/* Difficulty — vocabulary only */}
+              {exercise === "vocabulary" && (
+                <section className="space-y-3">
+                  <h2 className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                    <Gauge className="h-4 w-4" /> {t("quiz.difficulty")}
+                  </h2>
+                  <div className="grid grid-cols-1 gap-2">
+                    {DIFFICULTIES.map((d) => (
+                      <button
+                        key={d.value}
+                        type="button"
+                        onClick={() => setDifficulty(d.value)}
+                        aria-pressed={difficulty === d.value}
+                        className={cn(
+                          "px-3 py-3 rounded-lg border text-sm transition-colors text-left",
+                          difficulty === d.value
+                            ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                            : "bg-card text-foreground border-border hover:border-primary/40",
+                        )}
+                      >
+                        <span className="font-medium">{d.label}</span>
+                        <p className={cn("text-xs mt-0.5", difficulty === d.value ? "text-primary-foreground/80" : "text-muted-foreground")}>{d.description}</p>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* Mode — vocabulary and verbs */}
+              {(exercise === "vocabulary" || exercise === "verbs") && (
+                <section className="space-y-3">
+                  <h2 className="text-sm font-medium text-foreground">{t("quiz.mode")}</h2>
+                  <div className={cn("grid gap-2", exercise === "verbs" ? "grid-cols-3" : "grid-cols-4")}>
+                    <button type="button" onClick={() => setMode("mixed")} aria-pressed={mode === "mixed"}
+                      className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
+                        mode === "mixed" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
+                      <Shuffle className="h-4 w-4" />
+                      <span className="text-xs">{t("quiz.modeMixed")}</span>
                     </button>
-                  ))}
-                </div>
-              </section>
+                    <button type="button" onClick={() => setMode("choice")} aria-pressed={mode === "choice"}
+                      className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
+                        mode === "choice" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
+                      <LayoutGrid className="h-4 w-4" />
+                      <span className="text-xs">{t("quiz.modeChoice")}</span>
+                    </button>
+                    <button type="button" onClick={() => setMode("type")} aria-pressed={mode === "type"}
+                      className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
+                        mode === "type" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
+                      <Keyboard className="h-4 w-4" />
+                      <span className="text-xs">{t("quiz.modeType")}</span>
+                    </button>
+                    {exercise === "vocabulary" && (
+                      <button type="button" onClick={() => setMode("completion")} aria-pressed={mode === "completion"}
+                        className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
+                          mode === "completion" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
+                        <PenLine className="h-4 w-4" />
+                        <span className="text-xs">{t("quiz.modeCompletion")}</span>
+                      </button>
+                    )}
+                  </div>
+                </section>
+              )}
 
-              {/* Mode */}
-              <section className="space-y-3">
-                <h2 className="text-sm font-medium text-foreground">{t("quiz.mode")}</h2>
-                <div className="grid grid-cols-4 gap-2">
-                  <button type="button" onClick={() => setMode("mixed")} aria-pressed={mode === "mixed"}
-                    className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
-                      mode === "mixed" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
-                    <Shuffle className="h-4 w-4" />
-                    <span className="text-xs">{t("quiz.modeMixed")}</span>
-                  </button>
-                  <button type="button" onClick={() => setMode("choice")} aria-pressed={mode === "choice"}
-                    className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
-                      mode === "choice" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
-                    <LayoutGrid className="h-4 w-4" />
-                    <span className="text-xs">{t("quiz.modeChoice")}</span>
-                  </button>
-                  <button type="button" onClick={() => setMode("type")} aria-pressed={mode === "type"}
-                    className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
-                      mode === "type" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
-                    <Keyboard className="h-4 w-4" />
-                    <span className="text-xs">{t("quiz.modeType")}</span>
-                  </button>
-                  <button type="button" onClick={() => setMode("completion")} aria-pressed={mode === "completion"}
-                    className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
-                      mode === "completion" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
-                    <PenLine className="h-4 w-4" />
-                    <span className="text-xs">{t("quiz.modeCompletion")}</span>
-                  </button>
-                </div>
-              </section>
+              {/* Number sub-topics */}
+              {exercise === "numbers" && (
+                <fieldset className="space-y-2">
+                  <legend className="text-sm font-medium text-foreground mb-2">{t("quiz.numbers.topics")}</legend>
+                  {NUMBER_TOPICS.map((topic) => {
+                    const checked = numberTopics.includes(topic);
+                    return (
+                      <label key={topic} className="flex items-start gap-3 px-3 py-2.5 rounded-lg border border-border bg-card cursor-pointer hover:border-primary/40 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) =>
+                            setNumberTopics((prev) => {
+                              const next = e.target.checked ? [...prev, topic] : prev.filter((p) => p !== topic);
+                              return next.length > 0 ? next : prev;
+                            })
+                          }
+                          className="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-2 focus:ring-ring"
+                        />
+                        <span className="flex-1 min-w-0">
+                          <span className="text-sm font-medium text-foreground">{t(`quiz.numbers.${topic}`)}</span>
+                          <span className="block text-xs text-muted-foreground mt-0.5">{t(`quiz.numbers.${topic}Desc`)}</span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </fieldset>
+              )}
 
-              {/* Smart practice (spaced repetition) */}
-              <section className="space-y-2">
-                <label className="flex items-start gap-3 px-3 py-3 rounded-lg border border-border bg-card cursor-pointer hover:border-primary/40 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={smartPractice}
-                    onChange={(e) => setSmartPractice(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-2 focus:ring-ring"
-                    aria-describedby="smart-practice-desc"
-                  />
-                  <span className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-foreground">{t("quiz.smartPractice")}</span>
-                    <span id="smart-practice-desc" className="block text-xs text-muted-foreground mt-0.5">
-                      {t("quiz.smartPracticeDesc")}
+              {/* Articles & prepositions info */}
+              {exercise === "articles" && (
+                <p className="text-xs text-muted-foreground">{t("quiz.articles.info", { count: articleCount })}</p>
+              )}
+
+              {/* Smart practice (spaced repetition) — vocabulary only */}
+              {exercise === "vocabulary" && (
+                <section className="space-y-2">
+                  <label className="flex items-start gap-3 px-3 py-3 rounded-lg border border-border bg-card cursor-pointer hover:border-primary/40 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={smartPractice}
+                      onChange={(e) => setSmartPractice(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-2 focus:ring-ring"
+                      aria-describedby="smart-practice-desc"
+                    />
+                    <span className="flex-1 min-w-0">
+                      <span className="text-sm font-medium text-foreground">{t("quiz.smartPractice")}</span>
+                      <span id="smart-practice-desc" className="block text-xs text-muted-foreground mt-0.5">
+                        {t("quiz.smartPracticeDesc")}
+                      </span>
                     </span>
-                  </span>
-                </label>
-              </section>
+                  </label>
+                </section>
+              )}
               <section className="space-y-3">
                 <h2 className="text-sm font-medium text-foreground">{t("quiz.questionCount")}</h2>
                 <div className="flex gap-2">
@@ -879,25 +961,30 @@ const Quiz = () => {
                     </button>
                   ))}
                 </div>
-                <p className="text-xs text-muted-foreground">{t("quiz.questionsAvailable", { count: eligibleCount })}</p>
+                {needsEntries && (
+                  <p className="text-xs text-muted-foreground">{t("quiz.questionsAvailable", { count: eligibleCount })}</p>
+                )}
               </section>
 
               <div className="space-y-2">
-                <Button onClick={() => startQuiz()} disabled={eligibleCount < 2} className="w-full h-11 text-base">
+                <Button onClick={() => startQuiz()} disabled={needsEntries && availableForExercise < 2} className="w-full h-11 text-base">
                   {t("quiz.startQuiz")}
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => startQuiz({ restrictIds: trainableMistakeIds })}
-                  disabled={trainableMistakeIds.size < 2}
-                  className="w-full h-11 text-base"
-                  title={trainableMistakeIds.size < 2 ? t("quiz.trainMistakesNone") : undefined}
-                >
-                  {t("quiz.trainMistakes", { count: trainableMistakeIds.size })}
-                </Button>
+                {exercise === "vocabulary" && (
+                  <Button
+                    variant="outline"
+                    onClick={() => startQuiz({ restrictIds: trainableMistakeIds })}
+                    disabled={trainableMistakeIds.size < 2}
+                    className="w-full h-11 text-base"
+                    title={trainableMistakeIds.size < 2 ? t("quiz.trainMistakesNone") : undefined}
+                  >
+                    {t("quiz.trainMistakes", { count: trainableMistakeIds.size })}
+                  </Button>
+                )}
               </div>
             </>
           )}
+
         </main>
       </div>
     );
