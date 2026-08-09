@@ -68,12 +68,15 @@ export interface QuizSessionRecord {
   id: string;
   date: number;
   mode: "choice" | "type" | "completion" | "mixed";
+  /** Which exercise produced this session. Older records have none → "vocabulary". */
+  exercise?: "vocabulary" | "verbs" | "numbers" | "articles";
   fromLabel: string;
   toLabel: string;
   score: number;
   total: number;
   answers: QuizAnswerRecord[];
 }
+
 
 // ---------------------------------------------------------------------------
 // Task 9.1 — Module-level sync callback set by the app when cloud sync is active
