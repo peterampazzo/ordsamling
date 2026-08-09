@@ -14,6 +14,10 @@ import {
   PenLine,
   Timer,
   Shuffle,
+  Dumbbell,
+  Hash,
+  Repeat,
+  Type as TypeIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,6 +60,13 @@ const DIFFICULTIES: { value: Difficulty; label: string; description: string }[] 
   { value: "intermediate", label: t("quiz.diffIntermediate"), description: t("quiz.diffIntermediateDesc") },
   { value: "advanced", label: t("quiz.diffAdvanced"), description: t("quiz.diffAdvancedDesc") },
 ];
+
+const EXERCISE_ICONS: Record<ExerciseKind, typeof Brain> = {
+  vocabulary: Brain,
+  verbs: Repeat,
+  numbers: Hash,
+  articles: TypeIcon,
+};
 
 const TIMER_SECONDS: Record<Difficulty, number> = {
   beginner: 30,
@@ -561,6 +572,20 @@ const Quiz = () => {
   const eligibleCount = useMemo(() => {
     return allEntries.filter((e) => isValid(e.danish) && isValid(e.english)).length;
   }, [allEntries]);
+
+  const verbCount = useMemo(
+    () => allEntries.filter((e) => e.type === "verb" && e.grammar && Object.keys(e.grammar).length > 0).length,
+    [allEntries],
+  );
+
+  const articleCount = useMemo(
+    () => allEntries.filter((e) => e.type === "noun" && (e.grammar?.article || e.grammar?.singularDefinite)).length,
+    [allEntries],
+  );
+
+  /** Numbers and prepositions are generated, so they never depend on saved words. */
+  const needsEntries = exercise === "vocabulary" || exercise === "verbs";
+  const availableForExercise = exercise === "verbs" ? verbCount : eligibleCount;
 
   // Timer effect
   useEffect(() => {
