@@ -464,10 +464,17 @@ const Quiz = () => {
     [visibleLangs],
   );
 
+  const [exercise, setExercise] = useState<ExerciseKind>(() => loadExercise());
+  const [numberTopics, setNumberTopics] = useState<NumberTopic[]>([...NUMBER_TOPICS]);
   const [mode, setMode] = useState<QuizMode>("mixed");
   const [difficulty, setDifficulty] = useState<Difficulty>("beginner");
   const [questionCount, setQuestionCount] = useState(10);
   const [smartPractice, setSmartPractice] = useState(false);
+
+  useEffect(() => {
+    saveExercise(exercise);
+  }, [exercise]);
+
 
   const [state, setState] = useState<QuizState>("setup");
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
