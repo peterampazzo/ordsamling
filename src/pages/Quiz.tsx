@@ -925,7 +925,7 @@ const Quiz = () => {
                 <>
                   <p className="text-xs uppercase tracking-wider text-muted-foreground">{questionTypeBadge(current.questionType)}</p>
                   <p className="text-sm text-muted-foreground">{current.hint}</p>
-                  <p className="text-2xl sm:text-3xl font-bold text-foreground font-mono tracking-[0.25em]">{current.prompt}</p>
+                  <p className={cn("font-bold text-foreground", monoPrompt ? "text-2xl sm:text-3xl font-mono tracking-[0.25em]" : "text-xl sm:text-2xl leading-snug")}>{current.prompt}</p>
                 </>
               ) : currentDisplayMode === "completion" && current.masked ? (
                 <>
@@ -944,10 +944,13 @@ const Quiz = () => {
                   )}
                 </>
               )}
-              <span className={cn("inline-block text-[10px] font-medium uppercase px-2 py-0.5 rounded-full", "bg-muted text-muted-foreground")}>
-                {entryTypeLabel(current.entry.type)}
-              </span>
+              {!isGeneratedEntryId(current.entry.id) && (
+                <span className={cn("inline-block text-[10px] font-medium uppercase px-2 py-0.5 rounded-full", "bg-muted text-muted-foreground")}>
+                  {entryTypeLabel(current.entry.type)}
+                </span>
+              )}
             </div>
+
 
             {/* Answer area */}
             {effectiveMode === "choice" ? (
