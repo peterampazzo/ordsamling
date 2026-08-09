@@ -14,6 +14,10 @@ import {
   PenLine,
   Timer,
   Shuffle,
+  Dumbbell,
+  Hash,
+  Repeat,
+  Type as TypeIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +29,17 @@ import { fetchDistractors, GeminiKeyMissingError } from "@/lib/gemini";import { 
 import type { LexisEntry } from "@/hooks/useLexicon";
 import { entryTypeLabel, type EntryGrammar } from "@/lib/lexicon";
 import { saveSession, recordReview, loadBoxStates, pickDue, loadHistory, getMistakeEntryIds, type QuizAnswerRecord } from "@/lib/quizHistory";
+import {
+  EXERCISE_KINDS,
+  isExerciseKind,
+  isGeneratedEntryId,
+  type ExerciseKind,
+  type LangDirection,
+  type QuestionType,
+  type QuizQuestion,
+} from "@/lib/exercises/types";
+import { buildNumberQuestions, NUMBER_TOPICS, type NumberTopic } from "@/lib/exercises/numbers";
+import { buildArticlesExercise } from "@/lib/exercises/prepositions";
 import { useVisibleLanguages } from "@/hooks/useVisibleLanguages";
 import { t } from "@/i18n";
 
@@ -34,13 +49,6 @@ import { t } from "@/i18n";
 
 type QuizMode = "choice" | "type" | "completion" | "mixed";
 type Difficulty = "beginner" | "intermediate" | "advanced";
-
-type LangDirection = {
-  from: "danish" | "english";
-  to: "danish" | "english";
-  fromLabel: string;
-  toLabel: string;
-};
 
 const DIRECTIONS: LangDirection[] = [
   { from: "danish", to: "english", fromLabel: t("directions.danish"), toLabel: t("directions.english") },
@@ -53,29 +61,40 @@ const DIFFICULTIES: { value: Difficulty; label: string; description: string }[] 
   { value: "advanced", label: t("quiz.diffAdvanced"), description: t("quiz.diffAdvancedDesc") },
 ];
 
+const EXERCISE_ICONS: Record<ExerciseKind, typeof Brain> = {
+  vocabulary: Brain,
+  verbs: Repeat,
+  numbers: Hash,
+  articles: TypeIcon,
+};
+
 const TIMER_SECONDS: Record<Difficulty, number> = {
   beginner: 30,
   intermediate: 20,
   advanced: 15,
 };
 
-type QuestionType = "translate" | "conjugation" | "noun_form" | "fill_blank";
+const EXERCISE_STORAGE_KEY = "ordsamling-quiz-exercise";
 
-interface QuizQuestion {
-  entry: LexisEntry;
-  prompt: string;
-  answer: string;
-  options: string[];
-  questionType: QuestionType;
-  hint?: string;
-  direction: LangDirection;
-  /** For completion mode: the masked version */
-  masked?: string;
-  /** For mixed mode: which display mode this question uses */
-  displayMode?: "choice" | "type" | "completion";
+function loadExercise(): ExerciseKind {
+  try {
+    const raw = localStorage.getItem(EXERCISE_STORAGE_KEY);
+    return isExerciseKind(raw) ? raw : "vocabulary";
+  } catch {
+    return "vocabulary";
+  }
+}
+
+function saveExercise(kind: ExerciseKind) {
+  try {
+    localStorage.setItem(EXERCISE_STORAGE_KEY, kind);
+  } catch {
+    /* storage unavailable — remembering the choice is best-effort */
+  }
 }
 
 type QuizState = "setup" | "playing" | "result";
+
 
 /* ------------------------------------------------------------------ */
 /*  Validation                                                         */
@@ -407,6 +426,49 @@ function buildQuestions(
   return picked;
 }
 
+/**
+ * Verb exercise: conjugation drills only (infinitive + tense → form, and the
+ * reverse "which verb is this form?"), built from the user's verb entries.
+ */
+function buildVerbDrillQuestions(
+  entries: LexisEntry[],
+  count: number,
+  mode: QuizMode,
+  directions: LangDirection[] = DIRECTIONS,
+): QuizQuestion[] {
+  const dir = directions[0] ?? DIRECTIONS[0];
+  const forward = buildConjugationQuestions(entries, dir);
+
+  // Reverse drill: show the inflected form, ask for the infinitive.
+  const reverse: QuizQuestion[] = forward.map((q) => ({
+    entry: q.entry,
+    prompt: q.answer,
+    answer: q.entry.danish,
+    options: [],
+    questionType: "conjugation" as QuestionType,
+    hint: t("quiz.verbs.hintInfinitive"),
+    direction: dir,
+  }));
+
+  const picked = shuffle([...forward, ...reverse]).slice(0, count);
+
+  const MIXED_CYCLE: ("choice" | "type")[] = ["choice", "type"];
+  for (let i = 0; i < picked.length; i++) {
+    if (mode === "mixed") picked[i].displayMode = MIXED_CYCLE[i % MIXED_CYCLE.length];
+    const isChoice = mode === "choice" || picked[i].displayMode === "choice";
+    if (!isChoice) continue;
+    const pool = [...forward, ...reverse]
+      .map((q) => q.answer)
+      .filter((a) => isValid(a) && normalize(a) !== normalize(picked[i].answer));
+    const wrong = shuffle([...new Set(pool)]).slice(0, 3);
+    picked[i].options = shuffle([picked[i].answer, ...wrong]).filter(isValid);
+  }
+
+  return picked;
+}
+
+
+
 /* ------------------------------------------------------------------ */
 /*  AI Distractors                                                     */
 /* ------------------------------------------------------------------ */
@@ -418,6 +480,14 @@ async function fetchSmartDistractors(
   difficulty: Difficulty,
   scoreRatio: number,
 ): Promise<{ distractors: string[]; aiActive: boolean }> {
+  // Generated exercises (numbers, curated prepositions, articles) ship their own
+  // distractors and must not be sent to the AI.
+  const aiTypes = ["translate", "conjugation", "noun_form", "fill_blank"] as const;
+  type AiQuestionType = (typeof aiTypes)[number];
+  if (!(aiTypes as readonly string[]).includes(question.questionType)) {
+    return { distractors: [], aiActive: false };
+  }
+
   const trimmed = question.answer.trim();
   const lower = trimmed.toLowerCase();
   let answerPrefix: string | undefined;
@@ -427,7 +497,8 @@ async function fetchSmartDistractors(
   try {
     const distractors = await fetchDistractors({
       correctAnswer: question.answer,
-      questionType: question.questionType,
+      questionType: question.questionType as AiQuestionType,
+
       entryType: question.entry.type,
       difficulty,
       scoreRatio,
@@ -464,10 +535,17 @@ const Quiz = () => {
     [visibleLangs],
   );
 
+  const [exercise, setExercise] = useState<ExerciseKind>(() => loadExercise());
+  const [numberTopics, setNumberTopics] = useState<NumberTopic[]>([...NUMBER_TOPICS]);
   const [mode, setMode] = useState<QuizMode>("mixed");
   const [difficulty, setDifficulty] = useState<Difficulty>("beginner");
   const [questionCount, setQuestionCount] = useState(10);
   const [smartPractice, setSmartPractice] = useState(false);
+
+  useEffect(() => {
+    saveExercise(exercise);
+  }, [exercise]);
+
 
   const [state, setState] = useState<QuizState>("setup");
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
@@ -494,6 +572,20 @@ const Quiz = () => {
   const eligibleCount = useMemo(() => {
     return allEntries.filter((e) => isValid(e.danish) && isValid(e.english)).length;
   }, [allEntries]);
+
+  const verbCount = useMemo(
+    () => allEntries.filter((e) => e.type === "verb" && e.grammar && Object.keys(e.grammar).length > 0).length,
+    [allEntries],
+  );
+
+  const articleCount = useMemo(
+    () => allEntries.filter((e) => e.type === "noun" && (e.grammar?.article || e.grammar?.singularDefinite)).length,
+    [allEntries],
+  );
+
+  /** Numbers and prepositions are generated, so they never depend on saved words. */
+  const needsEntries = exercise === "vocabulary" || exercise === "verbs";
+  const availableForExercise = exercise === "verbs" ? verbCount : eligibleCount;
 
   // Timer effect
   useEffect(() => {
@@ -570,16 +662,31 @@ const Quiz = () => {
   }, [currentIdx, state]);
 
   const startQuiz = useCallback((opts?: { restrictIds?: Set<string> }) => {
-    let pool = allEntries;
-    if (opts?.restrictIds && opts.restrictIds.size > 0) {
-      pool = allEntries.filter((e) => opts.restrictIds!.has(e.id));
-    } else if (smartPractice) {
-      const dueIds = new Set(pickDue(loadBoxStates(), allEntries.map((e) => e.id)));
-      const dueEntries = allEntries.filter((e) => dueIds.has(e.id));
-      // Fall back to full pool if there isn't enough due material to build a quiz.
-      if (dueEntries.length >= 4) pool = dueEntries;
+    let q: QuizQuestion[];
+
+    if (exercise === "numbers") {
+      q = buildNumberQuestions(numberTopics, questionCount);
+    } else if (exercise === "articles") {
+      q = buildArticlesExercise(allEntries, questionCount);
+    } else {
+      let pool = allEntries;
+      if (exercise === "verbs") {
+        pool = pool.filter((e) => e.type === "verb");
+      }
+      if (opts?.restrictIds && opts.restrictIds.size > 0) {
+        pool = pool.filter((e) => opts.restrictIds!.has(e.id));
+      } else if (exercise === "vocabulary" && smartPractice) {
+        const dueIds = new Set(pickDue(loadBoxStates(), pool.map((e) => e.id)));
+        const dueEntries = pool.filter((e) => dueIds.has(e.id));
+        // Fall back to full pool if there isn't enough due material to build a quiz.
+        if (dueEntries.length >= 4) pool = dueEntries;
+      }
+      const directions = activeDirections.length > 0 ? activeDirections : DIRECTIONS;
+      q = exercise === "verbs"
+        ? buildVerbDrillQuestions(pool, questionCount, mode, directions)
+        : buildQuestions(pool, questionCount, difficulty, mode, directions);
     }
-    const q = buildQuestions(pool, questionCount, difficulty, mode, activeDirections.length > 0 ? activeDirections : DIRECTIONS);
+
     if (q.length < 2) return;
     setQuestions(q);
     setCurrentIdx(0);
@@ -591,7 +698,8 @@ const Quiz = () => {
     setTimeLeft(TIMER_SECONDS[difficulty]);
     setTimerActive(true);
     setState("playing");
-  }, [allEntries, questionCount, difficulty, mode, activeDirections, smartPractice]);
+  }, [allEntries, questionCount, difficulty, mode, activeDirections, smartPractice, exercise, numberTopics]);
+
 
   const trainableMistakeIds = useMemo(
     () => new Set([...mistakeIds].filter((id) => allEntries.some((e) => e.id === id))),
@@ -618,8 +726,9 @@ const Quiz = () => {
         toLang: current.direction.to,
         entryId: current.entry.id,
       });
-      // Spaced-repetition: only count attempted answers; skips/timeouts don't shift the box.
-      if (!skipped && !timedOut) {
+      // Spaced-repetition: only count attempted answers on real vocabulary entries.
+      // Generated questions (numbers, curated prepositions) must not enter the SM-2 schedule.
+      if (!skipped && !timedOut && !isGeneratedEntryId(current.entry.id)) {
         recordReview(current.entry.id, correct);
       }
     },
@@ -632,6 +741,7 @@ const Quiz = () => {
         id: crypto.randomUUID(),
         date: Date.now(),
         mode,
+        exercise,
         fromLabel: t("quiz.dirMixed"),
         toLabel: t("quiz.dirMixed"),
         score,
@@ -643,7 +753,8 @@ const Quiz = () => {
     }
     setMistakeIds(getMistakeEntryIds(loadHistory()));
     setState("result");
-  }, [mode, score, total]);
+  }, [mode, exercise, score, total]);
+
 
   const nextQuestion = useCallback(() => {
     if (currentIdx + 1 >= total) finishQuiz();
@@ -670,9 +781,15 @@ const Quiz = () => {
     return "choice";
   })();
 
+  /** Monospaced, letter-spaced prompt only suits masked/short forms — not full sentences. */
+  const monoPrompt =
+    current?.questionType === "fill_blank" ||
+    currentDisplayMode === "completion";
+
   const questionTypeBadge = (qt: QuestionType) => {
     return t(`quiz.questionTypes.${qt}`);
   };
+
 
   /* ---- Setup screen ---- */
   if (state === "setup") {
@@ -692,89 +809,168 @@ const Quiz = () => {
         />
 
         <main id="main" className="flex-1 max-w-md mx-auto w-full px-4 py-6 sm:py-8 space-y-8">
-          {allEntries.length < 4 ? (
-            <div className="text-center py-12 text-muted-foreground space-y-2">
-              <Brain className="h-10 w-10 mx-auto opacity-30" />
-              <p className="text-base">{t("quiz.minWordsNeeded")}</p>
+          {/* Exercise picker */}
+          <section className="space-y-3">
+            <h2 id="exercise-label" className="text-sm font-medium text-foreground flex items-center gap-1.5">
+              <Dumbbell className="h-4 w-4" aria-hidden /> {t("quiz.exercise.title")}
+            </h2>
+            <div role="radiogroup" aria-labelledby="exercise-label" className="grid grid-cols-2 gap-2">
+              {EXERCISE_KINDS.map((kind) => {
+                const Icon = EXERCISE_ICONS[kind];
+                const selected = exercise === kind;
+                return (
+                  <button
+                    key={kind}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => setExercise(kind)}
+                    className={cn(
+                      "flex flex-col items-start gap-1 px-3 py-3 rounded-lg border text-left transition-colors",
+                      selected
+                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                        : "bg-card text-foreground border-border hover:border-primary/40",
+                    )}
+                  >
+                    <Icon className="h-4 w-4" aria-hidden />
+                    <span className="text-sm font-medium">{t(`quiz.exercise.${kind}`)}</span>
+                    <span className={cn("text-xs", selected ? "text-primary-foreground/80" : "text-muted-foreground")}>
+                      {t(`quiz.exercise.${kind}Desc`)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {needsEntries && availableForExercise < 2 ? (
+            <div className="text-center py-10 text-muted-foreground space-y-2">
+              <Brain className="h-10 w-10 mx-auto opacity-30" aria-hidden />
+              <p className="text-base">
+                {exercise === "verbs" ? t("quiz.exercise.needVerbs") : t("quiz.minWordsNeeded")}
+              </p>
+
               <Button variant="outline" asChild className="mt-4"><Link to="/app">{t("quiz.addWords")}</Link></Button>
             </div>
           ) : (
             <>
-              {/* Difficulty */}
-              <section className="space-y-3">
-                <h2 className="text-sm font-medium text-foreground flex items-center gap-1.5">
-                  <Gauge className="h-4 w-4" /> {t("quiz.difficulty")}
-                </h2>
-                <div className="grid grid-cols-1 gap-2">
-                  {DIFFICULTIES.map((d) => (
-                    <button
-                      key={d.value}
-                      type="button"
-                      onClick={() => setDifficulty(d.value)}
-                      aria-pressed={difficulty === d.value}
-                      className={cn(
-                        "px-3 py-3 rounded-lg border text-sm transition-colors text-left",
-                        difficulty === d.value
-                          ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                          : "bg-card text-foreground border-border hover:border-primary/40",
-                      )}
-                    >
-                      <span className="font-medium">{d.label}</span>
-                      <p className={cn("text-xs mt-0.5", difficulty === d.value ? "text-primary-foreground/80" : "text-muted-foreground")}>{d.description}</p>
+              {/* Difficulty — vocabulary only */}
+              {exercise === "vocabulary" && (
+                <section className="space-y-3">
+                  <h2 className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                    <Gauge className="h-4 w-4" /> {t("quiz.difficulty")}
+                  </h2>
+                  <div className="grid grid-cols-1 gap-2">
+                    {DIFFICULTIES.map((d) => (
+                      <button
+                        key={d.value}
+                        type="button"
+                        onClick={() => setDifficulty(d.value)}
+                        aria-pressed={difficulty === d.value}
+                        className={cn(
+                          "px-3 py-3 rounded-lg border text-sm transition-colors text-left",
+                          difficulty === d.value
+                            ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                            : "bg-card text-foreground border-border hover:border-primary/40",
+                        )}
+                      >
+                        <span className="font-medium">{d.label}</span>
+                        <p className={cn("text-xs mt-0.5", difficulty === d.value ? "text-primary-foreground/80" : "text-muted-foreground")}>{d.description}</p>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* Mode — vocabulary and verbs */}
+              {(exercise === "vocabulary" || exercise === "verbs") && (
+                <section className="space-y-3">
+                  <h2 className="text-sm font-medium text-foreground">{t("quiz.mode")}</h2>
+                  <div className={cn("grid gap-2", exercise === "verbs" ? "grid-cols-3" : "grid-cols-4")}>
+                    <button type="button" onClick={() => setMode("mixed")} aria-pressed={mode === "mixed"}
+                      className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
+                        mode === "mixed" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
+                      <Shuffle className="h-4 w-4" />
+                      <span className="text-xs">{t("quiz.modeMixed")}</span>
                     </button>
-                  ))}
-                </div>
-              </section>
+                    <button type="button" onClick={() => setMode("choice")} aria-pressed={mode === "choice"}
+                      className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
+                        mode === "choice" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
+                      <LayoutGrid className="h-4 w-4" />
+                      <span className="text-xs">{t("quiz.modeChoice")}</span>
+                    </button>
+                    <button type="button" onClick={() => setMode("type")} aria-pressed={mode === "type"}
+                      className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
+                        mode === "type" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
+                      <Keyboard className="h-4 w-4" />
+                      <span className="text-xs">{t("quiz.modeType")}</span>
+                    </button>
+                    {exercise === "vocabulary" && (
+                      <button type="button" onClick={() => setMode("completion")} aria-pressed={mode === "completion"}
+                        className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
+                          mode === "completion" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
+                        <PenLine className="h-4 w-4" />
+                        <span className="text-xs">{t("quiz.modeCompletion")}</span>
+                      </button>
+                    )}
+                  </div>
+                </section>
+              )}
 
-              {/* Mode */}
-              <section className="space-y-3">
-                <h2 className="text-sm font-medium text-foreground">{t("quiz.mode")}</h2>
-                <div className="grid grid-cols-4 gap-2">
-                  <button type="button" onClick={() => setMode("mixed")} aria-pressed={mode === "mixed"}
-                    className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
-                      mode === "mixed" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
-                    <Shuffle className="h-4 w-4" />
-                    <span className="text-xs">{t("quiz.modeMixed")}</span>
-                  </button>
-                  <button type="button" onClick={() => setMode("choice")} aria-pressed={mode === "choice"}
-                    className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
-                      mode === "choice" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
-                    <LayoutGrid className="h-4 w-4" />
-                    <span className="text-xs">{t("quiz.modeChoice")}</span>
-                  </button>
-                  <button type="button" onClick={() => setMode("type")} aria-pressed={mode === "type"}
-                    className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
-                      mode === "type" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
-                    <Keyboard className="h-4 w-4" />
-                    <span className="text-xs">{t("quiz.modeType")}</span>
-                  </button>
-                  <button type="button" onClick={() => setMode("completion")} aria-pressed={mode === "completion"}
-                    className={cn("flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-sm transition-colors",
-                      mode === "completion" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/40")}>
-                    <PenLine className="h-4 w-4" />
-                    <span className="text-xs">{t("quiz.modeCompletion")}</span>
-                  </button>
-                </div>
-              </section>
+              {/* Number sub-topics */}
+              {exercise === "numbers" && (
+                <fieldset className="space-y-2">
+                  <legend className="text-sm font-medium text-foreground mb-2">{t("quiz.numbers.topics")}</legend>
+                  {NUMBER_TOPICS.map((topic) => {
+                    const checked = numberTopics.includes(topic);
+                    return (
+                      <label key={topic} className="flex items-start gap-3 px-3 py-2.5 rounded-lg border border-border bg-card cursor-pointer hover:border-primary/40 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) =>
+                            setNumberTopics((prev) => {
+                              const next = e.target.checked ? [...prev, topic] : prev.filter((p) => p !== topic);
+                              return next.length > 0 ? next : prev;
+                            })
+                          }
+                          className="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-2 focus:ring-ring"
+                        />
+                        <span className="flex-1 min-w-0">
+                          <span className="text-sm font-medium text-foreground">{t(`quiz.numbers.${topic}`)}</span>
+                          <span className="block text-xs text-muted-foreground mt-0.5">{t(`quiz.numbers.${topic}Desc`)}</span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </fieldset>
+              )}
 
-              {/* Smart practice (spaced repetition) */}
-              <section className="space-y-2">
-                <label className="flex items-start gap-3 px-3 py-3 rounded-lg border border-border bg-card cursor-pointer hover:border-primary/40 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={smartPractice}
-                    onChange={(e) => setSmartPractice(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-2 focus:ring-ring"
-                    aria-describedby="smart-practice-desc"
-                  />
-                  <span className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-foreground">{t("quiz.smartPractice")}</span>
-                    <span id="smart-practice-desc" className="block text-xs text-muted-foreground mt-0.5">
-                      {t("quiz.smartPracticeDesc")}
+              {/* Articles & prepositions info */}
+              {exercise === "articles" && (
+                <p className="text-xs text-muted-foreground">{t("quiz.articles.info", { count: articleCount })}</p>
+              )}
+
+              {/* Smart practice (spaced repetition) — vocabulary only */}
+              {exercise === "vocabulary" && (
+                <section className="space-y-2">
+                  <label className="flex items-start gap-3 px-3 py-3 rounded-lg border border-border bg-card cursor-pointer hover:border-primary/40 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={smartPractice}
+                      onChange={(e) => setSmartPractice(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-2 focus:ring-ring"
+                      aria-describedby="smart-practice-desc"
+                    />
+                    <span className="flex-1 min-w-0">
+                      <span className="text-sm font-medium text-foreground">{t("quiz.smartPractice")}</span>
+                      <span id="smart-practice-desc" className="block text-xs text-muted-foreground mt-0.5">
+                        {t("quiz.smartPracticeDesc")}
+                      </span>
                     </span>
-                  </span>
-                </label>
-              </section>
+                  </label>
+                </section>
+              )}
               <section className="space-y-3">
                 <h2 className="text-sm font-medium text-foreground">{t("quiz.questionCount")}</h2>
                 <div className="flex gap-2">
@@ -787,25 +983,30 @@ const Quiz = () => {
                     </button>
                   ))}
                 </div>
-                <p className="text-xs text-muted-foreground">{t("quiz.questionsAvailable", { count: eligibleCount })}</p>
+                {needsEntries && (
+                  <p className="text-xs text-muted-foreground">{t("quiz.questionsAvailable", { count: eligibleCount })}</p>
+                )}
               </section>
 
               <div className="space-y-2">
-                <Button onClick={() => startQuiz()} disabled={eligibleCount < 2} className="w-full h-11 text-base">
+                <Button onClick={() => startQuiz()} disabled={needsEntries && availableForExercise < 2} className="w-full h-11 text-base">
                   {t("quiz.startQuiz")}
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => startQuiz({ restrictIds: trainableMistakeIds })}
-                  disabled={trainableMistakeIds.size < 2}
-                  className="w-full h-11 text-base"
-                  title={trainableMistakeIds.size < 2 ? t("quiz.trainMistakesNone") : undefined}
-                >
-                  {t("quiz.trainMistakes", { count: trainableMistakeIds.size })}
-                </Button>
+                {exercise === "vocabulary" && (
+                  <Button
+                    variant="outline"
+                    onClick={() => startQuiz({ restrictIds: trainableMistakeIds })}
+                    disabled={trainableMistakeIds.size < 2}
+                    className="w-full h-11 text-base"
+                    title={trainableMistakeIds.size < 2 ? t("quiz.trainMistakesNone") : undefined}
+                  >
+                    {t("quiz.trainMistakes", { count: trainableMistakeIds.size })}
+                  </Button>
+                )}
               </div>
             </>
           )}
+
         </main>
       </div>
     );
@@ -925,7 +1126,7 @@ const Quiz = () => {
                 <>
                   <p className="text-xs uppercase tracking-wider text-muted-foreground">{questionTypeBadge(current.questionType)}</p>
                   <p className="text-sm text-muted-foreground">{current.hint}</p>
-                  <p className="text-2xl sm:text-3xl font-bold text-foreground font-mono tracking-[0.25em]">{current.prompt}</p>
+                  <p className={cn("font-bold text-foreground", monoPrompt ? "text-2xl sm:text-3xl font-mono tracking-[0.25em]" : "text-xl sm:text-2xl leading-snug")}>{current.prompt}</p>
                 </>
               ) : currentDisplayMode === "completion" && current.masked ? (
                 <>
@@ -944,10 +1145,13 @@ const Quiz = () => {
                   )}
                 </>
               )}
-              <span className={cn("inline-block text-[10px] font-medium uppercase px-2 py-0.5 rounded-full", "bg-muted text-muted-foreground")}>
-                {entryTypeLabel(current.entry.type)}
-              </span>
+              {!isGeneratedEntryId(current.entry.id) && (
+                <span className={cn("inline-block text-[10px] font-medium uppercase px-2 py-0.5 rounded-full", "bg-muted text-muted-foreground")}>
+                  {entryTypeLabel(current.entry.type)}
+                </span>
+              )}
             </div>
+
 
             {/* Answer area */}
             {effectiveMode === "choice" ? (
@@ -1022,6 +1226,12 @@ const Quiz = () => {
                 <p className="text-foreground">{t("quiz.correctAnswer")}: <strong>{current.answer}</strong></p>
               </div>
             )}
+
+            {/* Curated explanation (prepositions) */}
+            {showResult && current.note && (
+              <p className="text-xs text-muted-foreground text-center">{current.note}</p>
+            )}
+
 
             {/* Navigation */}
             <div className="flex justify-between items-center pt-2">
