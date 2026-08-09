@@ -570,16 +570,31 @@ const Quiz = () => {
   }, [currentIdx, state]);
 
   const startQuiz = useCallback((opts?: { restrictIds?: Set<string> }) => {
-    let pool = allEntries;
-    if (opts?.restrictIds && opts.restrictIds.size > 0) {
-      pool = allEntries.filter((e) => opts.restrictIds!.has(e.id));
-    } else if (smartPractice) {
-      const dueIds = new Set(pickDue(loadBoxStates(), allEntries.map((e) => e.id)));
-      const dueEntries = allEntries.filter((e) => dueIds.has(e.id));
-      // Fall back to full pool if there isn't enough due material to build a quiz.
-      if (dueEntries.length >= 4) pool = dueEntries;
+    let q: QuizQuestion[];
+
+    if (exercise === "numbers") {
+      q = buildNumberQuestions(numberTopics, questionCount);
+    } else if (exercise === "articles") {
+      q = buildArticlesExercise(allEntries, questionCount);
+    } else {
+      let pool = allEntries;
+      if (exercise === "verbs") {
+        pool = pool.filter((e) => e.type === "verb");
+      }
+      if (opts?.restrictIds && opts.restrictIds.size > 0) {
+        pool = pool.filter((e) => opts.restrictIds!.has(e.id));
+      } else if (exercise === "vocabulary" && smartPractice) {
+        const dueIds = new Set(pickDue(loadBoxStates(), pool.map((e) => e.id)));
+        const dueEntries = pool.filter((e) => dueIds.has(e.id));
+        // Fall back to full pool if there isn't enough due material to build a quiz.
+        if (dueEntries.length >= 4) pool = dueEntries;
+      }
+      const directions = activeDirections.length > 0 ? activeDirections : DIRECTIONS;
+      q = exercise === "verbs"
+        ? buildVerbDrillQuestions(pool, questionCount, mode, directions)
+        : buildQuestions(pool, questionCount, difficulty, mode, directions);
     }
-    const q = buildQuestions(pool, questionCount, difficulty, mode, activeDirections.length > 0 ? activeDirections : DIRECTIONS);
+
     if (q.length < 2) return;
     setQuestions(q);
     setCurrentIdx(0);
@@ -591,7 +606,8 @@ const Quiz = () => {
     setTimeLeft(TIMER_SECONDS[difficulty]);
     setTimerActive(true);
     setState("playing");
-  }, [allEntries, questionCount, difficulty, mode, activeDirections, smartPractice]);
+  }, [allEntries, questionCount, difficulty, mode, activeDirections, smartPractice, exercise, numberTopics]);
+
 
   const trainableMistakeIds = useMemo(
     () => new Set([...mistakeIds].filter((id) => allEntries.some((e) => e.id === id))),
