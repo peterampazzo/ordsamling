@@ -25,6 +25,17 @@ import { fetchDistractors, GeminiKeyMissingError } from "@/lib/gemini";import { 
 import type { LexisEntry } from "@/hooks/useLexicon";
 import { entryTypeLabel, type EntryGrammar } from "@/lib/lexicon";
 import { saveSession, recordReview, loadBoxStates, pickDue, loadHistory, getMistakeEntryIds, type QuizAnswerRecord } from "@/lib/quizHistory";
+import {
+  EXERCISE_KINDS,
+  isExerciseKind,
+  isGeneratedEntryId,
+  type ExerciseKind,
+  type LangDirection,
+  type QuestionType,
+  type QuizQuestion,
+} from "@/lib/exercises/types";
+import { buildNumberQuestions, NUMBER_TOPICS, type NumberTopic } from "@/lib/exercises/numbers";
+import { buildArticlesExercise } from "@/lib/exercises/prepositions";
 import { useVisibleLanguages } from "@/hooks/useVisibleLanguages";
 import { t } from "@/i18n";
 
@@ -34,13 +45,6 @@ import { t } from "@/i18n";
 
 type QuizMode = "choice" | "type" | "completion" | "mixed";
 type Difficulty = "beginner" | "intermediate" | "advanced";
-
-type LangDirection = {
-  from: "danish" | "english";
-  to: "danish" | "english";
-  fromLabel: string;
-  toLabel: string;
-};
 
 const DIRECTIONS: LangDirection[] = [
   { from: "danish", to: "english", fromLabel: t("directions.danish"), toLabel: t("directions.english") },
@@ -59,23 +63,27 @@ const TIMER_SECONDS: Record<Difficulty, number> = {
   advanced: 15,
 };
 
-type QuestionType = "translate" | "conjugation" | "noun_form" | "fill_blank";
+const EXERCISE_STORAGE_KEY = "ordsamling-quiz-exercise";
 
-interface QuizQuestion {
-  entry: LexisEntry;
-  prompt: string;
-  answer: string;
-  options: string[];
-  questionType: QuestionType;
-  hint?: string;
-  direction: LangDirection;
-  /** For completion mode: the masked version */
-  masked?: string;
-  /** For mixed mode: which display mode this question uses */
-  displayMode?: "choice" | "type" | "completion";
+function loadExercise(): ExerciseKind {
+  try {
+    const raw = localStorage.getItem(EXERCISE_STORAGE_KEY);
+    return isExerciseKind(raw) ? raw : "vocabulary";
+  } catch {
+    return "vocabulary";
+  }
+}
+
+function saveExercise(kind: ExerciseKind) {
+  try {
+    localStorage.setItem(EXERCISE_STORAGE_KEY, kind);
+  } catch {
+    /* storage unavailable — remembering the choice is best-effort */
+  }
 }
 
 type QuizState = "setup" | "playing" | "result";
+
 
 /* ------------------------------------------------------------------ */
 /*  Validation                                                         */
