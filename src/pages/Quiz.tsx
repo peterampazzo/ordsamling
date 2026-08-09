@@ -1023,6 +1023,12 @@ const Quiz = () => {
               </div>
             )}
 
+            {/* Curated explanation (prepositions) */}
+            {showResult && current.note && (
+              <p className="text-xs text-muted-foreground text-center">{current.note}</p>
+            )}
+
+
             {/* Navigation */}
             <div className="flex justify-between items-center pt-2">
               {!showResult ? (
