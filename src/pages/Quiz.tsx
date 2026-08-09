@@ -415,6 +415,49 @@ function buildQuestions(
   return picked;
 }
 
+/**
+ * Verb exercise: conjugation drills only (infinitive + tense → form, and the
+ * reverse "which verb is this form?"), built from the user's verb entries.
+ */
+function buildVerbDrillQuestions(
+  entries: LexisEntry[],
+  count: number,
+  mode: QuizMode,
+  directions: LangDirection[] = DIRECTIONS,
+): QuizQuestion[] {
+  const dir = directions[0] ?? DIRECTIONS[0];
+  const forward = buildConjugationQuestions(entries, dir);
+
+  // Reverse drill: show the inflected form, ask for the infinitive.
+  const reverse: QuizQuestion[] = forward.map((q) => ({
+    entry: q.entry,
+    prompt: q.answer,
+    answer: q.entry.danish,
+    options: [],
+    questionType: "conjugation" as QuestionType,
+    hint: t("quiz.verbs.hintInfinitive"),
+    direction: dir,
+  }));
+
+  const picked = shuffle([...forward, ...reverse]).slice(0, count);
+
+  const MIXED_CYCLE: ("choice" | "type")[] = ["choice", "type"];
+  for (let i = 0; i < picked.length; i++) {
+    if (mode === "mixed") picked[i].displayMode = MIXED_CYCLE[i % MIXED_CYCLE.length];
+    const isChoice = mode === "choice" || picked[i].displayMode === "choice";
+    if (!isChoice) continue;
+    const pool = [...forward, ...reverse]
+      .map((q) => q.answer)
+      .filter((a) => isValid(a) && normalize(a) !== normalize(picked[i].answer));
+    const wrong = shuffle([...new Set(pool)]).slice(0, 3);
+    picked[i].options = shuffle([picked[i].answer, ...wrong]).filter(isValid);
+  }
+
+  return picked;
+}
+
+
+
 /* ------------------------------------------------------------------ */
 /*  AI Distractors                                                     */
 /* ------------------------------------------------------------------ */
