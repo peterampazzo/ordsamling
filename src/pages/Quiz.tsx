@@ -426,6 +426,14 @@ async function fetchSmartDistractors(
   difficulty: Difficulty,
   scoreRatio: number,
 ): Promise<{ distractors: string[]; aiActive: boolean }> {
+  // Generated exercises (numbers, curated prepositions, articles) ship their own
+  // distractors and must not be sent to the AI.
+  const aiTypes = ["translate", "conjugation", "noun_form", "fill_blank"] as const;
+  type AiQuestionType = (typeof aiTypes)[number];
+  if (!(aiTypes as readonly string[]).includes(question.questionType)) {
+    return { distractors: [], aiActive: false };
+  }
+
   const trimmed = question.answer.trim();
   const lower = trimmed.toLowerCase();
   let answerPrefix: string | undefined;
@@ -435,7 +443,8 @@ async function fetchSmartDistractors(
   try {
     const distractors = await fetchDistractors({
       correctAnswer: question.answer,
-      questionType: question.questionType,
+      questionType: question.questionType as AiQuestionType,
+
       entryType: question.entry.type,
       difficulty,
       scoreRatio,
