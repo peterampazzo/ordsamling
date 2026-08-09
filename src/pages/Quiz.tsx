@@ -618,8 +618,9 @@ const Quiz = () => {
         toLang: current.direction.to,
         entryId: current.entry.id,
       });
-      // Spaced-repetition: only count attempted answers; skips/timeouts don't shift the box.
-      if (!skipped && !timedOut) {
+      // Spaced-repetition: only count attempted answers on real vocabulary entries.
+      // Generated questions (numbers, curated prepositions) must not enter the SM-2 schedule.
+      if (!skipped && !timedOut && !isGeneratedEntryId(current.entry.id)) {
         recordReview(current.entry.id, correct);
       }
     },
@@ -632,6 +633,7 @@ const Quiz = () => {
         id: crypto.randomUUID(),
         date: Date.now(),
         mode,
+        exercise,
         fromLabel: t("quiz.dirMixed"),
         toLabel: t("quiz.dirMixed"),
         score,
@@ -643,7 +645,8 @@ const Quiz = () => {
     }
     setMistakeIds(getMistakeEntryIds(loadHistory()));
     setState("result");
-  }, [mode, score, total]);
+  }, [mode, exercise, score, total]);
+
 
   const nextQuestion = useCallback(() => {
     if (currentIdx + 1 >= total) finishQuiz();
