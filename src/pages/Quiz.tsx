@@ -670,9 +670,15 @@ const Quiz = () => {
     return "choice";
   })();
 
+  /** Monospaced, letter-spaced prompt only suits masked/short forms — not full sentences. */
+  const monoPrompt =
+    current?.questionType === "fill_blank" ||
+    currentDisplayMode === "completion";
+
   const questionTypeBadge = (qt: QuestionType) => {
     return t(`quiz.questionTypes.${qt}`);
   };
+
 
   /* ---- Setup screen ---- */
   if (state === "setup") {
