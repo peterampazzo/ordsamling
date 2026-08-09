@@ -847,12 +847,9 @@ const Quiz = () => {
             <div className="text-center py-10 text-muted-foreground space-y-2">
               <Brain className="h-10 w-10 mx-auto opacity-30" aria-hidden />
               <p className="text-base">
-                {exercise === "verbs"
-                  ? t("quiz.exercise.needVerbs")
-                  : exercise === "articles"
-                  ? t("quiz.exercise.needNouns")
-                  : t("quiz.minWordsNeeded")}
+                {exercise === "verbs" ? t("quiz.exercise.needVerbs") : t("quiz.minWordsNeeded")}
               </p>
+
               <Button variant="outline" asChild className="mt-4"><Link to="/app">{t("quiz.addWords")}</Link></Button>
             </div>
           ) : (
