@@ -316,7 +316,7 @@ export class GoogleSheetsService {
 
         const now = new Date().toISOString().slice(0, 10);
         const notice = [
-          ['This spreadsheet is managed by Ordsamling (https://ordsamling.pages.dev).'],
+          ['This spreadsheet is managed by Ordsamling (https://ordsamling.peterampazzo.com).'],
           ['Do not edit the Lexicon, QuizHistory, or Settings tabs manually — changes may be overwritten.'],
           [''],
           [`Created: ${now}`],
