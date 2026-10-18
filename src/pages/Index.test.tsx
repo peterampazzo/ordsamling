@@ -82,7 +82,7 @@ describe('Index page integration', () => {
     queryClient.clear();
   });
 
-  it('registers quiz session and streak event callbacks when mounted', async () => {
+  it('does not own or unregister the application-level sync callbacks', async () => {
     const { unmount } = render(
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
@@ -94,13 +94,13 @@ describe('Index page integration', () => {
     );
 
     await waitFor(() => {
-      expect(mockRegisterPushQuizSession).toHaveBeenCalledWith(expect.any(Function));
-      expect(mockRegisterPushStreakEvent).toHaveBeenCalledWith(mockPushStreakEvent);
+      expect(mockRegisterPushQuizSession).not.toHaveBeenCalled();
+      expect(mockRegisterPushStreakEvent).not.toHaveBeenCalled();
     });
 
     unmount();
 
-    expect(mockUnregisterPushQuizSession).toHaveBeenCalled();
-    expect(mockUnregisterPushStreakEvent).toHaveBeenCalled();
+    expect(mockUnregisterPushQuizSession).not.toHaveBeenCalled();
+    expect(mockUnregisterPushStreakEvent).not.toHaveBeenCalled();
   });
 });

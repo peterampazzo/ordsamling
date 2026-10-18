@@ -1,7 +1,6 @@
 /**
  * Shared storage configuration types and localStorage accessors.
- * All accessors use try/catch for safety against JSON parse errors or
- * environments where localStorage is unavailable.
+ * Reads tolerate missing configuration. Connection writes report storage failures.
  */
 
 // ---------------------------------------------------------------------------
@@ -15,7 +14,7 @@ export interface StorageConfig {
   storageSource: StorageSource;
   spreadsheetId: string | null;
   connectedEmail: string | null;
-  /** Epoch ms — the access token itself is never stored in plain text here */
+  /** Epoch ms; OAuth credentials are stored separately by googleOAuth in browser localStorage. */
   oauthTokenExpiry: number | null;
 }
 
@@ -69,11 +68,7 @@ export function getStorageConfig(): StorageConfig {
 }
 
 export function setStorageConfig(config: StorageConfig): void {
-  try {
-    localStorage.setItem(STORAGE_CONFIG_KEY, JSON.stringify(config));
-  } catch {
-    // Silently ignore write failures (e.g. private browsing quota exceeded)
-  }
+  localStorage.setItem(STORAGE_CONFIG_KEY, JSON.stringify(config));
 }
 
 // ---------------------------------------------------------------------------

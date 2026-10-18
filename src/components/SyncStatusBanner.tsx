@@ -2,11 +2,13 @@ import { AlertTriangle, CloudOff, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
 import type { SyncState } from "@/hooks/useGoogleSheets";
+import { toast } from "@/components/ui/sonner";
 
 interface Props {
   syncState: SyncState;
   onReconnect: () => void;
   onRetry: () => void;
+  onResolve?: (id: string, choice: 'local' | 'remote') => Promise<void>;
 }
 
 /**
@@ -14,7 +16,7 @@ interface Props {
  * can't communicate on its own: expired Google auth, queued local changes,
  * or repeated sync failures.
  */
-export function SyncStatusBanner({ syncState, onReconnect, onRetry }: Props) {
+export function SyncStatusBanner({ syncState, onReconnect, onRetry, onResolve }: Props) {
   const { status, sessionExpired, pendingCount, errorMessage } = syncState;
 
   // Don't show in idle, syncing, or fully disconnected (never connected) states.
@@ -68,10 +70,28 @@ export function SyncStatusBanner({ syncState, onReconnect, onRetry }: Props) {
           <p className="font-medium leading-snug">{title}</p>
           <p className="text-xs opacity-80 mt-0.5">{body}</p>
         </div>
-        <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs" onClick={onAction}>
+        {status !== "conflict" && <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs" onClick={onAction}>
           {actionLabel}
-        </Button>
+        </Button>}
       </div>
+      {(syncState.conflicts ?? []).map(conflict => (
+        <div key={`${conflict.type}:${conflict.id}`} className="border rounded-md p-3 mt-2 space-y-2">
+          <h3 className="font-semibold">{conflict.type === 'settings' ? t("sync.conflict.languages") : conflict.id}</h3>
+          <div className="grid sm:grid-cols-2 gap-3 text-xs">
+            <div><p>{t("sync.conflict.local")}</p><pre className="whitespace-pre-wrap break-words">{conflict.local === null ? t("sync.conflict.deleted") : JSON.stringify(conflict.local, null, 2)}</pre></div>
+            <div><p>{t("sync.conflict.remote")}</p><pre className="whitespace-pre-wrap break-words">{conflict.remote === null ? t("sync.conflict.deleted") : JSON.stringify(conflict.remote, null, 2)}</pre></div>
+          </div>
+          <div className="flex gap-2">
+            {(['local', 'remote'] as const).map(choice => (
+              <Button key={choice} size="sm" variant="outline" onClick={() => {
+                void onResolve?.(conflict.id, choice).catch(error => toast.error(error instanceof Error ? error.message : "Could not resolve conflict."));
+              }}>
+                {t(`sync.conflict.keep${choice === 'local' ? 'Local' : 'Remote'}`)}
+              </Button>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

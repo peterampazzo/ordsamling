@@ -1,9 +1,6 @@
 /**
  * Unit tests for parseVerbFormsResponse — the pure parser used by
- * autocompleteVerbForms (AI verb-form helper, plan item #10).
- *
- * Mirrors the testing conventions of gemini.bugCondition.test.ts:
- * we exercise the parser directly rather than mocking the Gemini SDK.
+ * autocompleteVerbForms. These cases exercise the parser directly.
  */
 
 import { describe, it, expect } from "vitest";

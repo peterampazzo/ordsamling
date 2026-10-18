@@ -1,14 +1,15 @@
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
-import { getValidAccessToken } from '@/lib/googleOAuth';
+import { getValidAccessToken, getStoredEmail } from '@/lib/googleOAuth';
 import { getStorageConfig, isCloudSyncEnabled } from '@/lib/storageConfig';
 import { computeStreak, type StreakInfo } from './streak';
+import { withStorageLock } from './syncQueue';
 
 const STORAGE_KEY = "lexikon-quiz-history";
 const DEVICE_ID_KEY = 'ordsamling-device-id';
 
-let _pushStreakEvent: ((event: import('@/lib/sheetTypes').StreakEvent) => void) | null = null;
+let _pushStreakEvent: ((event: import('@/lib/sheetTypes').StreakEvent) => void | Promise<void>) | null = null;
 
-export function registerPushStreakEvent(fn: (event: import('@/lib/sheetTypes').StreakEvent) => void): void {
+export function registerPushStreakEvent(fn: (event: import('@/lib/sheetTypes').StreakEvent) => void | Promise<void>): void {
   _pushStreakEvent = fn;
 }
 
@@ -28,8 +29,9 @@ function getDeviceId(): string {
   }
 }
 
-function makeStreakEvent(type: 'extended' | 'broken' | 'reset', notes: string): import('@/lib/sheetTypes').StreakEvent {
+function makeStreakEvent(type: 'extended' | 'broken' | 'reset', notes: string, sessionId: string): import('@/lib/sheetTypes').StreakEvent {
   return {
+    id: `${sessionId}:streak`,
     timestamp: Date.now(),
     type,
     deviceId: getDeviceId(),
@@ -39,15 +41,15 @@ function makeStreakEvent(type: 'extended' | 'broken' | 'reset', notes: string): 
 
 function inferStreakEvent(prev: StreakInfo, next: StreakInfo, session: QuizSessionRecord): import('@/lib/sheetTypes').StreakEvent | null {
   if (next.current > prev.current) {
-    return makeStreakEvent('extended', `mode=${session.mode} score=${session.score}/${session.total}`);
+    return makeStreakEvent('extended', `mode=${session.mode} score=${session.score}/${session.total}`, session.id);
   }
 
   if (prev.current > 0 && next.current === 0) {
-    return makeStreakEvent('broken', `streak broken after ${prev.current} days`);
+    return makeStreakEvent('broken', `streak broken after ${prev.current} days`, session.id);
   }
 
   if (prev.current === 0 && next.current > 0) {
-    return makeStreakEvent('reset', `streak reset to ${next.current} days`);
+    return makeStreakEvent('reset', `streak reset to ${next.current} days`, session.id);
   }
 
   return null;
@@ -82,9 +84,9 @@ export interface QuizSessionRecord {
 // Task 9.1 — Module-level sync callback set by the app when cloud sync is active
 // ---------------------------------------------------------------------------
 
-let _pushQuizSession: ((session: QuizSessionRecord) => void) | null = null;
+let _pushQuizSession: ((session: QuizSessionRecord) => void | Promise<void>) | null = null;
 
-export function registerPushQuizSession(fn: (session: QuizSessionRecord) => void): void {
+export function registerPushQuizSession(fn: (session: QuizSessionRecord) => void | Promise<void>): void {
   _pushQuizSession = fn;
 }
 
@@ -146,15 +148,21 @@ export async function fetchHistory(): Promise<QuizSessionRecord[]> {
     return localHistory;
   }
 
-  const accessToken = await getValidAccessToken();
-  if (!accessToken) {
-    return localHistory;
-  }
-
   try {
+    const email = getStoredEmail();
+    if (email && email !== config.connectedEmail) return localHistory;
+    const accessToken = await getValidAccessToken();
+    if (!accessToken) return localHistory;
     const sheetsService = new GoogleSheetsService();
     const remoteHistory = await sheetsService.readQuizHistory(config.spreadsheetId, accessToken);
-    return mergeHistory(localHistory, remoteHistory);
+    return await withStorageLock(() => {
+      const current = getStorageConfig();
+      if (current.spreadsheetId !== config.spreadsheetId || current.connectedEmail !== config.connectedEmail ||
+        current.storageSource !== 'google_sheets') return getLocalHistory();
+      const merged = mergeHistory(getLocalHistory(), remoteHistory);
+      saveLocalHistory(merged.slice(0, 50));
+      return merged;
+    });
   } catch (err) {
     console.warn('fetchHistory remote failed, falling back to local history:', err);
     return localHistory;
@@ -167,21 +175,25 @@ export async function saveSession(session: QuizSessionRecord): Promise<void> {
 
   history.unshift(session);
   if (history.length > 50) history.length = 50;
-  saveLocalHistory(history);
 
   const nextStreak = computeStreak(history);
 
   // Task 9.1 — push to Sheets if registered
   if (_pushQuizSession) {
-    _pushQuizSession(session);
+    await _pushQuizSession(session);
   }
 
   if (_pushStreakEvent) {
     const event = inferStreakEvent(prevStreak, nextStreak, session);
     if (event) {
-      _pushStreakEvent(event);
+      await _pushStreakEvent(event);
     }
   }
+
+  await withStorageLock(() => {
+    const latest = getLocalHistory().filter(item => item.id !== session.id);
+    saveLocalHistory([session, ...latest].slice(0, 50));
+  });
 
   // Notify in-app listeners (StreakRing, /progress) that a session was recorded.
   if (typeof window !== "undefined") {

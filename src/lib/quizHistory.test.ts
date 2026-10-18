@@ -28,6 +28,7 @@ const { mockGetValidAccessToken } = vi.hoisted(() => ({
 
 vi.mock('@/lib/googleOAuth', () => ({
   getValidAccessToken: mockGetValidAccessToken,
+  getStoredEmail: () => 'test@example.com',
 }));
 
 import {
@@ -150,6 +151,7 @@ describe("fetchHistory", () => {
 
     await expect(fetchHistory()).resolves.toEqual([remoteNew, local, remoteOld]);
     expect(mockReadQuizHistory).toHaveBeenCalledWith('sheet-123', 'token');
+    expect(loadHistory()).toEqual([remoteNew, local, remoteOld]);
   });
 
   it("falls back to local history when remote fetch fails", async () => {

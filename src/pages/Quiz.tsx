@@ -1,12 +1,10 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import {
-  ArrowLeft,
   Brain,
   CheckCircle2,
   XCircle,
   SkipForward,
-  RotateCcw,
   Keyboard,
   LayoutGrid,
   History,
@@ -22,19 +20,24 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { PageHeader, PageFooter } from "@/components/layout";
+import { PageHeader } from "@/components/layout";
 import { cn } from "@/lib/utils";
 import { useLexicon } from "@/hooks/useLexicon";
-import { fetchDistractors, GeminiKeyMissingError } from "@/lib/gemini";import { toast } from "@/components/ui/sonner";
-import type { LexisEntry } from "@/hooks/useLexicon";
-import { entryTypeLabel, type EntryGrammar } from "@/lib/lexicon";
-import { saveSession, recordReview, loadBoxStates, pickDue, loadHistory, getMistakeEntryIds, type QuizAnswerRecord } from "@/lib/quizHistory";
+import { useQuizSession } from "@/hooks/useQuizSession";
+import { QuizResult } from "@/components/QuizResult";
+import { fetchDistractors, GeminiKeyMissingError } from "@/lib/gemini";
+import { toast } from "@/components/ui/sonner";
+import { entryTypeLabel } from "@/lib/lexicon";
+import { saveSession, loadBoxStates, pickDue, loadHistory, getMistakeEntryIds } from "@/lib/quizHistory";
+import {
+  buildQuestions, buildVerbDrillQuestions, DIRECTIONS, isValid, matchesAnswer, normalize,
+  shuffle, splitAlternatives, type QuizMode, type Difficulty,
+} from "@/lib/exercises/vocabulary";
 import {
   EXERCISE_KINDS,
   isExerciseKind,
   isGeneratedEntryId,
   type ExerciseKind,
-  type LangDirection,
   type QuestionType,
   type QuizQuestion,
 } from "@/lib/exercises/types";
@@ -46,14 +49,6 @@ import { t } from "@/i18n";
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
-
-type QuizMode = "choice" | "type" | "completion" | "mixed";
-type Difficulty = "beginner" | "intermediate" | "advanced";
-
-const DIRECTIONS: LangDirection[] = [
-  { from: "danish", to: "english", fromLabel: t("directions.danish"), toLabel: t("directions.english") },
-  { from: "english", to: "danish", fromLabel: t("directions.english"), toLabel: t("directions.danish") },
-];
 
 const DIFFICULTIES: { value: Difficulty; label: string; description: string }[] = [
   { value: "beginner", label: t("quiz.diffBeginner"), description: t("quiz.diffBeginnerDesc") },
@@ -92,382 +87,6 @@ function saveExercise(kind: ExerciseKind) {
     /* storage unavailable — remembering the choice is best-effort */
   }
 }
-
-type QuizState = "setup" | "playing" | "result";
-
-
-/* ------------------------------------------------------------------ */
-/*  Validation                                                         */
-/* ------------------------------------------------------------------ */
-
-/** Reject empty, placeholder, or junk strings */
-function isValid(s: string | undefined): boolean {
-  if (!s) return false;
-  const t = s.trim();
-  if (!t || t === "-" || t === "–" || t === "—" || t === "..." || t === "?") return false;
-  return true;
-}
-
-/** Cheap bigram-overlap similarity in [0,1] used to find prompt-shaped distractors. */
-function bigramSimilarity(a: string, b: string): number {
-  const grams = (s: string): Set<string> => {
-    const out = new Set<string>();
-    const n = s.toLowerCase();
-    for (let i = 0; i < n.length - 1; i++) out.add(n.slice(i, i + 2));
-    return out;
-  };
-  const A = grams(a);
-  const B = grams(b);
-  if (A.size === 0 || B.size === 0) return 0;
-  let shared = 0;
-  for (const g of A) if (B.has(g)) shared++;
-  return shared / Math.max(A.size, B.size);
-}
-
-/* ------------------------------------------------------------------ */
-/*  Helpers                                                            */
-/* ------------------------------------------------------------------ */
-
-function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-/** Strip parenthesized hidden context, e.g. "read (someone)" -> "read". */
-function stripParens(s: string): string {
-  return s.replace(/\s*\([^)]*\)/g, "").replace(/\s+/g, " ").trim();
-}
-
-function normalize(s: string) {
-  return stripParens(s)
-    .toLowerCase()
-    .replace(/[\u2018\u2019]/g, "'")
-    .replace(/[\u201C\u201D]/g, '"')
-    .replace(/^[\s¿¡]+|[\s?!.,;:]+$/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-/** Split an answer like "imagine/invent", "finish, complete" or "to imagine / to invent" into alternatives. */
-function splitAlternatives(s: string): string[] {
-  return s
-    .split(/[/,]/)
-    .map((p) => stripParens(p).trim())
-    .filter((p) => p.length > 0);
-}
-
-/** Lenient Danish noun suffix check: accept base ↔ base+en / base+et. */
-function suffixMatch(a: string, b: string): boolean {
-  if (a === b) return true;
-  for (const suf of ["en", "et"]) {
-    if (a === b + suf) return true;
-    if (b === a + suf) return true;
-  }
-  return false;
-}
-
-/** Check if a given answer matches the correct answer, accepting any alternative. */
-function matchesAnswer(given: string, correct: string): boolean {
-  const g = normalize(given);
-  if (!g) return false;
-  const alts = splitAlternatives(correct).map(normalize).filter(Boolean);
-  const full = normalize(correct);
-  if (full && !alts.includes(full)) alts.push(full);
-  return alts.some((a) => suffixMatch(g, a));
-}
-
-/** Pick the primary form of a multi-alternative answer (first slash/comma segment). */
-function primaryForm(s: string): string {
-  const alts = splitAlternatives(s);
-  return alts[0] ?? s.trim();
-}
-
-/** Create a word completion mask: show first, last, and ~40% of chars */
-function makeBlank(word: string): string {
-  if (word.length <= 2) return "_".repeat(word.length);
-  const chars = word.split("");
-  const maskCount = Math.max(1, Math.floor(chars.length * 0.4));
-  const indices = shuffle(
-    Array.from({ length: chars.length - 2 }, (_, i) => i + 1),
-  ).slice(0, maskCount);
-  indices.forEach((i) => {
-    if (chars[i] !== " ") chars[i] = "_";
-  });
-  return chars.join("");
-}
-
-function getGrammarValue(entry: LexisEntry, key: keyof EntryGrammar): string | undefined {
-  const v = entry.grammar?.[key]?.trim();
-  return isValid(v) ? v : undefined;
-}
-
-/* ------------------------------------------------------------------ */
-/*  Question builders                                                  */
-/* ------------------------------------------------------------------ */
-
-function buildConjugationQuestions(entries: LexisEntry[], dir: LangDirection): QuizQuestion[] {
-  const questions: QuizQuestion[] = [];
-  const verbs = entries.filter((e) => e.type === "verb" && e.grammar);
-  const tenseMap: { key: keyof EntryGrammar; label: string }[] = [
-    { key: "present", label: "Nutid" },
-    { key: "past", label: "Datid" },
-    { key: "perfect", label: "Perfektum" },
-  ];
-
-  for (const verb of verbs) {
-    for (const { key, label } of tenseMap) {
-      const val = getGrammarValue(verb, key);
-      if (val) {
-        questions.push({
-          entry: verb,
-          prompt: verb.danish,
-          answer: val,
-          options: [],
-          questionType: "conjugation",
-          hint: `${label} af «${verb.danish}»`,
-          direction: dir,
-        });
-      }
-    }
-  }
-  return questions;
-}
-
-function buildNounFormQuestions(entries: LexisEntry[], dir: LangDirection): QuizQuestion[] {
-  const questions: QuizQuestion[] = [];
-  const nouns = entries.filter((e) => e.type === "noun" && e.grammar);
-  const formMap: { key: keyof EntryGrammar; label: string }[] = [
-    { key: "singularDefinite", label: "Bestemt ental" },
-    { key: "pluralIndefinite", label: "Ubestemt flertal" },
-    { key: "pluralDefinite", label: "Bestemt flertal" },
-  ];
-
-  for (const noun of nouns) {
-    for (const { key, label } of formMap) {
-      const val = getGrammarValue(noun, key);
-      if (val) {
-        questions.push({
-          entry: noun,
-          prompt: noun.danish,
-          answer: val,
-          options: [],
-          questionType: "noun_form",
-          hint: `${label} af «${noun.danish}»`,
-          direction: dir,
-        });
-      }
-    }
-  }
-  return questions;
-}
-
-function buildFillBlankQuestions(entries: LexisEntry[], dir: LangDirection): QuizQuestion[] {
-  const eligible = entries.filter((e) => isValid(e[dir.to]) && e[dir.to].trim().length >= 3);
-  return eligible.map((entry) => {
-    const fullAnswer = entry[dir.to];
-    const primary = primaryForm(fullAnswer);
-    return {
-      entry,
-      prompt: makeBlank(primary),
-      answer: primary, // accept only the primary form in completion mode
-      options: [],
-      questionType: "fill_blank" as QuestionType,
-      hint: `Udfyld: ${entry[dir.from]}`,
-      direction: dir,
-      masked: makeBlank(primary),
-    };
-  });
-}
-
-/** Build a pool of questions with true bilingual alternation */
-function buildQuestions(
-  entries: LexisEntry[],
-  count: number,
-  difficulty: Difficulty,
-  mode: QuizMode,
-  directions: LangDirection[] = DIRECTIONS,
-): QuizQuestion[] {
-  const pool: QuizQuestion[] = [];
-
-  for (const dir of directions) {
-    const eligible = entries.filter((e) => isValid(e[dir.from]) && isValid(e[dir.to]));
-    if (eligible.length < 2) continue;
-
-    // Translation questions
-    const translateQs: QuizQuestion[] = eligible.map((entry) => ({
-      entry,
-      prompt: entry[dir.from],
-      answer: entry[dir.to],
-      options: [],
-      questionType: "translate" as QuestionType,
-      direction: dir,
-    }));
-    pool.push(...translateQs);
-
-    // Intermediate+: grammar questions (more weight)
-    if (difficulty !== "beginner") {
-      const conjQs = buildConjugationQuestions(entries, dir);
-      const nounQs = buildNounFormQuestions(entries, dir);
-      // Double grammar questions for emphasis
-      pool.push(...conjQs, ...conjQs, ...nounQs, ...nounQs);
-    }
-
-    // Advanced: fill-in-the-blank / completion
-    if (difficulty === "advanced") {
-      pool.push(...buildFillBlankQuestions(entries, dir));
-    }
-  }
-
-  // Shuffle and pick, ensuring alternating directions
-  const shuffled = shuffle(pool);
-  const picked: QuizQuestion[] = [];
-  let lastDir: string | null = null;
-
-  // First pass: try alternating directions
-  const remaining = [...shuffled];
-  while (picked.length < count && remaining.length > 0) {
-    const idx = remaining.findIndex(
-      (q) => lastDir === null || `${q.direction.from}-${q.direction.to}` !== lastDir,
-    );
-    const pickIdx = idx >= 0 ? idx : 0;
-    const q = remaining.splice(pickIdx, 1)[0];
-    picked.push(q);
-    lastDir = `${q.direction.from}-${q.direction.to}`;
-  }
-
-  // Assign display modes for mixed mode
-  const MIXED_CYCLE: ("choice" | "type" | "completion")[] = ["choice", "type", "completion"];
-  if (mode === "mixed") {
-    for (let i = 0; i < picked.length; i++) {
-      picked[i].displayMode = MIXED_CYCLE[i % MIXED_CYCLE.length];
-    }
-  }
-
-  // For completion mode (or mixed questions that are completion), add masked versions
-  for (const q of picked) {
-    const isCompletion = mode === "completion" || q.displayMode === "completion";
-    if (isCompletion) {
-      const primary = primaryForm(q.answer);
-      q.answer = primary;
-      if (!q.masked) q.masked = makeBlank(primary);
-    }
-  }
-
-  // Generate local MC options for choice-mode questions (or mixed questions that are choice)
-  for (const q of picked) {
-    const isChoice = mode === "choice" || q.displayMode === "choice";
-    if (!isChoice) continue;
-    const dir = q.direction;
-
-    let answerPool: string[];
-    if (q.questionType === "translate") {
-      answerPool = entries.map((e) => e[dir.to]).filter(isValid);
-    } else {
-      // For grammar questions, draw from the SAME grammar slot across other entries
-      // of the same type. This avoids mixing verb conjugations with noun forms etc.
-      const slotKey = (() => {
-        const tenseLabels: Record<string, keyof EntryGrammar> = {
-          "Nutid": "present", "Datid": "past", "Perfektum": "perfect",
-          "Bestemt ental": "singularDefinite",
-          "Ubestemt flertal": "pluralIndefinite",
-          "Bestemt flertal": "pluralDefinite",
-        };
-        const hint = q.hint?.split(" af ")[0] ?? "";
-        return tenseLabels[hint];
-      })();
-      const sameSlot = slotKey
-        ? entries
-            .filter((e) => e.type === q.entry.type && e.id !== q.entry.id)
-            .map((e) => getGrammarValue(e, slotKey))
-            .filter((v): v is string => isValid(v))
-        : [];
-      if (sameSlot.length >= 3) {
-        answerPool = sameSlot;
-      } else {
-        const fallback = entries
-          .flatMap((e) => (e.grammar ? Object.values(e.grammar).filter(isValid) : []))
-          .filter((v): v is string => typeof v === "string");
-        answerPool = [...sameSlot, ...fallback];
-      }
-    }
-
-    const unique = [...new Set(answerPool.map((a) => a.trim()))];
-    const correctAlts = new Set(splitAlternatives(q.answer).map(normalize));
-    let candidates = unique.filter(
-      (a) => !correctAlts.has(normalize(a)) && normalize(a) !== normalize(q.answer),
-    );
-    // Tighter length-similarity filter so distractor length doesn't telegraph the answer
-    const targetLen = q.answer.length;
-    const tolerance = Math.max(2, Math.round(targetLen * 0.25));
-    const similar = candidates.filter((a) => Math.abs(a.length - targetLen) <= tolerance);
-    if (similar.length >= 3) candidates = similar;
-    // For translate questions, prefer distractors that look similar to the prompt
-    // (cognate-shaped) so obvious cognates like "Balkon → Balcony" aren't trivially picked.
-    if (q.questionType === "translate" && candidates.length > 3) {
-      const ranked = [...candidates]
-        .map((c) => ({ c, s: bigramSimilarity(c, q.prompt) }))
-        .sort((a, b) => b.s - a.s)
-        .slice(0, Math.max(8, 3))
-        .map((x) => x.c);
-      if (ranked.length >= 3) candidates = ranked;
-    }
-    const wrong = shuffle(candidates).slice(0, 3);
-    q.options = shuffle([q.answer, ...wrong]).filter(isValid);
-    if (!q.options.some((o) => normalize(o) === normalize(q.answer))) {
-      q.options[0] = q.answer;
-      q.options = shuffle(q.options);
-    }
-  }
-
-  return picked;
-}
-
-/**
- * Verb exercise: conjugation drills only (infinitive + tense → form, and the
- * reverse "which verb is this form?"), built from the user's verb entries.
- */
-function buildVerbDrillQuestions(
-  entries: LexisEntry[],
-  count: number,
-  mode: QuizMode,
-  directions: LangDirection[] = DIRECTIONS,
-): QuizQuestion[] {
-  const dir = directions[0] ?? DIRECTIONS[0];
-  const forward = buildConjugationQuestions(entries, dir);
-
-  // Reverse drill: show the inflected form, ask for the infinitive.
-  const reverse: QuizQuestion[] = forward.map((q) => ({
-    entry: q.entry,
-    prompt: q.answer,
-    answer: q.entry.danish,
-    options: [],
-    questionType: "conjugation" as QuestionType,
-    hint: t("quiz.verbs.hintInfinitive"),
-    direction: dir,
-  }));
-
-  const picked = shuffle([...forward, ...reverse]).slice(0, count);
-
-  const MIXED_CYCLE: ("choice" | "type")[] = ["choice", "type"];
-  for (let i = 0; i < picked.length; i++) {
-    if (mode === "mixed") picked[i].displayMode = MIXED_CYCLE[i % MIXED_CYCLE.length];
-    const isChoice = mode === "choice" || picked[i].displayMode === "choice";
-    if (!isChoice) continue;
-    const pool = [...forward, ...reverse]
-      .map((q) => q.answer)
-      .filter((a) => isValid(a) && normalize(a) !== normalize(picked[i].answer));
-    const wrong = shuffle([...new Set(pool)]).slice(0, 3);
-    picked[i].options = shuffle([picked[i].answer, ...wrong]).filter(isValid);
-  }
-
-  return picked;
-}
-
-
 
 /* ------------------------------------------------------------------ */
 /*  AI Distractors                                                     */
@@ -547,21 +166,15 @@ const Quiz = () => {
   }, [exercise]);
 
 
-  const [state, setState] = useState<QuizState>("setup");
-  const [questions, setQuestions] = useState<QuizQuestion[]>([]);
-  const [currentIdx, setCurrentIdx] = useState(0);
-  const [score, setScore] = useState(0);
-  const [answered, setAnswered] = useState<string | null>(null);
-  const [typedAnswer, setTypedAnswer] = useState("");
-  const [showResult, setShowResult] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(0);
-  const [timerActive, setTimerActive] = useState(false);
+  const {
+    phase: state, setPhase: setState, questions, setQuestions, currentIdx, score, answered,
+    typedAnswer, setTypedAnswer, showResult, timeLeft, answers: sessionAnswers,
+    start, submitAnswer, finish, next,
+  } = useQuizSession(matchesAnswer);
   const [aiActive, setAiActive] = useState(false);
   const [mistakeIds, setMistakeIds] = useState<Set<string>>(() => getMistakeEntryIds(loadHistory()));
 
-  const answersRef = useRef<QuizAnswerRecord[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const current = questions[currentIdx] ?? null;
   const total = questions.length;
@@ -587,39 +200,12 @@ const Quiz = () => {
   const needsEntries = exercise === "vocabulary" || exercise === "verbs";
   const availableForExercise = exercise === "verbs" ? verbCount : eligibleCount;
 
-  // Timer effect
-  useEffect(() => {
-    if (!timerActive || showResult) {
-      if (timerRef.current) clearInterval(timerRef.current);
-      return;
-    }
-    timerRef.current = setInterval(() => {
-      setTimeLeft((t) => {
-        if (t <= 1) {
-          setTimerActive(false);
-          return 0;
-        }
-        return t - 1;
-      });
-    }, 1000);
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [timerActive, showResult]);
-
-  // Auto-submit on timer expiry
-  useEffect(() => {
-    if (timeLeft === 0 && timerActive === false && state === "playing" && !showResult && answered === null && current) {
-      submitAnswer("__timeout__");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeLeft, timerActive]);
-
   // Focus input for typing modes
   useEffect(() => {
     const dm = current?.displayMode ?? mode;
     if (state === "playing" && (dm === "type" || dm === "completion") && !showResult) {
-      setTimeout(() => inputRef.current?.focus(), 100);
+      const timeout = setTimeout(() => inputRef.current?.focus(), 100);
+      return () => clearTimeout(timeout);
     }
   }, [state, mode, showResult, currentIdx, current?.displayMode]);
 
@@ -688,17 +274,9 @@ const Quiz = () => {
     }
 
     if (q.length < 2) return;
-    setQuestions(q);
-    setCurrentIdx(0);
-    setScore(0);
-    setAnswered(null);
-    setTypedAnswer("");
-    setShowResult(false);
-    answersRef.current = [];
-    setTimeLeft(TIMER_SECONDS[difficulty]);
-    setTimerActive(true);
-    setState("playing");
-  }, [allEntries, questionCount, difficulty, mode, activeDirections, smartPractice, exercise, numberTopics]);
+    start(q, TIMER_SECONDS[difficulty]);
+    setAiActive(false);
+  }, [allEntries, questionCount, difficulty, mode, activeDirections, smartPractice, exercise, numberTopics, start]);
 
 
   const trainableMistakeIds = useMemo(
@@ -706,67 +284,30 @@ const Quiz = () => {
     [mistakeIds, allEntries],
   );
 
-  const submitAnswer = useCallback(
-    (answer: string) => {
-      if (!current || showResult) return;
-      const skipped = answer === "__skipped__";
-      const timedOut = answer === "__timeout__";
-      const correct = !skipped && !timedOut && matchesAnswer(answer, current.answer);
-      setAnswered(answer);
-      setShowResult(true);
-      setTimerActive(false);
-      if (correct) setScore((s) => s + 1);
-      answersRef.current.push({
-        prompt: current.hint || current.prompt,
-        correctAnswer: current.answer,
-        givenAnswer: skipped || timedOut ? "" : answer,
-        correct,
-        skipped: skipped || timedOut,
-        fromLang: current.direction.from,
-        toLang: current.direction.to,
-        entryId: current.entry.id,
-      });
-      // Spaced-repetition: only count attempted answers on real vocabulary entries.
-      // Generated questions (numbers, curated prepositions) must not enter the SM-2 schedule.
-      if (!skipped && !timedOut && !isGeneratedEntryId(current.entry.id)) {
-        recordReview(current.entry.id, correct);
-      }
-    },
-    [current, showResult],
-  );
-
   const finishQuiz = useCallback(async () => {
     try {
-      await saveSession({
-        id: crypto.randomUUID(),
+      await finish(snapshot => saveSession({
+        id: snapshot.id,
         date: Date.now(),
         mode,
         exercise,
         fromLabel: t("quiz.dirMixed"),
         toLabel: t("quiz.dirMixed"),
-        score,
-        total,
-        answers: answersRef.current,
-      });
+        score: snapshot.score,
+        total: snapshot.questions.length,
+        answers: snapshot.answers,
+      }));
     } catch (error) {
-      console.error("Failed to save quiz history:", error);
+      toast.error(error instanceof Error ? error.message : "Could not save this session. Please try again.");
     }
     setMistakeIds(getMistakeEntryIds(loadHistory()));
-    setState("result");
-  }, [mode, exercise, score, total]);
+  }, [mode, exercise, finish]);
 
 
   const nextQuestion = useCallback(() => {
     if (currentIdx + 1 >= total) finishQuiz();
-    else {
-      setCurrentIdx((i) => i + 1);
-      setAnswered(null);
-      setTypedAnswer("");
-      setShowResult(false);
-      setTimeLeft(TIMER_SECONDS[difficulty]);
-      setTimerActive(true);
-    }
-  }, [currentIdx, total, finishQuiz, difficulty]);
+    else next(TIMER_SECONDS[difficulty]);
+  }, [currentIdx, total, finishQuiz, difficulty, next]);
 
   const isCorrect = answered !== null && matchesAnswer(answered, current?.answer ?? "");
   const isTimedOut = answered === "__timeout__";
@@ -834,7 +375,7 @@ const Quiz = () => {
                   >
                     <Icon className="h-4 w-4" aria-hidden />
                     <span className="text-sm font-medium">{t(`quiz.exercise.${kind}`)}</span>
-                    <span className={cn("text-xs", selected ? "text-primary-foreground/80" : "text-muted-foreground")}>
+                    <span className={cn("text-xs", selected ? "text-primary-foreground" : "text-muted-foreground")}>
                       {t(`quiz.exercise.${kind}Desc`)}
                     </span>
                   </button>
@@ -875,7 +416,7 @@ const Quiz = () => {
                         )}
                       >
                         <span className="font-medium">{d.label}</span>
-                        <p className={cn("text-xs mt-0.5", difficulty === d.value ? "text-primary-foreground/80" : "text-muted-foreground")}>{d.description}</p>
+                        <p className={cn("text-xs mt-0.5", difficulty === d.value ? "text-primary-foreground" : "text-muted-foreground")}>{d.description}</p>
                       </button>
                     ))}
                   </div>
@@ -1014,61 +555,9 @@ const Quiz = () => {
 
   /* ---- Result screen ---- */
   if (state === "result") {
-    const pct = Math.round((score / total) * 100);
-    const sessionAnswers = answersRef.current;
-
-    return (
-      <div className="min-h-screen bg-background flex flex-col">
-        <PageHeader pageLabel={t("quiz.result")} onBack={() => setState("setup")} />
-
-        <main id="main" className="flex-1 px-4 py-6 sm:py-8">
-          <div className="max-w-md mx-auto space-y-8">
-            <div className="text-center space-y-3">
-              <div className={cn("text-6xl font-bold", pct >= 80 ? "text-primary" : pct >= 50 ? "text-accent-foreground" : "text-destructive")}>{pct}%</div>
-              <p className="text-lg text-foreground">{t("quiz.scoreOf", { score, total })}</p>
-              <p className="text-sm text-muted-foreground">
-                {pct >= 90 ? t("quiz.feedback90") : pct >= 70 ? t("quiz.feedback70") : pct >= 50 ? t("quiz.feedback50") : t("quiz.feedbackLow")}
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <h2 className="text-sm font-medium text-foreground">{t("quiz.yourAnswers")}</h2>
-              <div className="divide-y divide-border rounded-lg border border-border overflow-hidden">
-                {sessionAnswers.map((a, i) => (
-                  <div key={i} className={cn("px-3 py-2.5 text-sm flex items-start gap-2", a.correct ? "bg-card" : "bg-destructive/5")}>
-                    {a.skipped ? <SkipForward className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" /> : a.correct ? <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" /> : <XCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />}
-                    <div className="min-w-0 flex-1">
-                      <span className="font-medium text-foreground">{a.prompt}</span>
-                      <span className="text-muted-foreground"> → </span>
-                      <span className={cn("font-medium", a.correct ? "text-primary" : "text-destructive")}>{a.skipped ? "—" : a.givenAnswer}</span>
-                      {!a.correct && !a.skipped && <p className="text-xs text-muted-foreground mt-0.5">{t("quiz.correctAnswer")}: <span className="text-foreground">{a.correctAnswer}</span></p>}
-                      {a.skipped && <p className="text-xs text-muted-foreground mt-0.5">{t("common.answer")}: <span className="text-foreground">{a.correctAnswer}</span></p>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {(() => {
-              const wrongIds = new Set(
-                sessionAnswers.filter((a) => !a.correct && !a.skipped && a.entryId).map((a) => a.entryId),
-              );
-              return (
-                <div className="flex flex-wrap gap-3 justify-center pt-2">
-                  <Button variant="outline" onClick={() => setState("setup")}><ArrowLeft className="h-4 w-4 mr-1" /> {t("common.settings")}</Button>
-                  <Button onClick={() => startQuiz()}><RotateCcw className="h-4 w-4 mr-1" /> {t("quiz.tryAgain")}</Button>
-                  {wrongIds.size >= 2 && (
-                    <Button variant="secondary" onClick={() => startQuiz({ restrictIds: wrongIds })}>
-                      <Brain className="h-4 w-4 mr-1" /> {t("quiz.trainMistakes", { count: wrongIds.size })}
-                    </Button>
-                  )}
-                </div>
-              );
-            })()}
-          </div>
-        </main>
-      </div>
-    );
+    return <QuizResult score={score} total={total} answers={sessionAnswers}
+      onSetup={() => setState("setup")} onRestart={() => startQuiz()}
+      onTrain={ids => startQuiz({ restrictIds: ids })} />;
   }
 
   /* ---- Playing screen ---- */
