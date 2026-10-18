@@ -33,3 +33,9 @@ resource "cloudflare_pages_project" "ordsamling" {
     }
   }
 }
+
+resource "cloudflare_pages_domain" "production" {
+  account_id   = var.cloudflare_account_id
+  project_name = cloudflare_pages_project.ordsamling.name
+  domain       = var.production_domain
+}

@@ -1,4 +1,4 @@
-name: Terraform
+name: Terraform plan
 
 on:
   push:
@@ -6,9 +6,13 @@ on:
       - main
     paths:
       - 'infra/**'
+      - '.github/workflows/terraform.yml'
+      - '.github/workflows/deploy-production.yml'
   pull_request:
     paths:
       - 'infra/**'
+      - '.github/workflows/terraform.yml'
+      - '.github/workflows/deploy-production.yml'
   workflow_dispatch:
 
 permissions:
@@ -18,7 +22,7 @@ permissions:
 
 jobs:
   terraform:
-    name: Plan / Apply
+    name: Plan
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -50,7 +54,7 @@ jobs:
           terraform_version: "~1.6"
 
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -input=false -lockfile=readonly
 
       - name: Terraform Format check
         run: terraform fmt -check -recursive
@@ -66,8 +70,8 @@ jobs:
           TF_VAR_google_client_id: ${{ secrets.GOOGLE_CLIENT_ID }}
           TF_VAR_google_client_secret: ${{ secrets.GOOGLE_CLIENT_SECRET }}
         run: |
-          terraform plan -no-color -out=tfplan 2>&1 | tee plan.txt
-          echo "exitcode=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+          terraform plan -input=false -no-color -out=tfplan 2>&1 | tee plan.txt
+          echo "exitcode=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
 
       - name: Post plan to PR
         if: github.event_name == 'pull_request'
@@ -83,12 +87,3 @@ jobs:
               repo: context.repo.repo,
               body
             });
-
-      - name: Terraform Apply
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          TF_VAR_cloudflare_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          TF_VAR_google_client_id: ${{ secrets.GOOGLE_CLIENT_ID }}
-          TF_VAR_google_client_secret: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-        run: terraform apply -auto-approve tfplan
