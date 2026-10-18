@@ -89,6 +89,7 @@ const Landing = () => {
         }
       />
 
+      <main id="main">
       {/* Mobile lang switch */}
       <div className="sm:hidden flex justify-center pt-3">
         <div role="group" aria-label="Language" className="flex items-center rounded-full border border-border bg-background/60 p-0.5 text-[11px] font-mono uppercase tracking-wider">
@@ -217,6 +218,7 @@ const Landing = () => {
         </Button>
       </section>
 
+      </main>
       {/* Footer */}
       <footer className="border-t border-border">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted-foreground">

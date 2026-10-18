@@ -37,7 +37,7 @@ terraform.tfstate.d/
 # Terraform working directory
 .terraform/
 
-# Real tfvars contain secrets – only commit the .example file
+# Only the existing nonsecret account/project tfvars is tracked; supply secrets through CI or the environment.
 *.tfvars
 !terraform.tfvars
 

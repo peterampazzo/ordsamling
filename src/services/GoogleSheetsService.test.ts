@@ -3,16 +3,84 @@
  * Covers tasks 2.2, 2.3, and 2.12.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   serializeLexiconRow,
   deserializeLexiconRow,
   serializeQuizHistoryRow,
   deserializeQuizHistoryRow,
   serializeStreakEventRow,
+  GoogleSheetsService,
 } from './GoogleSheetsService';
 import type { LexisEntry } from '@/lib/lexicon';
 import type { QuizSessionRecord } from '@/lib/quizHistory';
+
+describe('Sheets requests and reconciliation', () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers(); });
+
+  it('batches updates and clears without deleting row dimensions', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}'));
+    vi.stubGlobal('fetch', fetchMock);
+    await new GoogleSheetsService().applyLexiconChanges('sheet', [
+      { id: 'a', entry: makeEntry({ id: 'a' }) }, { id: 'b', entry: null },
+    ], 'token', { entries: [], rows: [['a'], ['b'], ['a']] });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toContain('/values:batchUpdate');
+    const request = JSON.parse(init.body);
+    expect(request.data.map((item: { range: string }) => item.range)).toEqual(['Lexicon!A2:I2', 'Lexicon!A4:I4', 'Lexicon!A3:I3']);
+    expect(request.data[1].values[0]).toEqual(Array(9).fill(''));
+    expect(request.data[2].values[0]).toEqual(Array(9).fill(''));
+    expect(init.body).not.toContain('deleteDimension');
+  });
+
+  it('retries a rejected request without recreating a spreadsheet', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ spreadsheetId: 'sheet', sheets: [{ properties: { sheetId: 0 } }] })))
+      .mockResolvedValueOnce(new Response('{}', { status: 429, headers: { 'Retry-After': '1' } }))
+      .mockResolvedValueOnce(new Response('{}'))
+      .mockResolvedValueOnce(new Response('{}'));
+    vi.stubGlobal('fetch', fetchMock);
+    const creation = new GoogleSheetsService().createSpreadsheet('token');
+    await vi.advanceTimersByTimeAsync(2000);
+    await expect(creation).resolves.toBe('sheet');
+    expect(fetchMock.mock.calls.filter(([url]) => url === 'https://sheets.googleapis.com/v4/spreadsheets')).toHaveLength(1);
+  });
+
+  it('does not blindly retry an ambiguous append failure', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new TypeError('Connection lost'));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(new GoogleSheetsService().applyLexiconChanges('sheet', [
+      { id: 'a', entry: makeEntry({ id: 'a' }) },
+    ], 'token', { entries: [], rows: [] })).rejects.toThrow('Connection lost');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not append a quiz session that already exists', async () => {
+    const session = makeSession();
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ values: [serializeQuizHistoryRow(session)] })));
+    vi.stubGlobal('fetch', fetchMock);
+    await new GoogleSheetsService().appendQuizSession('sheet', session, 'token');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('round-trips exercise metadata while accepting older rows', () => {
+    const session = { ...makeSession(), exercise: 'numbers' as const };
+    expect(deserializeQuizHistoryRow(serializeQuizHistoryRow(session))).toEqual(session);
+    expect(deserializeQuizHistoryRow(serializeQuizHistoryRow(makeSession()))?.exercise).toBeUndefined();
+  });
+
+  it('preserves unknown settings without a clear request', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ values: [['custom', 'keep'], ['extraLanguages', '["it"]']] })))
+      .mockResolvedValueOnce(new Response('{}'));
+    vi.stubGlobal('fetch', fetchMock);
+    await new GoogleSheetsService().writeSettings('sheet', { extraLanguages: [] }, 'token');
+    expect(fetchMock.mock.calls.some(([url]) => url.includes(':clear'))).toBe(false);
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body).values).toEqual([['custom', 'keep'], ['extraLanguages', '[]']]);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Helpers

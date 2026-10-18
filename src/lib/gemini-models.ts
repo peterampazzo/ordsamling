@@ -1,8 +1,6 @@
 /**
  * Gemini model listing.
- * The @google/genai SDK doesn't expose a models.list() method,
- * so we use the REST API directly for discovery only.
- * All generation calls go through the SDK (see gemini.ts).
+ * Discovery and generation both use Google's REST API directly from the browser.
  */
 
 export type GeminiModel = string;

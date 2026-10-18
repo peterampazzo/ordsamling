@@ -4,7 +4,7 @@ I tend to remember things best by writing them down. While paper helps me memori
 
 Existing apps like Duolingo often don't match the specific level or vocabulary I encounter at school or in daily life. That's why I built **Ordsamling** — a minimalist language notebook designed to rescue my Danish, English, and (since I'm Italian) Italian vocabulary from being forgotten.
 
-**🚀 Check out the live demo: https://ordsamling.pages.dev/?demo**
+**🚀 Check out the live demo: https://ordsamling.pages.dev/demo**
 
 ### What Ordsamling Does 🧠
 
@@ -16,20 +16,23 @@ Existing apps like Duolingo often don't match the specific level or vocabulary I
 
 * **Progress Insights**: Automatically track your history to identify "Weakest Words," ensuring you focus your study time where it's needed most.
 
-* **Zero Infrastructure**: Your vocabulary lives in your own Google Spreadsheet. AI features use your own Gemini API key. The developer never sees your data.
+* **Your Data, Your Storage**: Vocabulary and quiz history stay on your device by default, with optional sync to your own Google Spreadsheet. AI features use your own Gemini API key.
 
 ## Architecture
 
 Ordsamling is a **local-first** SPA hosted on Cloudflare Pages:
 
 - **Storage**: `localStorage` is the primary read/write store (zero latency). If you connect Google Drive, your data is synced to a Google Spreadsheet you own ("Ordsamling Data") in the background.
-- **AI**: Quiz distractors and bulk import call the Gemini API **directly from the browser**. You supply your own Gemini API key in Settings — it is never sent to any server.
+- **AI**: Quiz distractors and bulk import call the Gemini REST API **directly from the browser**. You supply your own Gemini API key in Settings — it is sent to Google, never to a maintainer-controlled server.
 - **Server-side**: The only Cloudflare Pages Function is `functions/api/oauth/token.ts`, which handles the Google OAuth token exchange and refresh (keeps the client secret out of the browser bundle).
+- **Credentials**: Google access/refresh tokens and your Gemini key are stored in browser localStorage. The OAuth function transiently handles authentication credentials, but vocabulary and quiz history are not sent to it. Browser storage is not a protected credential vault; keep exports as backups and treat scripts running on the app's origin as trusted.
+- **Sync reliability**: A shared engine journals pending changes before network debounce and retains the local copy on reconnect. Conflicting edits are preserved until you choose a version. Same-browser tabs coordinate with Web Locks; unsupported browsers retain local changes and report that cloud sync is unavailable. Sheets does not provide atomic cross-device compare-and-swap, so concurrent edits on separate devices still require care.
 
 ## Run it locally
 
 ```bash
 # Install dependencies
+nvm use
 pnpm install
 # Run the frontend only (no Google Drive auth)
 pnpm dev
@@ -47,6 +50,29 @@ pnpm run dev:pages
 ## Node version
 
 This project targets Node.js 22. Run `nvm use` in the repository root to switch to the correct version.
+
+## Verification
+
+```bash
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm build
+```
+
+`typecheck` checks both the application and the Pages Functions/configuration project. Server endpoint tests live in `tests/`, outside the deployable `functions/` directory. With the built app served by `pnpm exec vite preview --port 4173`, run `pnpm exec playwright test --config=playwright.ci.config.ts` for browser checks.
+
+The release tag is the displayed version authority: the release workflow writes `public/version.json` during the build. `package.json` is a private application manifest, not a separately released package.
+
+React Router uses the patched v7 release. The compatible XML-parser security patch is pinned through the project's pnpm override and lockfile. Mammoth is used only through its browser/library API; its unused `argparse` dependency is excluded to remove the unpatched `sprintf-js` dependency. Mammoth's command-line executable is not supported by this application's install. Browser tests cover actual `.docx` text extraction as well as routing.
+
+Run `pnpm audit --prod` for application dependency findings and `pnpm audit` for development tooling too. Development-tool advisories, including Tinypool through Vitest, still need a dedicated tooling upgrade rather than an incompatible transitive override. Do not expose development/test servers to untrusted networks.
+
+## Retired daily reminders
+
+Daily push reminders have been removed. `/sw.js` remains as a small retirement worker so returning browsers can unsubscribe and unregister their old installation; new installations do not register a worker. Keep this endpoint available for dormant clients returning after the release.
+
+Before merging the infrastructure removal, check whether `ordsamling-push-cron` exists in Cloudflare and disable its scheduled/public invocation if deployed. Review the Terraform plan before removing the push KV namespace and bindings: the existing Terraform workflow applies changes automatically on `main`. Preserve the Pages project and Google OAuth secrets. After retirement is verified, remove obsolete VAPID secrets/variables from Cloudflare and GitHub. These are production operations requiring separate approval, not automatic consequences of local development.
 
 ---
 

@@ -1,11 +1,10 @@
 /**
- * Client-side Gemini API helpers using the official @google/genai SDK.
+ * Client-side Gemini REST API helpers.
  * All calls go directly from the browser to the Gemini API.
  * The user's API key is read from localStorage and never sent to any
  * developer-controlled server.
  */
 
-import { GoogleGenAI } from "@google/genai";
 import { getGeminiApiKey, getGeminiModel } from "@/lib/settings";
 import type { LexisEntryInput, EntryType } from "@/lib/lexicon";
 
@@ -57,13 +56,6 @@ function throwIfAborted(signal?: AbortSignal): void {
 }
 
 // ---------------------------------------------------------------------------
-// SDK client factory (one instance per key)
-// ---------------------------------------------------------------------------
-
-let _client: GoogleGenAI | null = null;
-let _clientKey = "";
-
-// ---------------------------------------------------------------------------
 // Last prompt storage (for troubleshooting)
 // ---------------------------------------------------------------------------
 
@@ -72,16 +64,6 @@ let _lastPromptTimestamp: Date | null = null;
 
 export function getLastPrompt(): { prompt: string; timestamp: Date | null } {
   return { prompt: _lastPrompt, timestamp: _lastPromptTimestamp };
-}
-
-function getClient(): GoogleGenAI {
-  const key = getGeminiApiKey();
-  if (!key) throw new GeminiKeyMissingError();
-  if (!_client || _clientKey !== key) {
-    _client = new GoogleGenAI({ apiKey: key });
-    _clientKey = key;
-  }
-  return _client;
 }
 
 function resolvedModel(): string {
@@ -93,23 +75,38 @@ function resolvedModel(): string {
 // Error mapping
 // ---------------------------------------------------------------------------
 
-function mapSdkError(err: unknown): never {
-  const msg = err instanceof Error ? err.message : String(err);
+interface GeminiResponse {
+  error?: {
+    message?: string;
+    details?: Array<{ reason?: string; retryDelay?: string; violations?: Array<{ quotaId?: string }> }>;
+  };
+  promptFeedback?: { blockReason?: string };
+  candidates?: Array<{
+    finishReason?: string;
+    content?: { parts?: Array<{ text?: string; thought?: boolean }> };
+  }>;
+}
 
-  if (msg.includes("API_KEY_INVALID") || msg.includes("401") || msg.includes("403")) {
+class GeminiTruncatedError extends Error {
+  constructor(readonly text: string) {
+    super('Gemini reached its response limit. Retry with a smaller input.');
+  }
+}
+
+function mapApiError(status: number, body: GeminiResponse, retryAfter: string | null): never {
+  const details = body.error?.details ?? [];
+  if (status === 401 || status === 403 || details.some(detail => detail.reason === 'API_KEY_INVALID')) {
     throw new GeminiKeyInvalidError();
   }
-  if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED")) {
-    // Try to extract retryDelay from the message
-    const retryMatch = msg.match(/retryDelay["\s:]+(\d+)/);
-    const retryAfterSeconds = retryMatch ? parseInt(retryMatch[1], 10) : null;
-    const isDailyQuota = msg.toLowerCase().includes("perday");
+  if (status === 429) {
+    const delay = details.find(detail => detail.retryDelay)?.retryDelay;
+    const parsedDelay = delay && /^\d+(?:\.\d+)?s$/.test(delay) ? Number(delay.slice(0, -1)) : Number(retryAfter);
+    const retryAfterSeconds = (delay || retryAfter) && Number.isFinite(parsedDelay) && parsedDelay >= 0 ? Math.ceil(parsedDelay) : null;
+    const isDailyQuota = details.some(detail => detail.violations?.some(violation => /perday/i.test(violation.quotaId ?? '')));
     throw new GeminiRateLimitError(retryAfterSeconds, isDailyQuota);
   }
-  if (msg.includes("503") || msg.includes("UNAVAILABLE")) {
-    throw new GeminiUnavailableError();
-  }
-  throw err instanceof Error ? err : new Error(msg);
+  if (status >= 500) throw new GeminiUnavailableError();
+  throw new Error(body.error?.message || `Gemini request failed (${status}).`);
 }
 
 // ---------------------------------------------------------------------------
@@ -122,48 +119,56 @@ async function callGemini(
     temperature?: number;
     maxOutputTokens?: number;
     systemInstruction?: string;
+    signal?: AbortSignal;
   } = {},
 ): Promise<string> {
-  const ai = getClient();
+  throwIfAborted(options.signal);
+  const key = getGeminiApiKey();
+  if (!key.trim()) throw new GeminiKeyMissingError();
   const model = resolvedModel();
+  if (!/^gemini-[A-Za-z0-9._-]+$/.test(model)) throw new Error('Select a valid Gemini model in Settings.');
 
   // Store prompt for troubleshooting
   _lastPrompt = prompt;
   _lastPromptTimestamp = new Date();
 
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  options.signal?.addEventListener('abort', abort, { once: true });
+  const timeout = setTimeout(abort, 90_000);
   try {
-    const response = await ai.models.generateContent({
-      model,
-      contents: prompt,
-      config: {
-        temperature: options.temperature ?? 0.3,
-        ...(options.maxOutputTokens ? { maxOutputTokens: options.maxOutputTokens } : {}),
-        ...(options.systemInstruction
-          ? { systemInstruction: options.systemInstruction }
-          : {}),
-      },
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+      signal: controller.signal,
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: options.temperature ?? 0.3,
+          ...(options.maxOutputTokens ? { maxOutputTokens: options.maxOutputTokens } : {}),
+        },
+        ...(options.systemInstruction ? { systemInstruction: { parts: [{ text: options.systemInstruction }] } } : {}),
+      }),
     });
-
-    // response.text may be empty for thinking models — extract from parts directly
-    // IMPORTANT: Include ALL text parts, including from thought parts, to get complete responses
-    const text = response.text
-      ?? response.candidates?.[0]?.content?.parts
-          ?.map((p: { text?: string; thought?: unknown }) => {
-            // Extract text from both regular text parts and thought parts
-            if (p.text) return p.text;
-            if (typeof p.thought === 'string') return p.thought;
-            if (p.thought && typeof p.thought === 'object' && 'text' in p.thought && typeof (p.thought as { text?: unknown }).text === 'string') {
-              return (p.thought as { text: string }).text;
-            }
-            return '';
-          })
-          ?.filter((t: string) => t.length > 0)
-          ?.join("") 
-      ?? "";
-
+    const body = await response.json().catch(() => null) as GeminiResponse | null;
+    if (!response.ok) mapApiError(response.status, body ?? {}, response.headers.get('Retry-After'));
+    if (!body || typeof body !== 'object') throw new Error('Gemini returned an invalid response.');
+    const candidate = body.candidates?.[0];
+    if (body.promptFeedback?.blockReason || (candidate?.finishReason && !['STOP', 'MAX_TOKENS'].includes(candidate.finishReason))) {
+      throw new Error('Gemini did not return usable content for this request.');
+    }
+    const text = candidate?.content?.parts?.filter(part => !part.thought && typeof part.text === 'string')
+      .map(part => part.text).join('') ?? '';
+    if (candidate?.finishReason === 'MAX_TOKENS') throw new GeminiTruncatedError(text);
+    if (!text.trim()) throw new Error('Gemini returned no text. Try another model or a smaller input.');
     return text;
   } catch (err) {
-    mapSdkError(err);
+    throwIfAborted(options.signal);
+    if (controller.signal.aborted) throw new Error('The Gemini request timed out. Please try again.');
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+    options.signal?.removeEventListener('abort', abort);
   }
 }
 
@@ -189,17 +194,18 @@ function safeJsonParse<T = unknown>(raw: string): T | null {
 // Key validation
 // ---------------------------------------------------------------------------
 
-export type KeyValidationStatus = "valid" | "invalid" | "missing" | "checking";
+export type KeyValidationStatus = "valid" | "invalid" | "missing" | "checking" | "unavailable";
 
 export async function validateGeminiKey(): Promise<"valid" | "invalid" | "missing"> {
   const key = getGeminiApiKey();
   if (!key.trim()) return "missing";
   try {
-    await callGemini("Say OK", { maxOutputTokens: 5 });
+    await callGemini("Say OK", { maxOutputTokens: 128 });
     return "valid";
   } catch (err) {
     if (err instanceof GeminiKeyInvalidError) return "invalid";
-    return "valid";
+    if (err instanceof GeminiRateLimitError || err instanceof GeminiTruncatedError) return "valid";
+    throw err;
   }
 }
 
@@ -322,7 +328,7 @@ function fallbackExtractWords(text: string): string[] {
     .filter((w, i, arr) => arr.indexOf(w) === i);
 }
 
-async function extractWordsFromText(text: string): Promise<string[]> {
+async function extractWordsFromText(text: string, signal?: AbortSignal): Promise<string[]> {
   const truncated = text.slice(0, 6000);
   const prompt = `Extract all unique Danish words from the following text. Return only a JSON array of strings, no other text. Focus on actual Danish words, ignore numbers, punctuation, and non-Danish words. Make them lowercase.
 
@@ -332,7 +338,7 @@ ${truncated}
 Response format: ["word1", "word2", ...]`;
 
   try {
-    const responseText = await callGemini(prompt, { temperature: 0.1 });
+    const responseText = await callGemini(prompt, { temperature: 0.1, signal });
     const words = safeJsonParse<unknown>(responseText);
     if (Array.isArray(words)) {
       const cleaned = words
@@ -341,7 +347,8 @@ Response format: ["word1", "word2", ...]`;
       if (cleaned.length > 0) return Array.from(new Set(cleaned));
     }
   } catch (err) {
-    if (err instanceof GeminiKeyMissingError || err instanceof GeminiKeyInvalidError) throw err;
+    if (err instanceof GeminiKeyMissingError || err instanceof GeminiKeyInvalidError ||
+      err instanceof GeminiRateLimitError || err instanceof ProcessingCancelledError) throw err;
     console.error("AI word extraction failed:", err);
   }
   return fallbackExtractWords(text);
@@ -354,7 +361,7 @@ function normalizeEntryTypeLocal(value: unknown): EntryType {
   return "word";
 }
 
-async function processWordChunk(words: string[], languages: string[]): Promise<LexisEntryInput[]> {
+async function processWordChunk(words: string[], languages: string[], signal?: AbortSignal): Promise<LexisEntryInput[]> {
   if (words.length === 0) return [];
 
   const translationInstruction = languages.length > 0
@@ -391,9 +398,9 @@ Examples:
 {"danish": "god morgen", "english": "good morning", "type": "expression", "notes": "common greeting"${translationExample}}
 {"danish": "altid", "english": "always", "type": "word", "notes": "adverb"${translationExample}}`;
 
-  const responseText = await callGemini(prompt, { temperature: 0.1, maxOutputTokens: 8192 });
+  const responseText = await callGemini(prompt, { temperature: 0.1, maxOutputTokens: 8192, signal });
   const parsed = safeJsonParse<unknown>(responseText);
-  if (!Array.isArray(parsed)) return [];
+  if (!Array.isArray(parsed)) throw new Error('Gemini returned an invalid vocabulary list.');
 
   return (parsed as unknown[]).flatMap((item) => {
     if (!item || typeof item !== "object" || Array.isArray(item)) return [];
@@ -482,7 +489,7 @@ export async function processDocument(
 
   throwIfAborted(signal);
   onProgress?.({ completed: 0, total: 1 });
-  const extractedWords = await extractWordsFromText(text);
+  const extractedWords = await extractWordsFromText(text, signal);
   throwIfAborted(signal);
   const newWords = extractedWords.filter((w) => !existingSet.has(w.toLowerCase()));
 
@@ -512,14 +519,14 @@ export async function processDocument(
     const chunkIndex = Math.floor(i / WORDS_PER_CHUNK);
     const chunk = newWords.slice(i, i + WORDS_PER_CHUNK);
     try {
-      const chunkEntries = await processWordChunk(chunk, languages);
+      const chunkEntries = await processWordChunk(chunk, languages, signal);
       entries.push(...chunkEntries);
       onChunk?.({ index: chunkIndex, total: totalChunks, status: "ok", entries: chunkEntries });
     } catch (err) {
       if (
         err instanceof GeminiKeyMissingError ||
         err instanceof GeminiKeyInvalidError ||
-        err instanceof GeminiRateLimitError
+        err instanceof GeminiRateLimitError || err instanceof ProcessingCancelledError
       ) throw err;
       const errMsg = err instanceof Error ? err.message : String(err);
       failedChunks.push({ index: chunkIndex, words: chunk, error: errMsg });
@@ -560,14 +567,14 @@ export async function retryFailedChunks(
     throwIfAborted(signal);
     const chunk = failed[i];
     try {
-      const chunkEntries = await processWordChunk(chunk.words, languages);
+      const chunkEntries = await processWordChunk(chunk.words, languages, signal);
       entries.push(...chunkEntries);
       onChunk?.({ index: chunk.index, total, status: "ok", entries: chunkEntries });
     } catch (err) {
       if (
         err instanceof GeminiKeyMissingError ||
         err instanceof GeminiKeyInvalidError ||
-        err instanceof GeminiRateLimitError
+        err instanceof GeminiRateLimitError || err instanceof ProcessingCancelledError
       ) throw err;
       const errMsg = err instanceof Error ? err.message : String(err);
       stillFailed.push({ ...chunk, error: errMsg });
@@ -616,14 +623,14 @@ export async function processDocumentChunked(
     const chunkIndex = Math.floor(i / WORDS_PER_CHUNK);
     const chunk = cleaned.slice(i, i + WORDS_PER_CHUNK);
     try {
-      const chunkEntries = await processWordChunk(chunk, languages);
+      const chunkEntries = await processWordChunk(chunk, languages, signal);
       entries.push(...chunkEntries);
       onChunk?.({ index: chunkIndex, total: totalChunks, status: "ok", entries: chunkEntries });
     } catch (err) {
       if (
         err instanceof GeminiKeyMissingError ||
         err instanceof GeminiKeyInvalidError ||
-        err instanceof GeminiRateLimitError
+        err instanceof GeminiRateLimitError || err instanceof ProcessingCancelledError
       ) throw err;
       onChunk?.({
         index: chunkIndex,
@@ -717,7 +724,7 @@ export async function processDocumentDirect(
   
   // Truncate text to 6000 characters if longer
   const truncated = text.slice(0, 6000);
-  const wasTruncated = text.length > 6000;
+  let wasTruncated = text.length > 6000;
 
   throwIfAborted(signal);
   onProgress?.({ completed: 0, total: 1 });
@@ -727,9 +734,14 @@ export async function processDocumentDirect(
 
   try {
     const responseText = await callGemini(prompt, {
+      signal,
       temperature: 0.2,
       maxOutputTokens: 16384, // Increased from 8192 to handle longer responses
       systemInstruction: "You are a JSON-only API. Return compact JSON with no whitespace (minified format). Never use markdown code fences. Never add explanations or text before/after the JSON. Your entire response must be parseable by JSON.parse()."
+    }).catch(error => {
+      if (!(error instanceof GeminiTruncatedError)) throw error;
+      wasTruncated = true;
+      return error.text;
     });
     throwIfAborted(signal);
     
@@ -956,7 +968,7 @@ export async function processDocumentDirect(
     if (
       err instanceof GeminiKeyMissingError ||
       err instanceof GeminiKeyInvalidError ||
-      err instanceof GeminiRateLimitError
+      err instanceof GeminiRateLimitError || err instanceof ProcessingCancelledError
     ) {
       throw err;
     }

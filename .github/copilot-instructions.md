@@ -11,5 +11,5 @@
 - To build the project: `pnpm build`
 
 ## Tech Stack
-- Framework: Vite + React/Vue
+- Framework: Vite + React + TypeScript
 - Styling: Tailwind CSS

@@ -476,24 +476,32 @@ progress:
     words: "Words"
 
 sync:
+  conflict:
+    languages: "Language settings"
+    local: "This device"
+    remote: "Google Sheets"
+    deleted: "Deleted"
+    keepLocal: "Keep this device's version"
+    keepRemote: "Use Google Sheets version"
+  banner:
+    sessionExpired:
+      title: "Google connection expired"
+      body: "Your changes are saved on this device. Reconnect to synchronize them."
+      action: "Reconnect"
+    conflict:
+      title: "Both copies have changed"
+      body: "Choose which version to keep. Neither version will be discarded automatically."
+      action: "Resolve"
+    pending:
+      title: "Changes pending sync"
+      body: "{count} changes are saved on this device and waiting for Google Sheets."
+      action: "Retry"
+    error:
+      title: "Could not synchronize"
+      body: "Your local data has been retained."
+      action: "Retry"
   pull:
     upToDate: "Already up to date with Google Sheets"
     pulled: "Pulled {added} new, {updated} updated, {removed} removed from Google Sheets"
     failed: "Could not pull from Google Sheets"
     sessionExpired: "Session expired — reconnect to pull changes"
-
-push:
-  title: "Daily reminder"
-  desc: "Get a gentle nudge when you haven't practiced in a day."
-  enable: "Enable reminders"
-  disable: "Disable reminders"
-  enabled: "Reminders are on"
-  iosInstallTitle: "Install Ordsamling to enable reminders"
-  iosInstallBody: "On iPhone, tap the Share icon in Safari, then choose «Add to Home Screen». Open the app from your home screen to turn on daily reminders."
-  signInFirst: "Sign in with Google first — reminders are tied to your account."
-  unsupported: "This browser doesn't support push notifications yet."
-  permissionDenied: "Notifications are blocked in your browser settings."
-  enableError: "Couldn't enable reminders — try again."
-  enabledToast: "Daily reminders enabled."
-  disabledToast: "Daily reminders disabled."
-
