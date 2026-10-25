@@ -31,6 +31,21 @@ function makeEntry(overrides: Partial<LexisEntry> & { id: string }): LexisEntry 
 // ---------------------------------------------------------------------------
 
 describe('mergeSheetsIntoLocal', () => {
+  it('preserves a pending local edit even when the remote timestamp is newer', () => {
+    const local = makeEntry({ id: 'pending', danish: 'local', updatedAt: 1000 });
+    const remote = makeEntry({ id: 'pending', danish: 'remote', updatedAt: 2000 });
+    expect(mergeSheetsIntoLocal([local], [remote], {
+      pendingIds: new Set(['pending']),
+    })).toEqual([local]);
+  });
+
+  it('does not resurrect a pending deletion during a remote refresh', () => {
+    const remote = makeEntry({ id: 'deleted' });
+    expect(mergeSheetsIntoLocal([], [remote], {
+      pendingIds: new Set(['deleted']),
+    })).toEqual([]);
+  });
+
   it('sheet entry newer than local → sheet version wins', () => {
     const local = makeEntry({ id: 'a', createdAt: 1000, updatedAt: 1000, danish: 'local' });
     const sheet = makeEntry({ id: 'a', createdAt: 2000, updatedAt: 2000, danish: 'sheet' });

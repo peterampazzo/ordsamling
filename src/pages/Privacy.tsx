@@ -25,7 +25,7 @@ const Privacy = () => {
               Hosting &amp; open source
             </SerifHeading>
             <p>
-              Ordsamling is a fully client-side app hosted on{" "}
+              Ordsamling is a local-first app hosted on{" "}
               <a
                 href="https://pages.cloudflare.com"
                 target="_blank"
@@ -34,8 +34,9 @@ const Privacy = () => {
               >
                 Cloudflare Pages
               </a>
-              . It runs entirely in your browser — there is no server-side logic, no database, and
-              no telemetry. All source code is open source and available on{" "}
+              . Vocabulary, quizzes, and AI features run in your browser. A small server-side
+              function handles Google sign-in and token refresh; there is no application database
+              storing your vocabulary or quiz history and no telemetry. All source code is available on{" "}
               <a
                 href={GITHUB_URL}
                 target="_blank"
@@ -53,10 +54,11 @@ const Privacy = () => {
               Your data
             </SerifHeading>
             <p>
-              Your vocabulary and quiz history are stored exclusively in your browser's
+              Your vocabulary and quiz history are stored by default in your browser's
               localStorage. This data never leaves your device unless you choose to enable cloud
               sync, in which case it is written directly to a Google Spreadsheet in your own Google
-              Drive. The developer has no access to your data at any point.
+              Drive. The maintainer does not collect your vocabulary or quiz history.
+              Keep an export as a backup: clearing browser storage removes the local copy.
             </p>
           </section>
 
@@ -67,10 +69,12 @@ const Privacy = () => {
             <p>
               The Google Sheets integration is currently private and invite-only — it is not
               available to the general public. When you connect Google Drive, the app requests
-              permission to access only the files it creates itself. This means it can only read
-              and write the single spreadsheet named "Ordsamling Data" — it cannot see, read, or
-              modify any other file in your Drive. Your Google account data is not shared with any
-              third party and is used solely to provide the sync functionality.
+              Google Sheets access and permission to locate app-created Drive files. The app uses
+              these permissions to synchronize the spreadsheet named "Ordsamling Data". The Sheets
+              permission is broader than access to that one spreadsheet. Google access and refresh
+              tokens are kept in localStorage on your device; the OAuth function transiently handles
+              credentials during sign-in and refresh. Vocabulary and history requests go directly
+              from your browser to Google, not through that function.
             </p>
           </section>
 

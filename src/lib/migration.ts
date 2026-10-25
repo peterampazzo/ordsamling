@@ -1,18 +1,25 @@
 /**
- * migration.ts — Atomic cut-over migration from localStorage to Google Sheets.
- *
- * The key guarantee: storageSource is only set to 'google_sheets' AFTER all
- * data has been successfully uploaded. If any step fails, local data is
- * untouched and storageSource remains 'local'.
+ * migration.ts — Connect local data to Google Sheets without discarding either copy.
  */
 
 import type { LexisEntry } from '@/lib/lexicon';
 import type { QuizSessionRecord } from '@/lib/quizHistory';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { getStoredEmail } from '@/lib/googleOAuth';
-import { setStorageConfig } from '@/lib/storageConfig';
+import { getStorageConfig, setStorageConfig } from '@/lib/storageConfig';
 import { getExtraLanguages } from '@/lib/settings';
-import { getLang } from '@/i18n';
+import { REAL_STORAGE_KEY } from '@/lib/demo';
+import { sameContent } from './syncMerge';
+import {
+  DATA_OWNER_KEY, HISTORY_KEY, enqueue, migrateLegacyQueue, readArray, readBaseline, readJson,
+  readQueue, scopeId, withStorageLock, writeBaseline, type SyncScope,
+} from './syncQueue';
+
+export class AccountSwitchRequired extends Error {
+  constructor(public readonly previousEmail: string, public readonly nextEmail: string) {
+    super(`Choose whether to import local data from ${previousEmail} into ${nextEmail}.`);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Drive file search
@@ -48,18 +55,13 @@ export async function findExistingSpreadsheet(accessToken: string): Promise<stri
 // ---------------------------------------------------------------------------
 
 /**
- * Atomic cut-over migration from localStorage to Google Sheets.
- *
- * Steps 1-7 must ALL succeed before step 8 (the cut-over) executes.
- * If any step throws, storageSource remains 'local' and local data is untouched.
- *
- * Idempotent reconnect: if a spreadsheet already exists, it is reused.
- * Data is only written if entries.length > 0 or history.length > 0.
+ * Reuse an existing spreadsheet and queue local differences for reconciliation.
  */
 export async function runMigration(
   accessToken: string,
   entries: LexisEntry[],
-  history: QuizSessionRecord[]
+  history: QuizSessionRecord[],
+  accountSwitch?: 'import' | 'separate',
 ): Promise<{ spreadsheetId: string; email: string }> {
   const sheetsService = new GoogleSheetsService();
 
@@ -76,6 +78,12 @@ export async function runMigration(
     email = userInfo.email;
   }
 
+  if (!email) throw new Error('Google did not return an account email.');
+  const config = getStorageConfig();
+  const owner = readJson<SyncScope | null>(DATA_OWNER_KEY, null) ??
+    (config.connectedEmail && config.spreadsheetId ? { email: config.connectedEmail, spreadsheetId: config.spreadsheetId } : null);
+  if (owner && owner.email !== email && !accountSwitch) throw new AccountSwitchRequired(owner.email, email);
+
   // Step 2: Search Drive for existing spreadsheet
   let spreadsheetId = await findExistingSpreadsheet(accessToken);
 
@@ -87,38 +95,78 @@ export async function runMigration(
   // Step 4: Ensure tabs exist
   await sheetsService.ensureTabsExist(spreadsheetId, accessToken);
 
-  // Step 5: Batch write entries if any
-  if (entries.length > 0) {
-    await sheetsService.batchWriteLexicon(spreadsheetId, entries, accessToken);
-  }
-
-  // Step 6: Batch write history if any
-  if (history.length > 0) {
-    await sheetsService.batchWriteQuizHistory(spreadsheetId, history, accessToken);
-  }
-
-  // Step 7: Write current settings (extraLanguages + uiLang)
-  await sheetsService.writeSettings(spreadsheetId, {
-    extraLanguages: getExtraLanguages(),
-    uiLang: getLang(),
-  }, accessToken);
-
-  // *** ATOMIC CUT-OVER (only reached if all above succeeded) ***
-  // Step 8: Switch storageSource to google_sheets
-  setStorageConfig({
-    storageSource: 'google_sheets',
-    spreadsheetId,
-    connectedEmail: email,
-    oauthTokenExpiry: null,
-  });
-
-  // *** CLEANUP ***
-  // Step 9: Remove local data now that it's safely in the cloud
-  localStorage.removeItem('lexikon-entries');
-  localStorage.removeItem('lexikon-quiz-history');
-  // Also remove demo-mode variants if present
-  localStorage.removeItem('lexikon-entries-demo');
-  localStorage.removeItem('lexikon-quiz-history-demo');
+  const scope: SyncScope = { spreadsheetId, email };
+  const reconcile = async () => {
+    const remoteEntries = await sheetsService.readLexicon(spreadsheetId, accessToken);
+    const remoteHistory = await sheetsService.readQuizHistory(spreadsheetId, accessToken);
+    const remoteSettings = await sheetsService.readSettings(spreadsheetId, accessToken);
+    await withStorageLock(() => {
+      let localEntries = localStorage.getItem(REAL_STORAGE_KEY) ? readArray<LexisEntry>(REAL_STORAGE_KEY) : entries;
+      let localHistory = localStorage.getItem(HISTORY_KEY) ? readArray<QuizSessionRecord>(HISTORY_KEY) : history;
+      let extraLanguages = getExtraLanguages();
+      if (owner && scopeId(owner) !== scopeId(scope)) {
+        localStorage.setItem(`ordsamling-account-backup:${scopeId(owner)}`, JSON.stringify({
+          entries: localEntries, history: localHistory, extraLanguages,
+        }));
+        if (accountSwitch === 'separate') {
+          const archived = readJson(`ordsamling-account-backup:${scopeId(scope)}`, {
+            entries: [] as LexisEntry[], history: [] as QuizSessionRecord[], extraLanguages: [] as string[],
+          });
+          localEntries = archived.entries;
+          localHistory = archived.history;
+          extraLanguages = archived.extraLanguages;
+        }
+      } else migrateLegacyQueue(scope);
+      const pending = readQueue(scope);
+      const pendingIds = new Set(pending.filter(op => op.type === 'lexicon')
+        .map(op => typeof op.payload === 'string' ? op.payload : (op.payload as LexisEntry).id));
+      const baseline = readBaseline(scope);
+      const merged = new Map(remoteEntries.map(entry => [entry.id, entry]));
+      for (const entry of localEntries) {
+        const remote = merged.get(entry.id);
+        if (pendingIds.has(entry.id)) merged.set(entry.id, entry);
+        else if (!sameContent(entry, remote) && !sameContent(entry, baseline.entries[entry.id])) {
+          enqueue(scope, {
+            type: 'lexicon', operation: remote ? 'update' : 'add', payload: entry,
+            baseline: baseline.entries[entry.id] ?? (remote ? undefined : null),
+          });
+          pendingIds.add(entry.id);
+          merged.set(entry.id, entry);
+        }
+      }
+      for (const operation of pending.filter(op => op.type === 'lexicon')) {
+        if (operation.operation === 'delete') merged.delete(typeof operation.payload === 'string' ? operation.payload : (operation.payload as LexisEntry).id);
+        else {
+          const entry = operation.payload as LexisEntry;
+          merged.set(entry.id, entry);
+        }
+      }
+      const remoteSessionIds = new Set(remoteHistory.map(session => session.id));
+      const queuedSessionIds = new Set(pending.filter(op => op.type === 'quiz_history').map(op => (op.payload as QuizSessionRecord).id));
+      for (const session of localHistory) {
+        if (!remoteSessionIds.has(session.id) && !queuedSessionIds.has(session.id)) {
+          enqueue(scope, { type: 'quiz_history', operation: 'add', payload: session });
+        }
+      }
+      if (remoteSettings.present === false && !pending.some(op => op.type === 'settings')) {
+        enqueue(scope, { type: 'settings', operation: 'update', payload: { extraLanguages }, baseline: null });
+      }
+      for (const entry of remoteEntries) {
+        if (!pendingIds.has(entry.id)) baseline.entries[entry.id] = entry;
+      }
+      if (!pending.some(op => op.type === 'settings')) baseline.settings = remoteSettings.present === false ? null : remoteSettings;
+      const historyById = new Map([...localHistory, ...remoteHistory].map(session => [session.id, session]));
+      localStorage.setItem(REAL_STORAGE_KEY, JSON.stringify([...merged.values()]));
+      localStorage.setItem(HISTORY_KEY, JSON.stringify([...historyById.values()].sort((a, b) => b.date - a.date).slice(0, 50)));
+      writeBaseline(scope, baseline);
+      localStorage.setItem(DATA_OWNER_KEY, JSON.stringify(scope));
+      setStorageConfig({
+        storageSource: 'google_sheets', spreadsheetId, connectedEmail: email, oauthTokenExpiry: null,
+      });
+    });
+  };
+  if (navigator.locks) await navigator.locks.request(`ordsamling-sync:${scopeId(scope)}`, reconcile);
+  else await reconcile();
 
   return { spreadsheetId, email };
 }

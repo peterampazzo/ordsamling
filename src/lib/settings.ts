@@ -63,11 +63,18 @@ export function getExtraLanguages(): string[] {
   }
 }
 
-export function setExtraLanguages(codes: string[]): void {
+let persistLanguages: ((codes: string[]) => Promise<void>) | null = null;
+
+export function registerLanguagePersistence(persist: ((codes: string[]) => Promise<void>) | null): void {
+  persistLanguages = persist;
+}
+
+export function setExtraLanguages(codes: string[], notify = true): void | Promise<void> {
   const safe = codes.filter((c) => LANGUAGE_CATALOG.some((l) => l.code === c));
+  if (notify && persistLanguages) return persistLanguages(safe);
   localStorage.setItem(EXTRA_LANGS_KEY, JSON.stringify(safe));
   window.dispatchEvent(new CustomEvent("ordsamling:settings-changed"));
-  window.dispatchEvent(new CustomEvent("ordsamling:settings-dirty", { detail: { extraLanguages: safe } }));
+  if (notify) window.dispatchEvent(new CustomEvent("ordsamling:settings-dirty", { detail: { extraLanguages: safe } }));
 }
 
 export function isExtraLanguageEnabled(code: string): boolean {

@@ -10,7 +10,7 @@ import { normalizeEntryType } from '@/lib/lexicon';
 import type { QuizSessionRecord, QuizAnswerRecord } from '@/lib/quizHistory';
 import type { SheetSettings, StreakEvent } from '@/lib/sheetTypes';
 import { LEXICON_HEADERS, QUIZ_HISTORY_HEADERS, SETTINGS_HEADERS, STREAK_HISTORY_HEADERS } from '@/lib/sheetTypes';
-import type { GeminiModel } from '@/lib/storageConfig';
+import { dedupeEntries } from '@/lib/syncMerge';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -33,6 +33,7 @@ export async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promi
     try {
       return await fn();
     } catch (err: unknown) {
+      if (err instanceof Error && 'requestHandled' in err) throw err;
       attempt++;
       const is429 =
         (err instanceof Error &&
@@ -60,6 +61,7 @@ export async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promi
 
 interface SheetsError extends Error {
   status: number;
+  requestHandled?: boolean;
 }
 
 async function sheetsRequest<T>(
@@ -73,20 +75,43 @@ async function sheetsRequest<T>(
     ...(options.headers as Record<string, string> | undefined),
   };
 
-  const response = await fetch(url, { ...options, headers });
-
-  if (!response.ok) {
-    const err = new Error(
-      `Sheets API error ${response.status}: ${response.statusText}`
-    ) as SheetsError;
-    err.status = response.status;
-    throw err;
+  const method = options.method ?? 'GET';
+  const safeToRetry = method === 'GET' || method === 'PUT' || url.includes('/values:batchUpdate');
+  for (let attempt = 0; ; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+    try {
+      const response = await fetch(url, {
+        ...options, headers, signal: options.signal ?? controller.signal,
+      });
+      if (response.ok) {
+        // Some endpoints return empty body (e.g. clear)
+        const text = await response.text();
+        return text ? JSON.parse(text) as T : {} as T;
+      }
+      if (attempt < 2 && (response.status === 429 || (safeToRetry && response.status >= 500))) {
+        const retryAfter = response.headers.get('Retry-After');
+        const seconds = retryAfter ? Number(retryAfter) : NaN;
+        const requestedDelay = Number.isFinite(seconds)
+          ? seconds * 1000
+          : retryAfter ? Date.parse(retryAfter) - Date.now() : 0;
+        await new Promise(resolve => setTimeout(resolve,
+          Math.min(30_000, Math.max(requestedDelay || 0, 500 * 2 ** attempt + Math.random() * 200))));
+        continue;
+      }
+      const error = new Error(`Sheets API error ${response.status}: ${response.statusText}`) as SheetsError;
+      error.status = response.status;
+      throw error;
+    } catch (error) {
+      if (safeToRetry && attempt < 2 && error instanceof TypeError) {
+        await new Promise(resolve => setTimeout(resolve, 500 * 2 ** attempt));
+        continue;
+      }
+      throw Object.assign(error instanceof Error ? error : new Error('Sheets request failed'), { requestHandled: true });
+    } finally {
+      clearTimeout(timeout);
+    }
   }
-
-  // Some endpoints return empty body (e.g. clear)
-  const text = await response.text();
-  if (!text) return {} as T;
-  return JSON.parse(text) as T;
 }
 
 // ---------------------------------------------------------------------------
@@ -167,39 +192,6 @@ function deserializeLexiconRow(row: string[]): LexisEntry | null {
   return { id, danish, english, translations, type, grammar, notes, createdAt, updatedAt };
 }
 
-function entryCompletenessScore(entry: LexisEntry): number {
-  return [
-    entry.danish?.trim(),
-    entry.english?.trim(),
-    entry.notes?.trim(),
-    JSON.stringify(entry.grammar ?? {}).replace(/"/g, '').trim(),
-    JSON.stringify(entry.translations ?? {}).replace(/"/g, '').trim(),
-  ].filter(Boolean).length;
-}
-
-function dedupeLexiconEntries(entries: LexisEntry[]): LexisEntry[] {
-  const map = new Map<string, LexisEntry>();
-  for (const entry of entries) {
-    const existing = map.get(entry.id);
-    if (!existing) {
-      map.set(entry.id, entry);
-      continue;
-    }
-
-    if (entry.updatedAt > existing.updatedAt) {
-      map.set(entry.id, entry);
-      continue;
-    }
-
-    if (entry.updatedAt === existing.updatedAt) {
-      if (entryCompletenessScore(entry) > entryCompletenessScore(existing)) {
-        map.set(entry.id, entry);
-      }
-    }
-  }
-  return Array.from(map.values());
-}
-
 /**
  * Serialize a QuizSessionRecord to exactly 8 strings for the QuizHistory sheet row.
  * Columns: [ID, Date, Mode, FromLabel, ToLabel, Score, Total, Answers(JSON)]
@@ -214,6 +206,7 @@ function serializeQuizHistoryRow(session: QuizSessionRecord): string[] {
     String(session.score),
     String(session.total),
     JSON.stringify(session.answers),
+    ...(session.exercise ? [session.exercise] : []),
   ];
 }
 
@@ -223,6 +216,7 @@ function serializeStreakEventRow(event: StreakEvent): string[] {
     event.type,
     event.deviceId ?? '',
     event.notes ?? '',
+    ...(event.id ? [event.id] : []),
   ];
 }
 
@@ -255,7 +249,21 @@ function deserializeQuizHistoryRow(row: string[]): QuizSessionRecord | null {
     }
   }
 
-  return { id, date, mode, fromLabel, toLabel, score, total, answers };
+  const exercise = row[8] as QuizSessionRecord['exercise'];
+  return {
+    id, date, mode, fromLabel, toLabel, score, total, answers,
+    ...(['vocabulary', 'verbs', 'numbers', 'articles'].includes(exercise) ? { exercise } : {}),
+  };
+}
+
+export interface LexiconSnapshot {
+  rows: string[][];
+  entries: LexisEntry[];
+}
+
+export interface LexiconChange {
+  id: string;
+  entry: LexisEntry | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -308,7 +316,7 @@ export class GoogleSheetsService {
 
         const now = new Date().toISOString().slice(0, 10);
         const notice = [
-          ['This spreadsheet is managed by Ordsamling (https://ordsamling.pages.dev).'],
+          ['This spreadsheet is managed by Ordsamling (https://ordsamling.peterampazzo.com).'],
           ['Do not edit the Lexicon, QuizHistory, or Settings tabs manually — changes may be overwritten.'],
           [''],
           [`Created: ${now}`],
@@ -345,22 +353,16 @@ export class GoogleSheetsService {
         headers: readonly string[];
       }> = [];
 
-      if (!existingTitles.has('Lexicon')) {
-        tabsToCreate.push({ title: 'Lexicon', headers: LEXICON_HEADERS });
-      }
-      if (!existingTitles.has('QuizHistory')) {
-        tabsToCreate.push({ title: 'QuizHistory', headers: QUIZ_HISTORY_HEADERS });
-      }
-      if (!existingTitles.has('StreakHistory')) {
-        tabsToCreate.push({ title: 'StreakHistory', headers: STREAK_HISTORY_HEADERS });
-      }
-      if (!existingTitles.has('Settings')) {
-        tabsToCreate.push({ title: 'Settings', headers: SETTINGS_HEADERS });
-      }
+      tabsToCreate.push(
+        { title: 'Lexicon', headers: LEXICON_HEADERS },
+        { title: 'QuizHistory', headers: QUIZ_HISTORY_HEADERS },
+        { title: 'StreakHistory', headers: STREAK_HISTORY_HEADERS },
+        { title: 'Settings', headers: SETTINGS_HEADERS },
+      );
 
       for (const tab of tabsToCreate) {
         // Add the sheet
-        await sheetsRequest(
+        if (!existingTitles.has(tab.title)) await sheetsRequest(
           `${SHEETS_BASE}/${spreadsheetId}:batchUpdate`,
           accessToken,
           {
@@ -392,43 +394,61 @@ export class GoogleSheetsService {
    * Read all entries from the Lexicon tab (A2:H, skipping header row).
    */
   async readLexicon(spreadsheetId: string, accessToken: string): Promise<LexisEntry[]> {
-    return withRetry(async () => {
-      const result = await sheetsRequest<{ values?: string[][] }>(
-        `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent('Lexicon!A2:I')}`,
-        accessToken
+    return (await this.readLexiconSnapshot(spreadsheetId, accessToken)).entries;
+  }
+
+  async readLexiconSnapshot(spreadsheetId: string, accessToken: string): Promise<LexiconSnapshot> {
+    const result = await sheetsRequest<{ values?: string[][] }>(
+      `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent('Lexicon!A2:I')}`, accessToken,
+    );
+    const rows = result.values ?? [];
+    return {
+      rows,
+      entries: dedupeEntries(rows.map(deserializeLexiconRow).filter((entry): entry is LexisEntry => entry !== null)),
+    };
+  }
+
+  async applyLexiconChanges(
+    spreadsheetId: string,
+    changes: LexiconChange[],
+    accessToken: string,
+    snapshot?: LexiconSnapshot,
+  ): Promise<void> {
+    const { rows } = snapshot ?? await this.readLexiconSnapshot(spreadsheetId, accessToken);
+    const updates: Array<{ range: string; values: string[][] }> = [];
+    const additions: string[][] = [];
+    for (const change of changes) {
+      const indices = rows.flatMap((row, index) => row[0] === change.id ? [index] : []);
+      if (indices.length === 0 && change.entry) additions.push(serializeLexiconRow(change.entry));
+      for (let i = 0; i < indices.length; i++) {
+        updates.push({
+          range: `Lexicon!A${indices[i] + 2}:I${indices[i] + 2}`,
+          values: [i === 0 && change.entry ? serializeLexiconRow(change.entry) : Array(9).fill('')],
+        });
+      }
+    }
+    if (updates.length) {
+      await sheetsRequest(`${SHEETS_BASE}/${spreadsheetId}/values:batchUpdate`, accessToken, {
+        method: 'POST', body: JSON.stringify({ valueInputOption: 'RAW', data: updates }),
+      });
+    }
+    if (additions.length) {
+      await sheetsRequest(
+        `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent(`Lexicon!A${rows.length + 2}:I`)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+        accessToken, { method: 'POST', body: JSON.stringify({ values: additions }) },
       );
-      const rows = result.values ?? [];
-      const entries = rows.map(deserializeLexiconRow).filter((e): e is LexisEntry => e !== null);
-      return dedupeLexiconEntries(entries);
-    });
+    }
   }
 
   /**
-   * Clear Lexicon!A2:I and write all entries in one values.update call.
+   * Reconcile a set of entries without clearing remote-only rows.
    */
   async batchWriteLexicon(
     spreadsheetId: string,
     entries: LexisEntry[],
     accessToken: string
   ): Promise<void> {
-    return withRetry(async () => {
-      // 1. Clear existing data
-      await sheetsRequest(
-        `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent('Lexicon!A2:I')}:clear`,
-        accessToken,
-        { method: 'POST', body: JSON.stringify({}) }
-      );
-
-      // 2. Write all rows if any
-      if (entries.length > 0) {
-        const values = entries.map(serializeLexiconRow);
-        await sheetsRequest(
-          `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent('Lexicon!A2')}?valueInputOption=RAW`,
-          accessToken,
-          { method: 'PUT', body: JSON.stringify({ values }) }
-        );
-      }
-    });
+    await this.applyLexiconChanges(spreadsheetId, entries.map(entry => ({ id: entry.id, entry })), accessToken);
   }
 
   /**
@@ -439,14 +459,7 @@ export class GoogleSheetsService {
     entry: LexisEntry,
     accessToken: string
   ): Promise<void> {
-    return withRetry(async () => {
-      const values = [serializeLexiconRow(entry)];
-      await sheetsRequest(
-        `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent('Lexicon!A2')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
-        accessToken,
-        { method: 'POST', body: JSON.stringify({ values }) }
-      );
-    });
+    await this.applyLexiconChanges(spreadsheetId, [{ id: entry.id, entry }], accessToken);
   }
 
   /**
@@ -457,117 +470,18 @@ export class GoogleSheetsService {
     entry: LexisEntry,
     accessToken: string
   ): Promise<void> {
-    return withRetry(async () => {
-      const result = await sheetsRequest<{ values?: string[][] }>(
-        `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent('Lexicon!A2:I')}`,
-        accessToken
-      );
-      const rows = result.values ?? [];
-      const rowIndexes = rows
-        .map((row, index) => (row[0] === entry.id ? index : -1))
-        .filter((index) => index >= 0);
-
-      if (rowIndexes.length === 0) {
-        // Entry not found — append instead to preserve the local update.
-        await this.writeLexiconRow(spreadsheetId, entry, accessToken);
-        return;
-      }
-
-      const firstRowIndex = rowIndexes[0];
-      const sheetRow = firstRowIndex + 2;
-      const values = [serializeLexiconRow(entry)];
-      await sheetsRequest(
-        `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent(`Lexicon!A${sheetRow}`)}?valueInputOption=RAW`,
-        accessToken,
-        { method: 'PUT', body: JSON.stringify({ values }) }
-      );
-
-      if (rowIndexes.length > 1) {
-        const meta = await sheetsRequest<{
-          sheets: Array<{ properties: { title: string; sheetId: number } }>;
-        }>(`${SHEETS_BASE}/${spreadsheetId}`, accessToken);
-
-        const lexiconSheet = (meta.sheets ?? []).find(
-          (s) => s.properties.title === 'Lexicon'
-        );
-        if (!lexiconSheet) return;
-
-        const sheetId = lexiconSheet.properties.sheetId;
-        const duplicateRowIndexes = rowIndexes.slice(1).sort((a, b) => b - a);
-        const requests = duplicateRowIndexes.map((rowIndex) => ({
-          deleteDimension: {
-            range: {
-              sheetId,
-              dimension: 'ROWS',
-              startIndex: rowIndex + 1,
-              endIndex: rowIndex + 2,
-            },
-          },
-        }));
-
-        await sheetsRequest(
-          `${SHEETS_BASE}/${spreadsheetId}:batchUpdate`,
-          accessToken,
-          {
-            method: 'POST',
-            body: JSON.stringify({ requests }),
-          }
-        );
-      }
-    });
+    await this.applyLexiconChanges(spreadsheetId, [{ id: entry.id, entry }], accessToken);
   }
 
   /**
-   * Find the row for entryId and delete it via batchUpdate deleteDimension.
+   * Clear rows for entryId without shifting other entries' row positions.
    */
   async deleteLexiconRow(
     spreadsheetId: string,
     entryId: string,
     accessToken: string
   ): Promise<void> {
-    return withRetry(async () => {
-      // Need the sheet's numeric sheetId for deleteDimension
-      const meta = await sheetsRequest<{
-        sheets: Array<{ properties: { title: string; sheetId: number } }>;
-      }>(`${SHEETS_BASE}/${spreadsheetId}`, accessToken);
-
-      const lexiconSheet = (meta.sheets ?? []).find(
-        (s) => s.properties.title === 'Lexicon'
-      );
-      if (!lexiconSheet) return;
-      const sheetId = lexiconSheet.properties.sheetId;
-
-      const result = await sheetsRequest<{ values?: string[][] }>(
-        `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent('Lexicon!A2:A')}`,
-        accessToken
-      );
-      const idColumn = result.values ?? [];
-      const rowIndexes = idColumn
-        .map((row, index) => (row[0] === entryId ? index : -1))
-        .filter((index) => index >= 0);
-      if (rowIndexes.length === 0) return;
-
-      const duplicateRowIndexes = rowIndexes.sort((a, b) => b - a);
-      const requests = duplicateRowIndexes.map((rowIndex) => ({
-        deleteDimension: {
-          range: {
-            sheetId,
-            dimension: 'ROWS',
-            startIndex: rowIndex + 1,
-            endIndex: rowIndex + 2,
-          },
-        },
-      }));
-
-      await sheetsRequest(
-        `${SHEETS_BASE}/${spreadsheetId}:batchUpdate`,
-        accessToken,
-        {
-          method: 'POST',
-          body: JSON.stringify({ requests }),
-        }
-      );
-    });
+    await this.applyLexiconChanges(spreadsheetId, [{ id: entryId, entry: null }], accessToken);
   }
 
   // -------------------------------------------------------------------------
@@ -583,7 +497,7 @@ export class GoogleSheetsService {
   ): Promise<QuizSessionRecord[]> {
     return withRetry(async () => {
       const result = await sheetsRequest<{ values?: string[][] }>(
-        `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent('QuizHistory!A2:H')}`,
+        `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent('QuizHistory!A2:I')}`,
         accessToken
       );
       const rows = result.values ?? [];
@@ -602,6 +516,8 @@ export class GoogleSheetsService {
     accessToken: string
   ): Promise<void> {
     return withRetry(async () => {
+      const existing = await this.readQuizHistory(spreadsheetId, accessToken);
+      if (existing.some(item => item.id === session.id)) return;
       const values = [serializeQuizHistoryRow(session)];
       await sheetsRequest(
         `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent('QuizHistory!A2')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
@@ -617,6 +533,12 @@ export class GoogleSheetsService {
     accessToken: string
   ): Promise<void> {
     return withRetry(async () => {
+      const existing = await sheetsRequest<{ values?: string[][] }>(
+        `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent('StreakHistory!A2:E')}`, accessToken,
+      );
+      if ((existing.values ?? []).some(row => event.id
+        ? row[4] === event.id
+        : row[0] === String(event.timestamp) && row[1] === event.type && (row[2] || '') === (event.deviceId || ''))) return;
       const values = [serializeStreakEventRow(event)];
       await sheetsRequest(
         `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent('StreakHistory!A2')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
@@ -627,29 +549,21 @@ export class GoogleSheetsService {
   }
 
   /**
-   * Clear QuizHistory!A2:H and write all sessions in one values.update call.
+   * Append sessions that are not already present, preserving remote history.
    */
   async batchWriteQuizHistory(
     spreadsheetId: string,
     sessions: QuizSessionRecord[],
     accessToken: string
   ): Promise<void> {
-    return withRetry(async () => {
+    const existingIds = new Set((await this.readQuizHistory(spreadsheetId, accessToken)).map(session => session.id));
+    const values = sessions.filter(session => !existingIds.has(session.id)).map(serializeQuizHistoryRow);
+    if (values.length) {
       await sheetsRequest(
-        `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent('QuizHistory!A2:H')}:clear`,
-        accessToken,
-        { method: 'POST', body: JSON.stringify({}) }
+        `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent('QuizHistory!A2:I')}:append?valueInputOption=RAW`,
+        accessToken, { method: 'POST', body: JSON.stringify({ values }) },
       );
-
-      if (sessions.length > 0) {
-        const values = sessions.map(serializeQuizHistoryRow);
-        await sheetsRequest(
-          `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent('QuizHistory!A2')}?valueInputOption=RAW`,
-          accessToken,
-          { method: 'PUT', body: JSON.stringify({ values }) }
-        );
-      }
-    });
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -685,12 +599,16 @@ export class GoogleSheetsService {
         }
       }
 
-      return { extraLanguages };
+      return {
+        extraLanguages,
+        present: map.has('extraLanguages'),
+        ...(map.has('uiLang') ? { uiLang: map.get('uiLang') } : {}),
+      };
     });
   }
 
   /**
-   * Clear Settings!A2:B and write all settings as key-value rows.
+   * Update known settings while preserving other keys.
    */
   async writeSettings(
     spreadsheetId: string,
@@ -698,20 +616,19 @@ export class GoogleSheetsService {
     accessToken: string
   ): Promise<void> {
     return withRetry(async () => {
-      await sheetsRequest(
-        `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent('Settings!A2:B')}:clear`,
-        accessToken,
-        { method: 'POST', body: JSON.stringify({}) }
+      const existing = await sheetsRequest<{ values?: string[][] }>(
+        `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent('Settings!A2:B')}`, accessToken,
       );
-
-      const values: string[][] = [
-        ['extraLanguages', JSON.stringify(settings.extraLanguages)],
-      ];
-
+      const rows = existing.values ?? [];
+      const values = new Map(rows.filter(row => row[0]).map(row => [row[0], row[1] ?? '']));
+      values.set('extraLanguages', JSON.stringify(settings.extraLanguages));
+      if (settings.uiLang !== undefined) values.set('uiLang', settings.uiLang);
+      const nextRows = [...values.entries()];
+      while (nextRows.length < rows.length) nextRows.push(['', '']);
       await sheetsRequest(
         `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent('Settings!A2')}?valueInputOption=RAW`,
         accessToken,
-        { method: 'PUT', body: JSON.stringify({ values }) }
+        { method: 'PUT', body: JSON.stringify({ values: nextRows }) }
       );
     });
   }

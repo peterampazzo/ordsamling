@@ -18,6 +18,8 @@ for (const path of PAGES) {
       // Feature: wcag-3-accessibility, Property 11
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await page.goto(path);
+      await expect(page.locator('main')).toBeVisible();
+      await expect(page.getByRole('status').filter({ hasText: 'Loading page…' })).toHaveCount(0);
 
       const results = await new AxeBuilder({ page })
         .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])

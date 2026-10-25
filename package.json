@@ -1,5 +1,5 @@
 {
-  "name": "vite_react_shadcn_ts",
+  "name": "ordsamling",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -7,12 +7,19 @@
   "engines": {
     "node": ">=22.11.0 <23"
   },
+  "pnpm": {
+    "overrides": {
+      "mammoth>@xmldom/xmldom": "0.8.15",
+      "mammoth>argparse": "-"
+    }
+  },
   "scripts": {
     "dev": "vite",
     "dev:pages": "pnpm build && wrangler pages dev dist --binding ALLOW_AUTH_BYPASS=1",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "cf-typegen": "wrangler types",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
@@ -20,10 +27,7 @@
     "deploy:pages": "wrangler pages deploy dist"
   },
   "dependencies": {
-    "@cloudflare/workers-types": "^4.20260405.1",
-    "@google/genai": "1.3.0",
     "@hookform/resolvers": "^3.10.0",
-    "@modyfi/vite-plugin-yaml": "^1.1.1",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",
     "@radix-ui/react-aspect-ratio": "^1.1.7",
@@ -66,17 +70,18 @@
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.61.1",
     "react-resizable-panels": "^2.1.9",
-    "react-router-dom": "^6.30.1",
+    "react-router-dom": "^7.18.4",
     "recharts": "^2.15.4",
     "sonner": "^1.7.4",
     "tailwind-merge": "^2.6.0",
-    "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.9",
     "zod": "^3.25.76"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.3",
+    "@cloudflare/workers-types": "4.20260405.1",
     "@eslint/js": "^9.32.0",
+    "@modyfi/vite-plugin-yaml": "1.1.1",
     "@playwright/test": "^1.57.0",
     "@tailwindcss/typography": "^0.5.16",
     "@testing-library/jest-dom": "^6.6.0",
@@ -94,12 +99,13 @@
     "globals": "^15.15.0",
     "jsdom": "^20.0.3",
     "lovable-tagger": "^1.1.13",
-    "postcss": "^8.5.6",
+    "postcss": "^8.5.23",
     "tailwindcss": "^3.4.17",
+    "tailwindcss-animate": "1.0.7",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.38.0",
     "vite": "^5.4.19",
-    "vitest": "^3.2.4",
+    "vitest": "^3.2.6",
     "vitest-axe": "^0.1.0",
     "wait-on": "^9.0.6",
     "wrangler": "^4.10.0"

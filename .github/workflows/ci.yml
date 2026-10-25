@@ -37,7 +37,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Type-check
-        run: pnpm exec tsc --noEmit
+        run: pnpm typecheck
 
       - name: Lint
         run: pnpm lint
@@ -114,14 +114,14 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Serve built app and run accessibility audit
+      - name: Serve built app and run browser checks
         run: |
           pnpm exec vite preview --port 4173 &
           SERVER_PID=$!
           # Wait for server to be ready
           pnpm exec wait-on http://localhost:4173 --timeout 30000
-          # Run only the accessibility spec
-          pnpm exec playwright test playwright/accessibility.spec.ts \
+          # Run accessibility and synchronization browser tests
+          pnpm exec playwright test \
             --reporter=list \
             --config=playwright.ci.config.ts
           kill $SERVER_PID

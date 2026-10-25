@@ -61,7 +61,6 @@ function saveLocalEntries(entries: LexisEntry[], storageKey: string) {
   localStorage.setItem(storageKey, JSON.stringify(entries));
 }
 
-// Task 8.5 — always use localStorage, no KV API branch
 async function fetchEntries(storageKey: string): Promise<LexisEntry[]> {
   return loadLocalEntries(storageKey);
 }
@@ -71,24 +70,16 @@ export function useLexicon({ demo = false }: { demo?: boolean } = {}) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
 
-  // Task 8.1 — call useGoogleSheets internally to get pushEntry and syncNow
-  const { pushEntry, syncNow } = useGoogleSheets();
+  const { pushEntry } = useGoogleSheets();
 
   const entriesQuery = useQuery({
-    queryKey: ENTRIES_QUERY_KEY,
+    queryKey: [...ENTRIES_QUERY_KEY, storageKey],
     queryFn: () => fetchEntries(storageKey),
     initialData: () => loadLocalEntries(storageKey),
   });
 
   const allEntries = useMemo(() => entriesQuery.data || [], [entriesQuery.data]);
 
-  // Task 8.6 — trigger syncNow on mount (no-op if not in cloud sync mode, no-op in demo)
-  useEffect(() => {
-    if (!demo) void syncNow();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Task 8.6 — listen for entries-synced event and invalidate React Query cache
   useEffect(() => {
     function handleEntriesSynced() {
       queryClient.invalidateQueries({ queryKey: ENTRIES_QUERY_KEY });
@@ -97,7 +88,6 @@ export function useLexicon({ demo = false }: { demo?: boolean } = {}) {
     return () => window.removeEventListener("ordsamling:entries-synced", handleEntriesSynced);
   }, [queryClient]);
 
-  // Task 8.5 — always use localStorage path (no isLocalStorageMode branch)
   const addMutation = useMutation({
     mutationFn: async (entry: LexisEntryInput) => {
       const now = Date.now();
@@ -107,21 +97,18 @@ export function useLexicon({ demo = false }: { demo?: boolean } = {}) {
         createdAt: now,
         updatedAt: now,
       });
-      const nextEntries = [createdEntry, ...loadLocalEntries(storageKey)];
-      saveLocalEntries(nextEntries, storageKey);
+      if (demo) saveLocalEntries([createdEntry, ...loadLocalEntries(storageKey)], storageKey);
+      else await pushEntry(createdEntry, "add");
       return createdEntry;
     },
     onSuccess: (createdEntry) => {
       queryClient.invalidateQueries({ queryKey: ENTRIES_QUERY_KEY });
-      // Task 8.2 — push to Sheets after add (skipped in demo)
-      if (!demo) pushEntry(createdEntry, "add");
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Could not save entry.");
     },
   });
 
-  // Task 8.5 — always use localStorage path (no isLocalStorageMode branch)
   const updateMutation = useMutation({
     mutationFn: async ({
       id,
@@ -141,37 +128,29 @@ export function useLexicon({ demo = false }: { demo?: boolean } = {}) {
         }
         return normalizeEntry(merged);
       });
-      saveLocalEntries(nextEntries, storageKey);
-      return nextEntries.find((entry) => entry.id === id) || null;
+      const updated = nextEntries.find((entry) => entry.id === id) || null;
+      if (demo) saveLocalEntries(nextEntries, storageKey);
+      else if (updated) await pushEntry(updated, "update");
+      return updated;
     },
     onSuccess: (updatedEntry) => {
       queryClient.invalidateQueries({ queryKey: ENTRIES_QUERY_KEY });
-      // Task 8.3 — push to Sheets after update (skipped in demo)
-      if (!demo && updatedEntry !== null) {
-        pushEntry(updatedEntry, "update");
-      }
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Could not update entry.");
     },
   });
 
-  // Task 8.5 — always use localStorage path (no isLocalStorageMode branch)
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const nextEntries = loadLocalEntries(storageKey).filter((entry) => entry.id !== id);
-      saveLocalEntries(nextEntries, storageKey);
+      const current = loadLocalEntries(storageKey);
+      const entry = current.find(item => item.id === id);
+      if (demo) saveLocalEntries(current.filter(item => item.id !== id), storageKey);
+      else if (entry) await pushEntry(entry, "delete");
       return id;
     },
     onSuccess: (id) => {
       queryClient.invalidateQueries({ queryKey: ENTRIES_QUERY_KEY });
-      // Task 8.4 — push to Sheets after delete (skipped in demo)
-      if (!demo) {
-        pushEntry(
-          { id, danish: "", english: "", notes: "", type: "word" as const, createdAt: 0, updatedAt: 0 },
-          "delete",
-        );
-      }
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Could not delete entry.");

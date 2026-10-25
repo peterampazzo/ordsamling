@@ -20,6 +20,29 @@ export interface OAuthResult {
 
 const VERIFIER_KEY = 'ordsamling-oauth-verifier';
 const TOKEN_KEY = 'ordsamling-oauth-tokens';
+const TRANSACTION_KEY = 'ordsamling-oauth-transaction';
+const TRANSACTION_TTL_MS = 10 * 60 * 1000;
+let refreshInFlight: Promise<string | null> | null = null;
+
+async function tokenRequest(body: unknown): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  try {
+    return await fetch('/api/oauth/token', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body), signal: controller.signal, cache: 'no-store',
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function validTokenData(value: unknown): value is { access_token: string; expires_in: number; refresh_token?: string } {
+  if (!value || typeof value !== 'object') return false;
+  const data = value as Record<string, unknown>;
+  return typeof data.access_token === 'string' && data.access_token.length > 0 &&
+    typeof data.expires_in === 'number' && Number.isFinite(data.expires_in) && data.expires_in > 0;
+}
 
 interface StoredTokens {
   accessToken: string;
@@ -66,18 +89,22 @@ async function sha256Base64url(input: string): Promise<string> {
  * the browser to Google's authorization endpoint.
  */
 export async function initiateOAuthFlow(): Promise<void> {
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  if (!clientId) throw new Error('Google sign-in is not configured for this build.');
   // Generate a 64-character (48-byte) random code verifier
   const codeVerifier = generateRandomBase64url(48);
 
   // Compute the code challenge (SHA-256 of verifier, base64url encoded)
   const codeChallenge = await sha256Base64url(codeVerifier);
 
-  // Store verifier for use in the callback
-  sessionStorage.setItem(VERIFIER_KEY, codeVerifier);
+  const state = generateRandomBase64url(32);
+  sessionStorage.removeItem(VERIFIER_KEY);
+  sessionStorage.setItem(TRANSACTION_KEY, JSON.stringify({ codeVerifier, state, createdAt: Date.now() }));
 
   // Build the authorization URL
   const params = new URLSearchParams({
-    client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID as string,
+    client_id: clientId,
+    state,
     redirect_uri: window.location.origin + '/oauth/callback',
     response_type: 'code',
     scope:
@@ -97,23 +124,26 @@ export async function initiateOAuthFlow(): Promise<void> {
  * Fetches the user's email, stores token metadata in localStorage, and returns
  * the OAuth result.
  */
-export async function handleOAuthCallback(code: string): Promise<OAuthResult> {
-  const codeVerifier = sessionStorage.getItem(VERIFIER_KEY);
-  if (!codeVerifier) {
-    throw new Error('No OAuth verifier found. Please try connecting again.');
+export async function handleOAuthCallback(code: string, state: string | null): Promise<OAuthResult> {
+  const raw = sessionStorage.getItem(TRANSACTION_KEY);
+  let transaction: { codeVerifier?: string; state?: string; createdAt?: number } | null;
+  try { transaction = raw ? JSON.parse(raw) : null; } catch { transaction = null; }
+  if (!code || !state || !transaction || state !== transaction.state ||
+    typeof transaction.codeVerifier !== 'string' || !/^[A-Za-z0-9._~-]{43,128}$/.test(transaction.codeVerifier) ||
+    typeof transaction.createdAt !== 'number' || Date.now() - transaction.createdAt > TRANSACTION_TTL_MS ||
+    transaction.createdAt > Date.now()) {
+    throw new Error('Invalid or expired Google sign-in. Please connect again.');
   }
+  const { codeVerifier } = transaction;
+  sessionStorage.removeItem(TRANSACTION_KEY);
 
   // Exchange authorization code for tokens via our server-side proxy
   // (keeps the client secret out of the browser bundle)
-  const tokenResponse = await fetch('/api/oauth/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      grant_type: 'authorization_code',
-      code,
-      code_verifier: codeVerifier,
-      redirect_uri: window.location.origin + '/oauth/callback',
-    }),
+  const tokenResponse = await tokenRequest({
+    grant_type: 'authorization_code',
+    code,
+    code_verifier: codeVerifier,
+    redirect_uri: window.location.origin + '/oauth/callback',
   });
 
   if (!tokenResponse.ok) {
@@ -125,11 +155,10 @@ export async function handleOAuthCallback(code: string): Promise<OAuthResult> {
     throw new Error(message);
   }
 
-  const tokenData = (await tokenResponse.json()) as {
-    access_token: string;
-    refresh_token: string;
-    expires_in: number;
-  };
+  const tokenData: unknown = await tokenResponse.json();
+  if (!validTokenData(tokenData) || typeof tokenData.refresh_token !== 'string' || !tokenData.refresh_token) {
+    throw new Error('Google did not return valid offline credentials. Please connect again.');
+  }
 
   const { access_token: accessToken, refresh_token: refreshToken, expires_in: expiresIn } = tokenData;
 
@@ -137,19 +166,16 @@ export async function handleOAuthCallback(code: string): Promise<OAuthResult> {
   const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-
+  if (!userInfoResponse.ok) throw new Error('Could not verify the Google account.');
   const userInfo = (await userInfoResponse.json()) as { email: string };
   const email = userInfo.email;
+  if (typeof email !== 'string' || !email.includes('@')) throw new Error('Google did not return a valid account email.');
 
   const tokenExpiry = Date.now() + expiresIn * 1000;
 
   // Store tokens in localStorage
   const stored: StoredTokens = { accessToken, refreshToken, email, tokenExpiry };
-  try {
-    localStorage.setItem(TOKEN_KEY, JSON.stringify(stored));
-  } catch {
-    // Silently ignore storage failures
-  }
+  localStorage.setItem(TOKEN_KEY, JSON.stringify(stored));
 
   // Clear the verifier from sessionStorage
   sessionStorage.removeItem(VERIFIER_KEY);
@@ -159,7 +185,7 @@ export async function handleOAuthCallback(code: string): Promise<OAuthResult> {
 
 /**
  * Returns a valid access token, refreshing silently if needed.
- * Returns null if no tokens are stored or if refresh fails.
+ * Returns null when reconnecting is required; temporary failures are thrown.
  */
 export async function getValidAccessToken(): Promise<string | null> {
   let stored: StoredTokens | null = null;
@@ -178,39 +204,43 @@ export async function getValidAccessToken(): Promise<string | null> {
     return stored.accessToken;
   }
 
+  if (!stored.refreshToken) return null;
+  if (refreshInFlight) return refreshInFlight;
+
   // Attempt silent refresh via server-side proxy
-  try {
-    const refreshResponse = await fetch('/api/oauth/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        grant_type: 'refresh_token',
-        refresh_token: stored.refreshToken,
-      }),
+  const original = localStorage.getItem(TOKEN_KEY);
+  refreshInFlight = (async () => {
+    const refreshResponse = await tokenRequest({
+      grant_type: 'refresh_token',
+      refresh_token: stored!.refreshToken,
     });
-
-    if (!refreshResponse.ok) return null;
-
-    const refreshData = (await refreshResponse.json()) as {
-      access_token: string;
-      expires_in: number;
-    };
+    if (!refreshResponse.ok) {
+      const error = await refreshResponse.json().catch(() => ({})) as { error?: string };
+      if (error.error === 'invalid_grant') return null;
+      throw new Error('Google sign-in is temporarily unavailable. Your changes remain on this device.');
+    }
+    const refreshData: unknown = await refreshResponse.json();
+    if (!validTokenData(refreshData)) throw new Error('Invalid token refresh response.');
 
     const newAccessToken = refreshData.access_token;
     const newTokenExpiry = Date.now() + refreshData.expires_in * 1000;
 
     // Update stored tokens
+    if (localStorage.getItem(TOKEN_KEY) !== original) {
+      const latest = JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null') as StoredTokens | null;
+      return latest && latest.tokenExpiry > Date.now() + 60_000 ? latest.accessToken : null;
+    }
     const updated: StoredTokens = {
-      ...stored,
+      ...stored!,
       accessToken: newAccessToken,
       tokenExpiry: newTokenExpiry,
+      ...(typeof refreshData.refresh_token === 'string' && refreshData.refresh_token ? { refreshToken: refreshData.refresh_token } : {}),
     };
     localStorage.setItem(TOKEN_KEY, JSON.stringify(updated));
 
     return newAccessToken;
-  } catch {
-    return null;
-  }
+  })().finally(() => { refreshInFlight = null; });
+  return refreshInFlight;
 }
 
 /**
@@ -218,6 +248,7 @@ export async function getValidAccessToken(): Promise<string | null> {
  * Does not throw on revoke failure (best-effort).
  */
 export async function revokeOAuthToken(token: string): Promise<void> {
+  const original = localStorage.getItem(TOKEN_KEY);
   try {
     await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(token)}`, {
       method: 'POST',
@@ -225,7 +256,7 @@ export async function revokeOAuthToken(token: string): Promise<void> {
   } catch {
     // Best-effort — ignore revoke failures
   } finally {
-    clearStoredTokens();
+    if (localStorage.getItem(TOKEN_KEY) === original) clearStoredTokens();
   }
 }
 

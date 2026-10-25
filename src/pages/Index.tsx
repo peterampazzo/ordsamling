@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import { Search, BookOpen, ArrowDownAZ, Clock, Plus, Upload, Brain, X, Filter, Settings as SettingsIcon } from "lucide-react";
 import { toast } from "sonner";
 import { CloudSyncIndicator } from "@/components/CloudSyncIndicator";
-import { SyncStatusBanner } from "@/components/SyncStatusBanner";
 import { StreakRing } from "@/components/StreakRing";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +17,6 @@ import { AddEntryForm } from "@/components/AddEntryForm";
 import { LexisCard } from "@/components/LexisCard";
 import { SettingsDialog } from "@/components/SettingsDialog";
 import { useGoogleSheets } from "@/hooks/useGoogleSheets";
-import { registerPushQuizSession, unregisterPushQuizSession, registerPushStreakEvent, unregisterPushStreakEvent } from "@/lib/quizHistory";
 import type { LexisEntry } from "@/hooks/useLexicon";
 import { ENTRY_TYPES, entryTypeLabel, stripInfinitiveMarker, type EntryType } from "@/lib/lexicon";
 
@@ -60,7 +58,7 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
     isLoading,
     isSaving,
   } = useLexicon({ demo });
-  const { syncState, connect, disconnect, syncNow, pushQuizSession, pushStreakEvent } = useGoogleSheets();
+  const { syncState, connect, disconnect, syncNow } = useGoogleSheets();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [addFormOpen, setAddFormOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -70,36 +68,6 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
   const [filterOpen, setFilterOpen] = useState(false);
   const [typeFilters, setTypeFilters] = useState<Set<EntryType>>(new Set());
   // demo prop is the source of truth — no sessionStorage flag needed
-
-  // Task 9.3 — register pushQuizSession so quizHistory module can push to Sheets
-  useEffect(() => {
-    if (!demo) {
-      registerPushQuizSession(async (session) => {
-        await pushQuizSession(session);
-        // Fire a best-effort heartbeat so the push-cron Worker can skip users
-        // who already practiced today. Fails silently if offline / signed out.
-        try {
-          const { getValidAccessToken } = await import("@/lib/googleOAuth");
-          const token = await getValidAccessToken();
-          if (token) {
-            await fetch("/api/notifications/heartbeat", {
-              method: "POST",
-              headers: { Authorization: `Bearer ${token}` },
-            });
-          }
-        } catch {
-          /* ignore */
-        }
-      });
-      registerPushStreakEvent(pushStreakEvent);
-    }
-    return () => {
-      if (!demo) {
-        unregisterPushQuizSession();
-        unregisterPushStreakEvent();
-      }
-    };
-  }, [demo, pushQuizSession, pushStreakEvent]);
 
   // Task 7.1 — focus management for the Add Entry dialog
   // On open: move focus to the first input; on close: return focus to the trigger button
