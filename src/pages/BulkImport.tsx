@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Settings, Sparkles, FileUp, ChevronDown, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,13 +8,18 @@ import { useLexicon } from "@/hooks/useLexicon";
 import { useGoogleSheets } from "@/hooks/useGoogleSheets";
 import { t } from "@/i18n";
 import { getExtraLanguages, getGeminiApiKey } from "@/lib/settings";
-import { ENTRY_TYPES } from "@/lib/lexicon";
-import type { LexisEntryInput } from "@/lib/lexicon";
+import { ENTRY_TYPES, entryKey } from "@/lib/lexicon";
+import type { LexisEntry, LexisEntryInput } from "@/lib/lexicon";
+import { readArray } from "@/lib/syncQueue";
+import { REAL_STORAGE_KEY } from "@/lib/demo";
+import { isCloudSyncEnabled } from "@/lib/storageConfig";
+import { toast } from "@/components/ui/sonner";
 import {
   PromptGeneratorSection,
   StructuredImportSection,
   UnifiedReviewSection,
 } from "@/components/BulkImport";
+import { buildEntryLookup, flagBatchDuplicates } from "@/components/BulkImport/parseUtils";
 import type { ParsedRow, RowResult, ImportSettings, ImportStatus } from "@/components/BulkImport/types";
 
 // ---------------------------------------------------------------------------
@@ -205,12 +210,13 @@ export default function BulkImport() {
 
   const handleEntriesParsed = useCallback(
     (entries: LexisEntryInput[]) => {
+      const batchDupes = flagBatchDuplicates(entries);
       const rows: ParsedRow[] = entries.map((entry, i) => ({
         rowIndex: i + 1,
         raw: [],
         entry,
         errors: [],
-        warnings: [],
+        warnings: batchDupes[i] ? [t("bulkImport.duplicateInBatch")] : [],
       }));
       const headers = ["danish", "english", "type", "notes"];
       if (extraLangs.length > 0) headers.push(...extraLangs.map((c) => `translations.${c}`));
@@ -218,7 +224,7 @@ export default function BulkImport() {
       setReviewHeaders(headers);
       setImportStatus("parsed");
       setResults([]);
-      setSelectedRows(new Set(rows.map((r) => r.rowIndex)));
+      setSelectedRows(new Set(rows.filter((r) => r.warnings.length === 0).map((r) => r.rowIndex)));
     },
     [extraLangs],
   );
@@ -275,24 +281,39 @@ export default function BulkImport() {
     });
   }, []);
 
-  const existingEntriesMap = useMemo(
-    () => new Map(allEntries.map((e) => [e.danish.toLowerCase(), e])),
-    [allEntries],
-  );
-
   const handleImport = useCallback(async () => {
     if (reviewRows.length === 0) return;
     setImportStatus("importing");
+
+    // Pull the latest cloud data first so duplicate checks include words added
+    // on other devices; failures are non-fatal — local data is the fallback.
+    if (isCloudSyncEnabled()) {
+      try {
+        const pull = await syncNow();
+        if (pull.ok && (pull.added || pull.updated || pull.removed)) {
+          toast.info(
+            t("sync.pull.pulled", { added: pull.added, updated: pull.updated, removed: pull.removed }),
+          );
+        }
+      } catch {
+        // Offline or failed pull — continue with local data.
+      }
+    }
+
     const newResults: RowResult[] = [];
     const rowsToImport = reviewRows.filter(
       (row) => row.entry !== null && selectedRows.has(row.rowIndex),
     );
     setImportProgress({ current: 0, total: rowsToImport.length });
 
+    // Rebuild the dedupe map from durable storage after the pull, then register
+    // entries added within this same batch so repeated keys can't double-import.
+    const lookup = buildEntryLookup(readArray<LexisEntry>(REAL_STORAGE_KEY));
+
     for (let i = 0; i < rowsToImport.length; i++) {
       const row = rowsToImport[i];
       if (!row.entry) continue;
-      const existingEntry = existingEntriesMap.get(row.entry.danish.toLowerCase()) ?? null;
+      const existingEntry = lookup.get(entryKey(row.entry)) ?? null;
       // Skip duplicates entirely when updateDuplicates is off
       if (existingEntry && !importSettings.updateDuplicates) {
         newResults.push({ rowIndex: row.rowIndex, status: "skipped" });
@@ -310,7 +331,8 @@ export default function BulkImport() {
             await updateEntry(existingEntry.id, row.entry);
             newResults.push({ rowIndex: row.rowIndex, status: "updated", retryCount });
           } else {
-            await addEntry(row.entry);
+            const created = await addEntry(row.entry);
+            lookup.set(entryKey(row.entry), created);
             newResults.push({ rowIndex: row.rowIndex, status: "imported", retryCount });
           }
           success = true;
@@ -341,7 +363,7 @@ export default function BulkImport() {
     setResults(newResults);
     setImportStatus("done");
     setImportProgress(undefined);
-  }, [reviewRows, selectedRows, importSettings, addEntry, updateEntry, existingEntriesMap]);
+  }, [reviewRows, selectedRows, importSettings, addEntry, updateEntry, syncNow]);
 
   const handleViewLexicon = useCallback(() => navigate("/app"), [navigate]);
 

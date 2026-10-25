@@ -6,7 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ENTRY_TYPES, entryTypeLabel, type EntryType } from '@/lib/lexicon';
+import { ENTRY_TYPES, entryKey, entryTypeLabel, type EntryType } from '@/lib/lexicon';
 import { t } from '@/i18n';
 import type { UnifiedReviewSectionProps, ParsedRow } from './types';
 
@@ -97,7 +97,7 @@ export function UnifiedReviewSection({
   // Build a set of existing Danish words for duplicate detection
   // Must be called unconditionally (before any early return) to satisfy Rules of Hooks
   const existingDanishKeys = useMemo(
-    () => new Set(existingEntries.map((e) => e.danish.toLowerCase())),
+    () => new Set(existingEntries.map((e) => entryKey(e))),
     [existingEntries],
   );
 
@@ -108,7 +108,7 @@ export function UnifiedReviewSection({
 
   function isDuplicate(row: ParsedRow): boolean {
     if (!row.entry) return false;
-    return existingDanishKeys.has(row.entry.danish.toLowerCase());
+    return existingDanishKeys.has(entryKey(row.entry));
   }
 
   function getRowResult(rowIndex: number) {
@@ -608,6 +608,7 @@ export function UnifiedReviewSection({
                 {(() => {
                   const importedCount = results.filter((r) => r.status === 'imported').length;
                   const updatedCount = results.filter((r) => r.status === 'updated').length;
+                  const skippedCount = results.filter((r) => r.status === 'skipped').length;
                   const failedCount = results.filter((r) => r.status === 'failed').length;
                   return (
                     <>
@@ -621,6 +622,12 @@ export function UnifiedReviewSection({
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 dark:bg-blue-900/50 px-3 py-1 text-sm font-semibold text-blue-800 dark:text-blue-200">
                           <RefreshCw className="h-3.5 w-3.5" aria-hidden />
                           {updatedCount} updated
+                        </span>
+                      )}
+                      {skippedCount > 0 && (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-sm font-semibold text-muted-foreground">
+                          <SkipForward className="h-3.5 w-3.5" aria-hidden />
+                          {skippedCount} skipped
                         </span>
                       )}
                       {failedCount > 0 && (

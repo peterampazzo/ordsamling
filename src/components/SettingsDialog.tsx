@@ -60,6 +60,7 @@ import {
   getExtraLanguages,
   setExtraLanguages,
   exportEntriesAsJson,
+  exportAllDataAsJson,
   resetAllLocalData,
   getGeminiApiKey,
   setGeminiApiKey,
@@ -755,6 +756,16 @@ export function SettingsDialog({
             >
               <Download className="h-3.5 w-3.5" />
               {t("settings.exportJson")}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => exportAllDataAsJson(entries)}
+              className="gap-1.5"
+            >
+              <Download className="h-3.5 w-3.5" />
+              {t("settings.exportBackup")}
             </Button>
             <Button
               type="button"

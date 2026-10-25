@@ -9,6 +9,7 @@
  */
 
 import type { LexisEntry } from "@/lib/lexicon";
+import { loadHistory } from "@/lib/quizHistory";
 import { getAiConfig, setAiConfig, type GeminiModel } from './storageConfig';
 
 /** Core languages are baked into the entry shape and always active. */
@@ -112,6 +113,24 @@ export function exportEntriesAsJson(entries: LexisEntry[]): void {
   const date = new Date().toISOString().slice(0, 10);
   a.href = url;
   a.download = `ordsamling-export-${date}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** Export entries + quiz history as one JSON backup file. */
+export function exportAllDataAsJson(entries: LexisEntry[]): void {
+  const blob = new Blob([JSON.stringify({
+    exportedAt: new Date().toISOString(),
+    entries,
+    quizHistory: loadHistory(),
+  }, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const date = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `ordsamling-backup-${date}.json`;
   document.body.appendChild(a);
   a.click();
   a.remove();
