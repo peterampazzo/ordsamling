@@ -10,9 +10,15 @@ variable "project_name" {
 }
 
 variable "production_branch" {
-  description = "Required by Cloudflare Pages API; does not imply Git integration."
+  description = "Pages production selector. Keep main: only the release workflow deploys with --branch=main; main pushes use --branch=preview."
   type        = string
   default     = "main"
+}
+
+variable "production_domain" {
+  description = "Custom hostname attached to the production Pages deployment. Its DNS CNAME is managed in the peterampazzo.com zone."
+  type        = string
+  default     = "ordsamling.peterampazzo.com"
 }
 
 variable "google_client_id" {
