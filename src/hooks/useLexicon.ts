@@ -158,7 +158,7 @@ export function useLexicon({ demo = false }: { demo?: boolean } = {}) {
   });
 
   const addEntry = useCallback(async (entry: LexisEntryInput) => {
-    await addMutation.mutateAsync(entry);
+    return await addMutation.mutateAsync(entry);
   }, [addMutation]);
 
   const updateEntry = useCallback(

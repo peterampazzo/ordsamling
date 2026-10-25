@@ -8,6 +8,7 @@ import { getStorageConfig, setStorageConfig } from '@/lib/storageConfig';
 import { getValidAccessToken, getStoredEmail, initiateOAuthFlow, clearStoredTokens, revokeOAuthToken } from '@/lib/googleOAuth';
 import type { SheetSettings, StreakEvent } from '@/lib/sheetTypes';
 import { setExtraLanguages, registerLanguagePersistence } from '@/lib/settings';
+import { snapshotLocalData } from '@/lib/backup';
 import { sameContent } from '@/lib/syncMerge';
 import {
   acknowledge, DATA_OWNER_KEY, enqueue, HISTORY_KEY, migrateLegacyQueue,
@@ -149,6 +150,7 @@ export class SyncEngine {
   };
   private onConnected = (): void => {
     this.generation++;
+    snapshotLocalData('connect');
     this.publish({ conflicts: [], sessionExpired: false, errorMessage: null });
     this.schedule(0);
   };

@@ -212,3 +212,13 @@ export function displayEnglish(entry: Pick<LexisEntry, "english" | "type">): str
   if (!entry.english) return "";
   return entry.type === "verb" ? formatInfinitive(entry.english, "en") : entry.english;
 }
+
+/**
+ * Normalized identity key used for duplicate detection during import/review.
+ * Trims, collapses internal whitespace, lowercases, and strips the Danish
+ * infinitive marker for verbs — so "at gå", "  gå " and "gå" share one key.
+ */
+export function entryKey(entry: Pick<LexisEntry, "danish" | "type">): string {
+  const collapsed = (entry.danish ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+  return entry.type === "verb" ? stripInfinitiveMarker(collapsed, "da") : collapsed;
+}

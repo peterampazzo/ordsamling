@@ -4,8 +4,8 @@
  * in StructuredImportSection and other components.
  */
 
-import { ENTRY_TYPES, entryTypeLabel, normalizeEntryType, type EntryType } from '@/lib/lexicon';
-import type { LexisEntryInput } from '@/lib/lexicon';
+import { ENTRY_TYPES, entryKey, entryTypeLabel, normalizeEntryType, type EntryType } from '@/lib/lexicon';
+import type { LexisEntry, LexisEntryInput } from '@/lib/lexicon';
 import { t } from '@/i18n';
 import type { ParsedRow } from './types';
 
@@ -338,6 +338,31 @@ export function parseRows(text: string): { rows: ParsedRow[]; headers: string[] 
   }
 
   return { rows, headers };
+}
+
+// ---------------------------------------------------------------------------
+// Duplicate detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns a boolean per entry: true when its normalized key already appeared
+ * earlier in the same batch ("duplicate in batch").
+ */
+export function flagBatchDuplicates(entries: LexisEntryInput[]): boolean[] {
+  const seen = new Set<string>();
+  return entries.map((entry) => {
+    const key = entryKey(entry);
+    if (!key || !seen.has(key)) {
+      if (key) seen.add(key);
+      return false;
+    }
+    return true;
+  });
+}
+
+/** Build the dedupe lookup used by the import loop: normalized key → entry. */
+export function buildEntryLookup(entries: LexisEntry[]): Map<string, LexisEntry> {
+  return new Map(entries.map((e) => [entryKey(e), e] as const));
 }
 
 // ---------------------------------------------------------------------------
