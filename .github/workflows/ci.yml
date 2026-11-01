@@ -80,7 +80,7 @@ jobs:
   # ─── Playwright accessibility E2E (optional, runs on PRs only) ────────────
   accessibility-e2e:
     name: Accessibility E2E
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Playwright 1.59 has no chromium build for ubuntu-26.04 (ubuntu-latest)
     needs: build
     # Only run on PRs — requires a built app served locally
     if: github.event_name == 'pull_request'
