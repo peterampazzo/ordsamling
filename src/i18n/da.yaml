@@ -50,6 +50,10 @@ index:
   sortAlphaDesc: "Alfabetisk efter det danske ord"
   sortType: "Type"
   sortTypeDesc: "Grupperet efter ordklasse (ord, substantiv, verbum …), derefter dansk A–Å"
+  dueWords: "{count} ord til repetition"
+  weekWords: "{count} nye ord denne uge"
+  practiceNow: "Øv nu"
+  weekPractice: "Ugens ord"
 
 addEntry:
   title: "Nyt ord"

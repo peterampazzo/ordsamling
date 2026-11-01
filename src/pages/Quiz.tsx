@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   Brain,
   CheckCircle2,
@@ -247,13 +247,15 @@ const Quiz = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIdx, state]);
 
-  const startQuiz = useCallback((opts?: { restrictIds?: Set<string> }) => {
+  const startQuiz = useCallback((opts?: { restrictIds?: Set<string>; count?: number; useSmart?: boolean }) => {
     let q: QuizQuestion[];
+    const count = opts?.count ?? questionCount;
+    const smart = opts?.useSmart ?? smartPractice;
 
     if (exercise === "numbers") {
-      q = buildNumberQuestions(numberTopics, questionCount);
+      q = buildNumberQuestions(numberTopics, count);
     } else if (exercise === "articles") {
-      q = buildArticlesExercise(allEntries, questionCount);
+      q = buildArticlesExercise(allEntries, count);
     } else {
       let pool = allEntries;
       if (exercise === "verbs") {
@@ -261,7 +263,7 @@ const Quiz = () => {
       }
       if (opts?.restrictIds && opts.restrictIds.size > 0) {
         pool = pool.filter((e) => opts.restrictIds!.has(e.id));
-      } else if (exercise === "vocabulary" && smartPractice) {
+      } else if (exercise === "vocabulary" && smart) {
         const dueIds = new Set(pickDue(loadBoxStates(), pool.map((e) => e.id)));
         const dueEntries = pool.filter((e) => dueIds.has(e.id));
         // Fall back to full pool if there isn't enough due material to build a quiz.
@@ -269,8 +271,8 @@ const Quiz = () => {
       }
       const directions = activeDirections.length > 0 ? activeDirections : DIRECTIONS;
       q = exercise === "verbs"
-        ? buildVerbDrillQuestions(pool, questionCount, mode, directions)
-        : buildQuestions(pool, questionCount, difficulty, mode, directions);
+        ? buildVerbDrillQuestions(pool, count, mode, directions)
+        : buildQuestions(pool, count, difficulty, mode, directions);
     }
 
     if (q.length < 2) return;
@@ -278,6 +280,24 @@ const Quiz = () => {
     setAiActive(false);
   }, [allEntries, questionCount, difficulty, mode, activeDirections, smartPractice, exercise, numberTopics, start]);
 
+  // One-tap deep links from the notebook (/quiz?quick=due|week): start a small
+  // practice session immediately without going through the setup screens.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const quickRan = useRef(false);
+  useEffect(() => {
+    const quick = searchParams.get("quick");
+    if (!quick || quickRan.current || allEntries.length === 0 || state !== "setup") return;
+    quickRan.current = true;
+    setSearchParams({}, { replace: true });
+    if (quick === "week") {
+      const ids = new Set(
+        allEntries.filter((e) => Date.now() - e.createdAt < 7 * 24 * 60 * 60 * 1000).map((e) => e.id),
+      );
+      startQuiz(ids.size >= 2 ? { restrictIds: ids, count: 5 } : { useSmart: true, count: 5 });
+    } else {
+      startQuiz({ useSmart: true, count: 5 });
+    }
+  }, [searchParams, allEntries, state, startQuiz, setSearchParams]);
 
   const trainableMistakeIds = useMemo(
     () => new Set([...mistakeIds].filter((id) => allEntries.some((e) => e.id === id))),

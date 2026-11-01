@@ -50,6 +50,10 @@ index:
   sortAlphaDesc: "Alphabetical by the Danish word"
   sortType: "Type"
   sortTypeDesc: "Grouped by part of speech, then Danish A–Å"
+  dueWords: "{count} words due for review"
+  weekWords: "{count} new words this week"
+  practiceNow: "Practice now"
+  weekPractice: "This week's words"
 
 addEntry:
   title: "New word"

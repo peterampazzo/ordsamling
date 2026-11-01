@@ -19,6 +19,8 @@ import { SettingsDialog } from "@/components/SettingsDialog";
 import { useGoogleSheets } from "@/hooks/useGoogleSheets";
 import type { LexisEntry } from "@/hooks/useLexicon";
 import { ENTRY_TYPES, entryTypeLabel, stripInfinitiveMarker, type EntryType } from "@/lib/lexicon";
+import { loadBoxStates, pickDue } from "@/lib/quizHistory";
+import { updateAppBadge } from "@/lib/appBadge";
 
 const sortKey = (e: LexisEntry): string => {
   const da = e.type === "verb" ? stripInfinitiveMarker(e.danish, "da") : e.danish;
@@ -150,6 +152,20 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
     const el = sectionRefs.current[letter];
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   };
+
+  const dueCount = useMemo(
+    () => (demo ? 0 : pickDue(loadBoxStates(), allEntries.map((e) => e.id)).length),
+    [allEntries, demo],
+  );
+  const weekCount = useMemo(
+    () => allEntries.filter((e) => Date.now() - e.createdAt < 7 * 24 * 60 * 60 * 1000).length,
+    [allEntries],
+  );
+
+  // Keep the installed-PWA icon badge in sync with the due-word count.
+  useEffect(() => {
+    updateAppBadge(demo ? 0 : dueCount);
+  }, [dueCount, demo]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -407,6 +423,30 @@ const Index = ({ demo = false }: { demo?: boolean }) => {
         </div>
       )}
       <main id="main" className="max-w-3xl mx-auto px-3 sm:px-4 py-6 sm:py-8">
+        {!demo && !isLoading && (dueCount > 0 || weekCount > 0) && (
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3">
+            <p className="text-sm text-foreground">
+              {dueCount > 0
+                ? t("index.dueWords", { count: dueCount })
+                : t("index.weekWords", { count: weekCount })}
+            </p>
+            <div className="flex gap-2">
+              {dueCount > 0 && (
+                <Button asChild size="sm" className="gap-1.5">
+                  <Link to="/quiz?quick=due">
+                    <Brain className="h-4 w-4" aria-hidden />
+                    {t("index.practiceNow")}
+                  </Link>
+                </Button>
+              )}
+              {weekCount > 0 && (
+                <Button asChild size="sm" variant="outline" className="gap-1.5">
+                  <Link to="/quiz?quick=week">{t("index.weekPractice")}</Link>
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
         {isLoading ? (
           <div className="text-center py-16 text-muted-foreground">
             <p className="text-base">{t("index.loadingWords")}</p>
