@@ -233,6 +233,8 @@ bulkImport:
   duplicatePreviewLegend: "Choose how to handle duplicates"
   skipped: "Skipped"
   duplicateInBatch: "Duplicate of an earlier row in this import"
+  promptTruncated: "Your text has {count} characters. Only the first {max} are in the prompt, so paste the rest in a second round."
+  promptKnownWords: "The prompt lists the {count} words already in your lexicon, so the AI skips them."
   editDanishAria: "Edit Danish word for row {row}"
   editEnglishAria: "Edit English translation for row {row}"
   editTranslationAria: "Edit {lang} translation for row {row}"

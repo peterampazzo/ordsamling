@@ -7,6 +7,7 @@ import type { PromptGeneratorSectionProps, BYOKState } from './types';
 import { t } from '@/i18n';
 import {
   buildDirectProcessingPrompt,
+  COPY_PROMPT_MAX_CHARS,
   processDocumentDirect,
   GeminiKeyMissingError,
   GeminiKeyInvalidError,
@@ -15,6 +16,7 @@ import {
 } from '@/lib/gemini';
 import type { LexisEntryInput } from '@/lib/lexicon';
 import { ProcessingIndicator } from './ProcessingIndicator';
+import { toast } from '@/components/ui/sonner';
 
 // ---------------------------------------------------------------------------
 // JSON parsing helpers (mirrors parseJsonObjects from BulkImport.tsx)
@@ -264,7 +266,12 @@ export function PromptGeneratorSection({
   // Generate prompt whenever documentText changes
   useEffect(() => {
     if (state.documentText.trim()) {
-      const prompt = buildDirectProcessingPrompt(state.documentText, extraLanguages);
+      const prompt = buildDirectProcessingPrompt(
+        state.documentText,
+        extraLanguages,
+        existingWords,
+        COPY_PROMPT_MAX_CHARS,
+      );
       setState((prev) => ({
         ...prev,
         generatedPrompt: prompt,
@@ -277,7 +284,7 @@ export function PromptGeneratorSection({
         showPrompt: false,
       }));
     }
-  }, [state.documentText, extraLanguages]);
+  }, [state.documentText, extraLanguages, existingWords]);
 
   // ------------------------------------------------------------------
   // File handling helpers
@@ -463,10 +470,11 @@ export function PromptGeneratorSection({
       }
 
       if (!result.entries || result.entries.length === 0) {
-        setDirectError('No entries were extracted from the document. Try the manual workflow instead.');
+        setDirectError(result.message ?? 'No entries were extracted from the document. Try the manual workflow instead.');
         return;
       }
 
+      if (result.message) toast.warning(result.message);
       onEntriesParsed(result.entries);
     } catch (err) {
       if (err instanceof ProcessingCancelledError) {
@@ -677,6 +685,22 @@ export function PromptGeneratorSection({
               className="min-h-[200px] font-mono text-sm"
               aria-label="Generated AI prompt"
             />
+            {state.documentText.length > COPY_PROMPT_MAX_CHARS && (
+              <div className="flex items-start gap-1.5 text-sm text-amber-700 dark:text-amber-400" role="status">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  {t('bulkImport.promptTruncated', {
+                    count: state.documentText.length.toLocaleString(),
+                    max: COPY_PROMPT_MAX_CHARS.toLocaleString(),
+                  })}
+                </span>
+              </div>
+            )}
+            {existingWords.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {t('bulkImport.promptKnownWords', { count: existingWords.length.toLocaleString() })}
+              </p>
+            )}
             <Button
               onClick={handleCopyPrompt}
               className="w-full sm:w-auto"

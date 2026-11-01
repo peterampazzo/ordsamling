@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Settings, Sparkles, FileUp, ChevronDown, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { useLexicon } from "@/hooks/useLexicon";
 import { useGoogleSheets } from "@/hooks/useGoogleSheets";
 import { t } from "@/i18n";
 import { getExtraLanguages, getGeminiApiKey } from "@/lib/settings";
-import { ENTRY_TYPES, entryKey } from "@/lib/lexicon";
+import { ENTRY_TYPES, entryKey, normalizeImportedEntry } from "@/lib/lexicon";
 import type { LexisEntry, LexisEntryInput } from "@/lib/lexicon";
 import { readArray } from "@/lib/syncQueue";
 import { REAL_STORAGE_KEY } from "@/lib/demo";
@@ -164,6 +164,7 @@ export default function BulkImport() {
   const navigate = useNavigate();
   const { addEntry, updateEntry, allEntries } = useLexicon();
   const { syncState, connect, disconnect, syncNow } = useGoogleSheets();
+  const existingWords = useMemo(() => allEntries.map((e) => e.danish), [allEntries]);
 
   const [extraLangs, setExtraLangs] = useState<string[]>(() => getExtraLanguages());
   const [hasGeminiKey, setHasGeminiKey] = useState<boolean>(() => !!getGeminiApiKey());
@@ -209,7 +210,8 @@ export default function BulkImport() {
   >(undefined);
 
   const handleEntriesParsed = useCallback(
-    (entries: LexisEntryInput[]) => {
+    (parsedEntries: LexisEntryInput[]) => {
+      const entries = parsedEntries.map(normalizeImportedEntry);
       const batchDupes = flagBatchDuplicates(entries);
       const rows: ParsedRow[] = entries.map((entry, i) => ({
         rowIndex: i + 1,
@@ -446,7 +448,7 @@ export default function BulkImport() {
               <PromptGeneratorSection
                 hasGeminiKey={hasGeminiKey}
                 extraLanguages={extraLangs}
-                existingWords={allEntries.map((e) => e.danish)}
+                existingWords={existingWords}
                 onEntriesParsed={handleEntriesParsed}
                 onError={() => {}}
               />

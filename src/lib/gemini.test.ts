@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  autocompleteVerbForms, autocompleteSingleWord, fetchDistractors, processDocument,
-  processDocumentDirect, retryFailedChunks, GeminiKeyInvalidError,
-  ProcessingCancelledError, validateGeminiKey,
+  autocompleteVerbForms, autocompleteSingleWord, buildDirectProcessingPrompt, COPY_PROMPT_MAX_CHARS,
+  DIRECT_CHUNK_CHARS, fetchDistractors, processDocument, processDocumentDirect, retryFailedChunks,
+  GeminiKeyInvalidError, ProcessingCancelledError, splitDocumentIntoChunks, validateGeminiKey,
 } from './gemini';
 import { setAiConfig } from './storageConfig';
 
@@ -145,5 +145,63 @@ describe('Gemini REST generation', () => {
   it('does not claim that key validation succeeded when the network is unavailable', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Offline')));
     await expect(validateGeminiKey()).rejects.toThrow('Offline');
+  });
+});
+
+describe('Direct document processing', () => {
+  it('splits long documents on line boundaries', () => {
+    const lines = Array.from({ length: 30 }, (_, i) => `ord${i} – word ${i}`);
+    const chunks = splitDocumentIntoChunks(lines.join('\n'), 60);
+    expect(chunks.length).toBeGreaterThan(1);
+    expect(chunks.every((c) => c.length <= 60)).toBe(true);
+    expect(chunks.join('\n')).toBe(lines.join('\n'));
+    expect(splitDocumentIntoChunks('x'.repeat(25), 10)).toEqual(['x'.repeat(10), 'x'.repeat(10), 'x'.repeat(5)]);
+    expect(splitDocumentIntoChunks('  \n\n ')).toEqual([]);
+  });
+
+  it('lists known words in the prompt and only cuts text past maxChars', () => {
+    const text = `${'a'.repeat(DIRECT_CHUNK_CHARS)}SLUT`;
+    const prompt = buildDirectProcessingPrompt(text, [], ['Hus', 'kat', 'hus'], COPY_PROMPT_MAX_CHARS);
+    expect(prompt).toContain('SLUT');
+    expect(prompt).toContain('already has them: hus, kat');
+    expect(buildDirectProcessingPrompt(text, [])).not.toContain('SLUT');
+    expect(buildDirectProcessingPrompt('hus', [])).not.toContain('already has them');
+  });
+
+  it('processes every chunk of a long document and merges the results', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(response(JSON.stringify([word, { ...word, danish: 'kat', english: 'cat' }])))
+      .mockResolvedValueOnce(response(JSON.stringify([{ ...word, danish: 'Hus' }, { ...word, danish: 'hund', english: 'dog' }])));
+    vi.stubGlobal('fetch', fetchMock);
+    const progress: Array<{ completed: number; total: number }> = [];
+    const text = `${'hus – house\n'.repeat(400)}${'hund – dog\n'.repeat(400)}`;
+    const result = await processDocumentDirect(text, [], ['kat'], (p) => progress.push(p));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.entries.map((e) => e.danish)).toEqual(['hus', 'hund']);
+    expect(result.totalExtracted).toBe(3);
+    expect(progress.at(-1)).toEqual({ completed: 2, total: 2 });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).contents[0].parts[0].text).toContain('already has them: kat');
+  });
+
+  it('keeps entries from successful chunks when one chunk fails', async () => {
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(response(JSON.stringify([word])))
+      .mockResolvedValueOnce(response('not a vocabulary list')));
+    const result = await processDocumentDirect(`${'hus\n'.repeat(1400)}${'kat\n'.repeat(1400)}`, [], []);
+    expect(result.entries).toEqual([word]);
+    expect(result.error).toBeUndefined();
+    expect(result.message).toContain('1 of 2 parts');
+  });
+
+  it('reports the parts left unprocessed when Gemini rate-limits mid-document', async () => {
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(response(JSON.stringify([word])))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: {} }), { status: 429 })));
+    const progress: Array<{ completed: number; total: number }> = [];
+    const text = `${'hus\n'.repeat(1400)}${'kat\n'.repeat(1400)}${'ko\n'.repeat(1800)}`;
+    const result = await processDocumentDirect(text, [], [], (p) => progress.push(p));
+    expect(result.entries).toEqual([word]);
+    expect(result.message).toContain('2 of 3 parts were not processed');
+    expect(progress.at(-1)).toEqual({ completed: 1, total: 3 });
   });
 });

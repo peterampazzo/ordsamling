@@ -222,3 +222,76 @@ export function entryKey(entry: Pick<LexisEntry, "danish" | "type">): string {
   const collapsed = (entry.danish ?? "").trim().replace(/\s+/g, " ").toLowerCase();
   return entry.type === "verb" ? stripInfinitiveMarker(collapsed, "da") : collapsed;
 }
+
+function collapseWhitespace(value: string): string {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+/**
+ * Lowercases the first letter when the leading word is capitalised like a
+ * sentence start ("Gave" → "gave"). Acronyms ("VM", "CV") and single
+ * letters (Danish "I") are kept as written.
+ */
+export function lowercaseLeadingWord(value: string): string {
+  if (value.length < 2) return value;
+  const first = value[0];
+  const second = value[1];
+  const firstIsUpper = first !== first.toLowerCase();
+  const secondIsLower = second !== second.toUpperCase();
+  return firstIsUpper && secondIsLower ? first.toLowerCase() + value.slice(1) : value;
+}
+
+/**
+ * Names such as "København" / "Copenhagen" keep their capital: a noun or word
+ * with no inflected forms (proper nouns take no definite or plural ending)
+ * whose English translation is capitalised too. Anything ambiguous can be
+ * fixed in the review step.
+ */
+function looksLikeProperNoun(entry: LexisEntryInput): boolean {
+  if (entry.type !== "noun" && entry.type !== "word") return false;
+  const g = entry.grammar;
+  if (g?.singularDefinite?.trim() || g?.pluralIndefinite?.trim() || g?.pluralDefinite?.trim()) return false;
+  const english = collapseWhitespace(entry.english ?? "");
+  return english !== lowercaseLeadingWord(english);
+}
+
+/**
+ * Cleans an entry coming from bulk import before review: trims and collapses
+ * whitespace, lowercases a capitalised first word in Danish, English and
+ * grammar forms (except likely proper nouns), lowercases the noun article and strips "at"/"to" from verbs.
+ * Translations and notes are only trimmed.
+ */
+export function normalizeImportedEntry(entry: LexisEntryInput): LexisEntryInput {
+  const isVerb = entry.type === "verb";
+  const keepCase = looksLikeProperNoun(entry);
+  const clean = (value: string | undefined, lang: "da" | "en") => {
+    const collapsed = collapseWhitespace(value ?? "");
+    const stripped = isVerb ? stripInfinitiveMarker(collapsed, lang) : collapsed;
+    return keepCase ? stripped : lowercaseLeadingWord(stripped);
+  };
+  const danish = clean(entry.danish, "da");
+  const english = clean(entry.english, "en");
+  const next: LexisEntryInput = { ...entry, danish, english, notes: (entry.notes ?? "").trim() };
+
+  if (entry.grammar) {
+    const grammar: EntryGrammar = {};
+    for (const key of GRAMMAR_KEYS) {
+      const value = entry.grammar[key];
+      if (typeof value !== "string" || !value.trim()) continue;
+      const collapsed = collapseWhitespace(value);
+      grammar[key] = key === "article"
+        ? collapsed.toLowerCase()
+        : keepCase ? collapsed : lowercaseLeadingWord(collapsed);
+    }
+    if (Object.keys(grammar).length > 0) next.grammar = grammar;
+    else delete next.grammar;
+  }
+
+  if (entry.translations) {
+    const translations = normalizeTranslations(entry.translations);
+    if (translations && Object.keys(translations).length > 0) next.translations = translations;
+    else delete next.translations;
+  }
+
+  return next;
+}
