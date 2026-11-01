@@ -54,6 +54,10 @@ describe("normalizeImportedEntry", () => {
       danish: "Gave", english: "Gift", type: "noun", notes: "",
       grammar: { article: "en", pluralIndefinite: "gaver" },
     })).toMatchObject({ danish: "gave", english: "gift" });
+    expect(normalizeImportedEntry({
+      danish: "Hus", english: "House", type: "noun", notes: "",
+      grammar: { article: "et", singularDefinite: "Huset" },
+    })).toMatchObject({ danish: "hus", english: "house", grammar: { singularDefinite: "huset" } });
   });
 
   it("keeps notes and translations casing but drops empty translations", () => {

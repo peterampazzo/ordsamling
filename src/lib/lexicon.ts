@@ -243,11 +243,14 @@ export function lowercaseLeadingWord(value: string): string {
 
 /**
  * Names such as "København" / "Copenhagen" keep their capital: a noun or word
- * without plural forms whose English translation is capitalised too.
+ * with no inflected forms (proper nouns take no definite or plural ending)
+ * whose English translation is capitalised too. Anything ambiguous can be
+ * fixed in the review step.
  */
 function looksLikeProperNoun(entry: LexisEntryInput): boolean {
   if (entry.type !== "noun" && entry.type !== "word") return false;
-  if (entry.grammar?.pluralIndefinite?.trim() || entry.grammar?.pluralDefinite?.trim()) return false;
+  const g = entry.grammar;
+  if (g?.singularDefinite?.trim() || g?.pluralIndefinite?.trim() || g?.pluralDefinite?.trim()) return false;
   const english = collapseWhitespace(entry.english ?? "");
   return english !== lowercaseLeadingWord(english);
 }
