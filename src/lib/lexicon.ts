@@ -242,16 +242,29 @@ export function lowercaseLeadingWord(value: string): string {
 }
 
 /**
+ * Names such as "København" / "Copenhagen" keep their capital: a noun or word
+ * without plural forms whose English translation is capitalised too.
+ */
+function looksLikeProperNoun(entry: LexisEntryInput): boolean {
+  if (entry.type !== "noun" && entry.type !== "word") return false;
+  if (entry.grammar?.pluralIndefinite?.trim() || entry.grammar?.pluralDefinite?.trim()) return false;
+  const english = collapseWhitespace(entry.english ?? "");
+  return english !== lowercaseLeadingWord(english);
+}
+
+/**
  * Cleans an entry coming from bulk import before review: trims and collapses
  * whitespace, lowercases a capitalised first word in Danish, English and
- * grammar forms, lowercases the noun article and strips "at"/"to" from verbs.
+ * grammar forms (except likely proper nouns), lowercases the noun article and strips "at"/"to" from verbs.
  * Translations and notes are only trimmed.
  */
 export function normalizeImportedEntry(entry: LexisEntryInput): LexisEntryInput {
   const isVerb = entry.type === "verb";
+  const keepCase = looksLikeProperNoun(entry);
   const clean = (value: string | undefined, lang: "da" | "en") => {
     const collapsed = collapseWhitespace(value ?? "");
-    return lowercaseLeadingWord(isVerb ? stripInfinitiveMarker(collapsed, lang) : collapsed);
+    const stripped = isVerb ? stripInfinitiveMarker(collapsed, lang) : collapsed;
+    return keepCase ? stripped : lowercaseLeadingWord(stripped);
   };
   const danish = clean(entry.danish, "da");
   const english = clean(entry.english, "en");
@@ -263,7 +276,9 @@ export function normalizeImportedEntry(entry: LexisEntryInput): LexisEntryInput 
       const value = entry.grammar[key];
       if (typeof value !== "string" || !value.trim()) continue;
       const collapsed = collapseWhitespace(value);
-      grammar[key] = key === "article" ? collapsed.toLowerCase() : lowercaseLeadingWord(collapsed);
+      grammar[key] = key === "article"
+        ? collapsed.toLowerCase()
+        : keepCase ? collapsed : lowercaseLeadingWord(collapsed);
     }
     if (Object.keys(grammar).length > 0) next.grammar = grammar;
     else delete next.grammar;

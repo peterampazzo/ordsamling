@@ -885,6 +885,7 @@ export async function processDocumentDirect(
   const seen = new Set<string>();
   const errors: string[] = [];
   let truncated = false;
+  let unprocessed = 0;
 
   for (let i = 0; i < chunks.length; i++) {
     try {
@@ -908,7 +909,7 @@ export async function processDocumentDirect(
       if (err instanceof GeminiRateLimitError) {
         // Keep what earlier chunks produced; only surface the error if nothing was extracted.
         if (allEntries.length === 0) throw err;
-        errors.push(`Gemini rate limit reached after ${i} of ${chunks.length} parts.`);
+        unprocessed = chunks.length - i;
         break;
       }
       console.error("Direct processing failed:", err);
@@ -916,7 +917,7 @@ export async function processDocumentDirect(
     }
     onProgress?.({ completed: i + 1, total });
   }
-  onProgress?.({ completed: total, total });
+  if (unprocessed === 0) onProgress?.({ completed: total, total });
 
   const newEntries = allEntries.filter((entry) => !existingSet.has(entryKey(entry)));
   const base = {
@@ -937,6 +938,9 @@ export async function processDocumentDirect(
   else if (newEntries.length === 0) messages.push("All extracted words already exist in your lexicon.");
   if (errors.length > 0) {
     messages.push(`${errors.length} of ${chunks.length} parts could not be processed: ${errors[0]}`);
+  }
+  if (unprocessed > 0) {
+    messages.push(`Gemini's rate limit was reached, so ${unprocessed} of ${chunks.length} parts were not processed. Run the rest of the text again later.`);
   }
   if (truncated) {
     messages.push("The AI response was cut off, so some words may be missing. Try processing a shorter text.");

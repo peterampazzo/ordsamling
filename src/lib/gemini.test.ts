@@ -192,4 +192,16 @@ describe('Direct document processing', () => {
     expect(result.error).toBeUndefined();
     expect(result.message).toContain('1 of 2 parts');
   });
+
+  it('reports the parts left unprocessed when Gemini rate-limits mid-document', async () => {
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(response(JSON.stringify([word])))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: {} }), { status: 429 })));
+    const progress: Array<{ completed: number; total: number }> = [];
+    const text = `${'hus\n'.repeat(1400)}${'kat\n'.repeat(1400)}${'ko\n'.repeat(1800)}`;
+    const result = await processDocumentDirect(text, [], [], (p) => progress.push(p));
+    expect(result.entries).toEqual([word]);
+    expect(result.message).toContain('2 of 3 parts were not processed');
+    expect(progress.at(-1)).toEqual({ completed: 1, total: 3 });
+  });
 });

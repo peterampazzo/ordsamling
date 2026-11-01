@@ -47,6 +47,15 @@ describe("normalizeImportedEntry", () => {
     });
   });
 
+  it("keeps the capital on likely proper nouns", () => {
+    expect(normalizeImportedEntry({ danish: "København", english: "Copenhagen", type: "noun", notes: "" }))
+      .toMatchObject({ danish: "København", english: "Copenhagen" });
+    expect(normalizeImportedEntry({
+      danish: "Gave", english: "Gift", type: "noun", notes: "",
+      grammar: { article: "en", pluralIndefinite: "gaver" },
+    })).toMatchObject({ danish: "gave", english: "gift" });
+  });
+
   it("keeps notes and translations casing but drops empty translations", () => {
     expect(normalizeImportedEntry({
       danish: "Hus",
