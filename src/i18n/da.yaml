@@ -229,6 +229,8 @@ bulkImport:
   duplicatePreviewLegend: "Vælg hvordan dubletter håndteres"
   skipped: "Sprunget over"
   duplicateInBatch: "Dublet af en tidligere række i denne import"
+  promptTruncated: "Din tekst har {count} tegn. Kun de første {max} er med i prompten, så indsæt resten i en ny runde."
+  promptKnownWords: "Prompten indeholder de {count} ord, du allerede har, så AI'en springer dem over."
   editDanishAria: "Redigér dansk ord for række {row}"
   editEnglishAria: "Redigér engelsk oversættelse for række {row}"
   editTranslationAria: "Redigér {lang}-oversættelse for række {row}"

@@ -6,6 +6,7 @@
  */
 
 import { getGeminiApiKey, getGeminiModel } from "@/lib/settings";
+import { entryKey } from "@/lib/lexicon";
 import type { LexisEntryInput, EntryType } from "@/lib/lexicon";
 
 // ---------------------------------------------------------------------------
@@ -648,27 +649,72 @@ export async function processDocumentChunked(
 // Direct document processing (single-step extraction)
 // ---------------------------------------------------------------------------
 
+/** Max characters of document text sent to Gemini in one direct-processing request. */
+export const DIRECT_CHUNK_CHARS = 6000;
+
+/** Max characters of document text put into the copy-paste prompt; external AI chats handle long input. */
+export const COPY_PROMPT_MAX_CHARS = 60000;
+
+const MAX_KNOWN_WORDS_IN_PROMPT = 5000;
+
 /**
- * Builds the prompt for direct document processing without calling the API.
- * Useful for previewing what will be sent to Gemini.
+ * Splits a document into chunks of at most `maxChars`, breaking on line
+ * boundaries so vocabulary lines ("ord – word") are never cut in half.
+ */
+export function splitDocumentIntoChunks(text: string, maxChars = DIRECT_CHUNK_CHARS): string[] {
+  const chunks: string[] = [];
+  let current = "";
+  for (const line of text.split(/\r?\n/)) {
+    for (let start = 0; start < Math.max(line.length, 1); start += maxChars) {
+      const piece = line.slice(start, start + maxChars);
+      if (current && current.length + 1 + piece.length > maxChars) {
+        chunks.push(current);
+        current = piece;
+      } else {
+        current = current ? `${current}\n${piece}` : piece;
+      }
+    }
+  }
+  chunks.push(current);
+  return chunks.filter((chunk) => chunk.trim());
+}
+
+function formatKnownWords(words: string[]): string {
+  const unique = Array.from(
+    new Set(words.map((w) => w.trim().replace(/\s+/g, " ").toLowerCase()).filter(Boolean)),
+  ).sort((a, b) => a.localeCompare(b, "da"));
+  return unique.slice(0, MAX_KNOWN_WORDS_IN_PROMPT).join(", ");
+}
+
+/**
+ * Builds the vocabulary-extraction prompt. Used both for direct Gemini calls
+ * (one chunk at a time) and for the copy-paste prompt shown in Bulk Import.
+ * Text longer than `maxChars` is cut; callers warn the user or chunk first.
  */
 export function buildDirectProcessingPrompt(
   text: string,
-  languages: string[]
+  languages: string[],
+  existingWords: string[] = [],
+  maxChars = DIRECT_CHUNK_CHARS,
 ): string {
-  const truncated = text.slice(0, 6000);
-  
+  const truncated = text.slice(0, maxChars);
+
   const translationInstruction = languages.length > 0
-    ? `\n- "translations": object with keys ${languages.map((c) => `"${c}"`).join(", ")} (${languages.map((c) => LANGUAGE_NAMES[c] ?? c.toUpperCase()).join(", ")} translations)`
+    ? `\n- "translations": object with keys ${languages.map((c) => `"${c}"`).join(", ")} (${languages.map((c) => LANGUAGE_NAMES[c] ?? c.toUpperCase()).join(", ")} translations of the same meaning; verbs as infinitives, nouns as nouns)`
     : "";
 
   const translationExample = languages.length > 0
     ? `,"translations":{${languages.map((c) => `"${c}":"..."`).join(",")}}`
     : "";
 
+  const knownWords = formatKnownWords(existingWords);
+  const knownWordsInstruction = knownWords
+    ? `\n- Do not return any of these words, the learner already has them: ${knownWords}`
+    : "";
+
   return `You are a JSON-only API. You must respond with valid JSON and nothing else.
 
-Extract ALL Danish words, phrases, and expressions from the following document. Parse mixed Danish/English content, grammar notes, and usage examples.
+The document below is typically a teacher's notes from a Danish class (mixed Danish/English: vocabulary from conversation, grammar notes, exercises, homework). Extract the Danish vocabulary a learner should study.
 
 CRITICAL FORMATTING RULES:
 - Your response must be a valid JSON array starting with [ and ending with ]
@@ -677,26 +723,33 @@ CRITICAL FORMATTING RULES:
 - Do not use markdown code fences
 - Do not add explanations
 
-For each Danish entry, create a JSON object with these fields:
-- "danish": the Danish word or phrase (strip leading "at " for verbs)
-- "english": English translation (strip leading "to " for verbs)
+For each entry, create a JSON object with these fields:
+- "danish": the dictionary form in lowercase (capitals only for proper nouns and acronyms). Strip a leading "at " for verbs and "en "/"et " for nouns.
+- "english": short English translation in lowercase; strip a leading "to " for verbs. If one Danish word has two meanings, join them with "; " (e.g. "touch; stir").
 - "type": one of "noun", "verb", "adjective", "expression", or "word"
-- "notes": any usage notes, context, or examples from the document (or empty string)
+- "notes": optional learner context from the document: a short example sentence, or a contrast the teacher drew (e.g. "tabe = lose a game; miste = lose something you had"). Empty string otherwise. Never grammar labels.
 - "grammar": object with type-appropriate Danish inflections:
-    - noun: { "article": "en" or "et", "singularDefinite": "...", "pluralIndefinite": "...", "pluralDefinite": "..." }
-    - verb: { "present": "...", "past": "...", "perfect": "har/er ..." }
-    - adjective: { "neuter": "...", "definite": "...", "plural": "...", "comparative": "...", "superlative": "..." }
+    - noun: { "article": "en" or "et", "singularDefinite": "...", "pluralIndefinite": "...", "pluralDefinite": "..." }. For plural-only nouns (bukser, briller) leave article and singularDefinite empty. Leave a field empty rather than invent a form that does not exist (no plural for uncountables like "slik").
+    - verb: { "present": "...", "past": "...", "perfect": "..." }. Perfect uses "er" for verbs of motion or change of state (er gået, er flyttet, er blevet), otherwise "har". Reflexive and particle verbs keep the particle in every form (slapper af, slappede af, har slappet af).
+    - adjective: { "neuter": "...", "definite": "...", "plural": "...", "comparative": "...", "superlative": "..." }. Use "mere"/"mest" for long adjectives and participles; leave comparative and superlative empty when they make no sense (jødisk, udsolgt).
     - expression, word: omit "grammar" entirely${translationInstruction}
 
-IMPORTANT INSTRUCTIONS:
-- Extract ALL Danish content: single words, phrases, expressions, idioms
+WHAT TO INCLUDE:
+- Single words, fixed expressions, collocations and idioms (holde øje med, have råd til, set i bakspejlet)
 - Handle mixed formats: "hus - house", "at spise = to eat", "stor (big)", etc.
-- If grammar notes are present in the document (e.g., "huset, huse, husene"), extract them into the grammar field
-- Only include genuine Danish words/phrases. Skip English-only entries and proper nouns.
-- If a word appears multiple times with different translations, create separate entries
-- The "notes" field is for learner context from the document, NOT for grammar labels
-- Generate appropriate grammar inflections even if not explicitly in the document
-- **CRITICAL DEDUPLICATION RULE**: If you encounter multiple inflected forms of the same word (e.g., "vokal" and "vokaler", "spise/spiser/spiste", "stor/stort/store"), return ONLY ONE ENTRY with the base/dictionary form as the "danish" field, and put all inflections in the appropriate grammar fields. Never create separate entries for different inflections of the same word.
+- If grammar notes are present in the document (e.g., "huset, huse, husene"), use them in the grammar field
+- Reusable sentence patterns, shortened to the pattern (e.g. "Jeg skulle have spurgt ham" -> "jeg skulle have", with the full sentence in "notes")
+- **CRITICAL DEDUPLICATION RULE**: inflected forms reduce to ONE entry in the base/dictionary form ("græd" -> græde, "fyringer" -> fyring, "sultne" -> sulten, "spise/spiser/spiste" -> spise). Never create separate entries for different inflections of the same word.
+- Correct obvious spelling mistakes in the document (e.g. "fjerdel" -> fjerdedel)
+
+WHAT TO SKIP:
+- Class admin: dates, homework instructions ("Hjemmearbejde", "I dag"), page or exercise references (s. 50, opg 11), URLs, book and podcast titles
+- Names of people, places, brands, films and shows; numbers written as digits; prices
+- Long personal sentences that are only anecdotes (keep at most the useful word or pattern inside them)
+- English-only lines
+
+DUPLICATES:
+- One entry per Danish spelling: the app treats entries with the same "danish" as duplicates regardless of type. If a spelling is both a noun and a verb, pick the more useful one and mention the other in "notes".${knownWordsInstruction}
 
 Document text:
 ${truncated}
@@ -704,9 +757,110 @@ ${truncated}
 RESPONSE FORMAT: Return ONLY compact JSON with no whitespace. Start with [ and end with ]. No newlines, no indentation, no spaces except inside string values.
 
 Example response format (compact, single line):
-[{"danish":"hus","english":"house","type":"noun","notes":"","grammar":{"article":"et","singularDefinite":"huset","pluralIndefinite":"huse","pluralDefinite":"husene"}${translationExample}},{"danish":"løbe","english":"run","type":"verb","notes":"common verb","grammar":{"present":"løber","past":"løb","perfect":"har løbet"}${translationExample}},{"danish":"stor","english":"big","type":"adjective","notes":"","grammar":{"neuter":"stort","definite":"store","plural":"store","comparative":"større","superlative":"størst"}${translationExample}},{"danish":"god morgen","english":"good morning","type":"expression","notes":"common greeting"${translationExample}}]`;
+[{"danish":"hus","english":"house","type":"noun","notes":"","grammar":{"article":"et","singularDefinite":"huset","pluralIndefinite":"huse","pluralDefinite":"husene"}${translationExample}},{"danish":"flytte","english":"move","type":"verb","notes":"","grammar":{"present":"flytter","past":"flyttede","perfect":"er flyttet"}${translationExample}},{"danish":"stor","english":"big","type":"adjective","notes":"","grammar":{"neuter":"stort","definite":"store","plural":"store","comparative":"større","superlative":"størst"}${translationExample}},{"danish":"have råd til","english":"afford","type":"expression","notes":"Jeg har ikke råd – I can't afford it"${translationExample}}]`;
 }
 
+const DIRECT_SYSTEM_INSTRUCTION =
+  "You are a JSON-only API. Return compact JSON with no whitespace (minified format). Never use markdown code fences. Never add explanations or text before/after the JSON. Your entire response must be parseable by JSON.parse().";
+
+function toEntryInputs(items: unknown[], languages: string[]): LexisEntryInput[] {
+  return items.flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+    const obj = item as Record<string, unknown>;
+    const danish = typeof obj.danish === "string" ? obj.danish.trim() : "";
+    if (!danish) return [];
+
+    const translations: Record<string, string> = {};
+    if (obj.translations && typeof obj.translations === "object") {
+      for (const code of languages) {
+        const v = (obj.translations as Record<string, unknown>)[code];
+        if (typeof v === "string" && v.trim()) translations[code] = v.trim();
+      }
+    }
+
+    const grammarRaw =
+      obj.grammar && typeof obj.grammar === "object" && !Array.isArray(obj.grammar)
+        ? (obj.grammar as Record<string, unknown>)
+        : {};
+    const grammar: Record<string, string> = {};
+    for (const [k, v] of Object.entries(grammarRaw)) {
+      if (typeof v === "string" && v.trim()) grammar[k] = v.trim();
+    }
+
+    return [{
+      danish,
+      english: typeof obj.english === "string" ? obj.english : "",
+      notes: typeof obj.notes === "string" ? obj.notes : "",
+      type: normalizeEntryTypeLocal(obj.type),
+      ...(Object.keys(translations).length > 0 ? { translations } : {}),
+      ...(Object.keys(grammar).length > 0 ? { grammar } : {}),
+    }];
+  });
+}
+
+interface DirectChunkResult {
+  entries: LexisEntryInput[];
+  truncated: boolean;
+  error?: string;
+}
+
+async function processDirectChunk(
+  chunk: string,
+  languages: string[],
+  existingWords: string[],
+  signal?: AbortSignal,
+): Promise<DirectChunkResult> {
+  let truncated = false;
+  const responseText = await callGemini(buildDirectProcessingPrompt(chunk, languages, existingWords), {
+    signal,
+    temperature: 0.2,
+    maxOutputTokens: 16384,
+    systemInstruction: DIRECT_SYSTEM_INSTRUCTION,
+  }).catch((error) => {
+    if (!(error instanceof GeminiTruncatedError)) throw error;
+    truncated = true;
+    return error.text;
+  });
+  throwIfAborted(signal);
+
+  const trimmed = responseText.trim();
+  let parsed = safeJsonParse<unknown>(trimmed);
+  if (!Array.isArray(parsed)) {
+    // Salvage complete objects from a response cut off mid-array.
+    const start = trimmed.indexOf("[");
+    const end = trimmed.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      const salvaged = safeJsonParse<unknown>(`${trimmed.slice(start, end + 1)}]`);
+      if (Array.isArray(salvaged) && salvaged.length > 0) {
+        console.warn(`Direct processing: salvaged ${salvaged.length} entries from a cut-off response`);
+        parsed = salvaged;
+        truncated = true;
+      }
+    }
+  }
+
+  if (!Array.isArray(parsed)) {
+    console.error("Direct processing: could not parse response. Length:", responseText.length);
+    console.error("Response preview (first 500 chars):", responseText.slice(0, 500));
+    const cutOff = trimmed.startsWith("[") && !trimmed.endsWith("]");
+    return {
+      entries: [],
+      truncated,
+      error: cutOff
+        ? "The AI response was cut off mid-response, likely because it exceeded the token limit. Try processing a shorter text."
+        : "Could not parse AI response as JSON array. The AI may have returned text in an unexpected format. Check the Gemini API response format in your browser console.",
+    };
+  }
+
+  return { entries: toEntryInputs(parsed, languages), truncated };
+}
+
+/**
+ * Extracts vocabulary from a document with Gemini. Long documents are split
+ * into chunks of DIRECT_CHUNK_CHARS (on line boundaries) and processed in
+ * sequence; results are merged, de-duplicated and filtered against
+ * `existingWords`.
+ */
 export async function processDocumentDirect(
   text: string,
   languages: string[],
@@ -720,272 +874,74 @@ export async function processDocumentDirect(
       ? { onProgress: optionsOrOnProgress }
       : optionsOrOnProgress ?? {};
   const { onProgress, signal } = options;
-  const existingSet = new Set(existingWords.map((w) => w.toLowerCase()));
-  
-  // Truncate text to 6000 characters if longer
-  const truncated = text.slice(0, 6000);
-  let wasTruncated = text.length > 6000;
+  const existingSet = new Set(existingWords.map((w) => entryKey({ danish: w, type: "word" })));
 
+  const chunks = splitDocumentIntoChunks(text);
+  const total = Math.max(chunks.length, 1);
   throwIfAborted(signal);
-  onProgress?.({ completed: 0, total: 1 });
+  onProgress?.({ completed: 0, total });
 
-  // Build the prompt using the helper function
-  const prompt = buildDirectProcessingPrompt(truncated, languages);
+  const allEntries: LexisEntryInput[] = [];
+  const seen = new Set<string>();
+  const errors: string[] = [];
+  let truncated = false;
 
-  try {
-    const responseText = await callGemini(prompt, {
-      signal,
-      temperature: 0.2,
-      maxOutputTokens: 16384, // Increased from 8192 to handle longer responses
-      systemInstruction: "You are a JSON-only API. Return compact JSON with no whitespace (minified format). Never use markdown code fences. Never add explanations or text before/after the JSON. Your entire response must be parseable by JSON.parse()."
-    }).catch(error => {
-      if (!(error instanceof GeminiTruncatedError)) throw error;
-      wasTruncated = true;
-      return error.text;
-    });
-    throwIfAborted(signal);
-    
-    // Log the actual response length for debugging
-    console.log("Direct processing: received response of length", responseText.length);
-    
-    // Check if response looks truncated (ends mid-JSON)
-    const trimmedResponse = responseText.trim();
-    const endsWithIncompleteJson = 
-      trimmedResponse.endsWith(',') || 
-      trimmedResponse.endsWith(':"') || 
-      trimmedResponse.endsWith('":') ||
-      trimmedResponse.endsWith('{"') ||
-      trimmedResponse.endsWith(',"') ||
-      trimmedResponse.endsWith('",') ||
-      /[,{]\s*"[^"]*"\s*:\s*"[^"]*$/.test(trimmedResponse) || // ends with incomplete key-value pair
-      /,\s*\{\s*"[^"]*"\s*:\s*"[^"]*$/.test(trimmedResponse) || // ends with incomplete object start
-      /"\s*:\s*"[^"]*$/.test(trimmedResponse); // ends with incomplete value
-    
-    if (endsWithIncompleteJson) {
-      console.warn("Direct processing: Response appears to be truncated (ends mid-JSON)");
-      console.warn("Response ends with:", trimmedResponse.slice(-100));
-      
-      // Try to salvage partial data by attempting to parse what we have
-      const lastCompleteObject = trimmedResponse.lastIndexOf('}');
-      if (lastCompleteObject > 0) {
-        const salvageAttempt = trimmedResponse.slice(0, lastCompleteObject + 1) + ']';
-        const salvaged = safeJsonParse<unknown>(salvageAttempt);
-        if (Array.isArray(salvaged) && salvaged.length > 0) {
-          console.log(`Salvaged ${salvaged.length} complete entries from truncated response`);
-          // Continue processing with salvaged data instead of returning error
-          // Fall through to normal parsing with salvageAttempt
-          const parsed = salvaged;
-          
-          // Process salvaged entries
-          const allEntries: LexisEntryInput[] = (parsed as unknown[]).flatMap((item) => {
-            if (!item || typeof item !== "object" || Array.isArray(item)) return [];
-            const obj = item as Record<string, unknown>;
-            const danish = typeof obj.danish === "string" ? obj.danish.trim() : "";
-            if (!danish) return [];
-
-            const translations: Record<string, string> = {};
-            if (obj.translations && typeof obj.translations === "object") {
-              for (const code of languages) {
-                const v = (obj.translations as Record<string, unknown>)[code];
-                if (typeof v === "string" && v.trim()) translations[code] = v.trim();
-              }
-            }
-
-            const grammarRaw =
-              obj.grammar && typeof obj.grammar === "object" && !Array.isArray(obj.grammar)
-                ? (obj.grammar as Record<string, unknown>)
-                : {};
-            const grammar: Record<string, string> = {};
-            for (const [k, v] of Object.entries(grammarRaw)) {
-              if (typeof v === "string" && v.trim()) grammar[k] = v.trim();
-            }
-
-            return [{
-              danish,
-              english: typeof obj.english === "string" ? obj.english : "",
-              notes: typeof obj.notes === "string" ? obj.notes : "",
-              type: normalizeEntryTypeLocal(obj.type),
-              ...(Object.keys(translations).length > 0 ? { translations } : {}),
-              ...(Object.keys(grammar).length > 0 ? { grammar } : {}),
-            }];
-          });
-
-          const newEntries = allEntries.filter(
-            (entry) => !existingSet.has(entry.danish.toLowerCase())
-          );
-
-          onProgress?.({ completed: 1, total: 1 });
-          return {
-            entries: newEntries,
-            totalExtracted: allEntries.length,
-            newWords: newEntries.length,
-            processed: newEntries.length,
-            truncated: true,
-            languages,
-            message: `⚠️ Response was truncated. Successfully imported ${newEntries.length} entries, but some may be missing. Try processing a shorter text for complete results.`,
-          };
-        }
+  for (let i = 0; i < chunks.length; i++) {
+    try {
+      const result = await processDirectChunk(chunks[i], languages, existingWords, signal);
+      truncated ||= result.truncated;
+      if (result.error) errors.push(result.error);
+      for (const entry of result.entries) {
+        const key = entryKey(entry);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        allEntries.push(entry);
       }
-      
-      // If salvage failed, return error
-      onProgress?.({ completed: 1, total: 1 });
-      return {
-        entries: [],
-        totalExtracted: 0,
-        newWords: 0,
-        processed: 0,
-        truncated: wasTruncated,
-        languages,
-        error: "The AI response was cut off mid-response, likely because it exceeded the token limit. Try processing a shorter text, or uncheck 'Direct processing' to use chunked mode.",
-      };
+    } catch (err) {
+      if (
+        err instanceof GeminiKeyMissingError ||
+        err instanceof GeminiKeyInvalidError ||
+        err instanceof ProcessingCancelledError
+      ) {
+        throw err;
+      }
+      if (err instanceof GeminiRateLimitError) {
+        // Keep what earlier chunks produced; only surface the error if nothing was extracted.
+        if (allEntries.length === 0) throw err;
+        errors.push(`Gemini rate limit reached after ${i} of ${chunks.length} parts.`);
+        break;
+      }
+      console.error("Direct processing failed:", err);
+      errors.push(err instanceof Error ? err.message : "Unknown error during processing");
     }
-    
-    const parsed = safeJsonParse<unknown>(responseText);
-    
-    // Enhanced logging and defensive type checking
-    if (parsed === null || parsed === undefined) {
-      console.error("Direct processing: safeJsonParse returned null/undefined");
-      console.error("Response length:", responseText.length);
-      console.error("Response starts with:", responseText.slice(0, 50));
-      console.error("Response ends with:", responseText.slice(-50));
-      console.error("Full response:", responseText);
-      console.error("Response preview (first 500 chars):", responseText.slice(0, 500));
-      console.error("Response preview (last 200 chars):", responseText.slice(-200));
-      
-      // Try to copy to clipboard for debugging
-      if (typeof navigator !== 'undefined' && navigator.clipboard) {
-        navigator.clipboard.writeText(responseText).then(() => {
-          console.log("✓ Full response copied to clipboard for debugging");
-        }).catch(() => {
-          console.log("To see full response, click the 'Full response:' log above or run: copy(arguments[0])", responseText);
-        });
-      }
-      
-      // Check if response looks like incomplete JSON
-      const trimmed = responseText.trim();
-      const startsWithJson = trimmed.startsWith('[') || trimmed.startsWith('{');
-      const endsWithJson = trimmed.endsWith(']') || trimmed.endsWith('}');
-      
-      if (startsWithJson && !endsWithJson) {
-        onProgress?.({ completed: 1, total: 1 });
-        return {
-          entries: [],
-          totalExtracted: 0,
-          newWords: 0,
-          processed: 0,
-          truncated: wasTruncated,
-          languages,
-          error: "The AI response was incomplete (JSON was cut off mid-response). This may be due to the response being too long. Try processing a shorter text, or use the two-step processing mode (uncheck 'Direct processing').",
-        };
-      }
-      
-      onProgress?.({ completed: 1, total: 1 });
-      return {
-        entries: [],
-        totalExtracted: 0,
-        newWords: 0,
-        processed: 0,
-        truncated: wasTruncated,
-        languages,
-        error: "Could not parse AI response as JSON array. The AI may have returned text in an unexpected format. Check the Gemini API response format in your browser console.",
-      };
-    }
-    
-    if (!Array.isArray(parsed)) {
-      console.error("Direct processing: AI did not return a JSON array");
-      console.error("Parsed result type:", typeof parsed);
-      console.error("Parsed result:", parsed);
-      console.error("Response length:", responseText.length);
-      console.error("Response preview (first 500 chars):", responseText.slice(0, 500));
-      onProgress?.({ completed: 1, total: 1 });
-      return {
-        entries: [],
-        totalExtracted: 0,
-        newWords: 0,
-        processed: 0,
-        truncated: wasTruncated,
-        languages,
-        error: `Could not parse AI response as JSON array. The AI returned a ${typeof parsed} instead. Check the Gemini API response format in your browser console.`,
-      };
-    }
-
-    // Parse entries from AI response
-    const allEntries: LexisEntryInput[] = (parsed as unknown[]).flatMap((item) => {
-      if (!item || typeof item !== "object" || Array.isArray(item)) return [];
-      const obj = item as Record<string, unknown>;
-      const danish = typeof obj.danish === "string" ? obj.danish.trim() : "";
-      if (!danish) return [];
-
-      const translations: Record<string, string> = {};
-      if (obj.translations && typeof obj.translations === "object") {
-        for (const code of languages) {
-          const v = (obj.translations as Record<string, unknown>)[code];
-          if (typeof v === "string" && v.trim()) translations[code] = v.trim();
-        }
-      }
-
-      const grammarRaw =
-        obj.grammar && typeof obj.grammar === "object" && !Array.isArray(obj.grammar)
-          ? (obj.grammar as Record<string, unknown>)
-          : {};
-      const grammar: Record<string, string> = {};
-      for (const [k, v] of Object.entries(grammarRaw)) {
-        if (typeof v === "string" && v.trim()) grammar[k] = v.trim();
-      }
-
-      return [{
-        danish,
-        english: typeof obj.english === "string" ? obj.english : "",
-        notes: typeof obj.notes === "string" ? obj.notes : "",
-        type: normalizeEntryTypeLocal(obj.type),
-        ...(Object.keys(translations).length > 0 ? { translations } : {}),
-        ...(Object.keys(grammar).length > 0 ? { grammar } : {}),
-      }];
-    });
-
-    // Filter out existing words (case-insensitive)
-    const newEntries = allEntries.filter(
-      (entry) => !existingSet.has(entry.danish.toLowerCase())
-    );
-
-    onProgress?.({ completed: 1, total: 1 });
-
-    return {
-      entries: newEntries,
-      totalExtracted: allEntries.length,
-      newWords: newEntries.length,
-      processed: newEntries.length,
-      truncated: wasTruncated,
-      languages,
-      ...(newEntries.length === 0 && allEntries.length > 0 
-        ? { message: "All extracted words already exist in your lexicon." }
-        : newEntries.length === 0 
-        ? { message: "No Danish words found in the document." }
-        : {}),
-    };
-  } catch (err) {
-    // Re-throw API errors
-    if (
-      err instanceof GeminiKeyMissingError ||
-      err instanceof GeminiKeyInvalidError ||
-      err instanceof GeminiRateLimitError || err instanceof ProcessingCancelledError
-    ) {
-      throw err;
-    }
-    
-    // Log and return error for other failures
-    console.error("Direct processing failed:", err);
-    onProgress?.({ completed: 1, total: 1 });
-    return {
-      entries: [],
-      totalExtracted: 0,
-      newWords: 0,
-      processed: 0,
-      truncated: wasTruncated,
-      languages,
-      error: err instanceof Error ? err.message : "Unknown error during processing",
-    };
+    onProgress?.({ completed: i + 1, total });
   }
+  onProgress?.({ completed: total, total });
+
+  const newEntries = allEntries.filter((entry) => !existingSet.has(entryKey(entry)));
+  const base = {
+    entries: newEntries,
+    totalExtracted: allEntries.length,
+    newWords: newEntries.length,
+    processed: newEntries.length,
+    truncated,
+    languages,
+  };
+
+  if (allEntries.length === 0 && errors.length > 0) {
+    return { ...base, error: errors[0] };
+  }
+
+  const messages: string[] = [];
+  if (allEntries.length === 0) messages.push("No Danish words found in the document.");
+  else if (newEntries.length === 0) messages.push("All extracted words already exist in your lexicon.");
+  if (errors.length > 0) {
+    messages.push(`${errors.length} of ${chunks.length} parts could not be processed: ${errors[0]}`);
+  }
+  if (truncated) {
+    messages.push("The AI response was cut off, so some words may be missing. Try processing a shorter text.");
+  }
+  return messages.length > 0 ? { ...base, message: messages.join(" ") } : base;
 }
 
 // ---------------------------------------------------------------------------
